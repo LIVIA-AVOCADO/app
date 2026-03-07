@@ -129,22 +129,11 @@ export async function middleware(request: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { data: tenant, error: tenantError } = await adminClient
+    const { data: tenant } = await adminClient
       .from('tenants')
       .select('subscription_status, subscription_current_period_end')
       .eq('id', userData!.tenant_id)
       .single();
-
-    // #region debug log
-    console.log('[middleware:subscription]', {
-      userId: user.id,
-      pathname,
-      tenantId: userData!.tenant_id,
-      tenantData: tenant,
-      tenantError: tenantError?.message || null,
-      previousCachedStatus: cachedStatus || null,
-    });
-    // #endregion
 
     subscriptionStatus = tenant?.subscription_status || 'inactive';
     periodEnd = tenant?.subscription_current_period_end || null;
@@ -164,15 +153,6 @@ export async function middleware(request: NextRequest) {
       });
     }
   }
-
-  // #region debug log
-  console.log('[middleware:sub-decision]', {
-    userId: user.id,
-    pathname,
-    subscriptionStatus,
-    fromCache: !!cachedStatus,
-  });
-  // #endregion
 
   if (subscriptionStatus === 'canceled' || subscriptionStatus === 'inactive') {
     const rechargeUrl = new URL('/financeiro/recarregar', request.url);
