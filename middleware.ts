@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 
 /**
  * Middleware de Auth + Assinatura
@@ -121,12 +122,27 @@ export async function middleware(request: NextRequest) {
   let periodEnd: string | null = cachedPeriodEnd || null;
 
   if (!subscriptionStatus) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: tenant } = await (supabase as any)
+    const adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    const { data: tenant, error: tenantError } = await adminClient
       .from('tenants')
       .select('subscription_status, subscription_current_period_end')
       .eq('id', userData!.tenant_id)
       .single();
+
+    // #region debug log
+    console.log('[middleware:subscription]', {
+      userId: user.id,
+      pathname,
+      tenantId: userData!.tenant_id,
+      tenantData: tenant,
+      tenantError: tenantError?.message || null,
+    });
+    // #endregion
 
     subscriptionStatus = tenant?.subscription_status || 'inactive';
     periodEnd = tenant?.subscription_current_period_end || null;
@@ -146,6 +162,15 @@ export async function middleware(request: NextRequest) {
       });
     }
   }
+
+  // #region debug log
+  console.log('[middleware:sub-decision]', {
+    userId: user.id,
+    pathname,
+    subscriptionStatus,
+    fromCache: !!cachedStatus,
+  });
+  // #endregion
 
   if (subscriptionStatus === 'canceled' || subscriptionStatus === 'inactive') {
     const rechargeUrl = new URL('/financeiro/recarregar', request.url);
