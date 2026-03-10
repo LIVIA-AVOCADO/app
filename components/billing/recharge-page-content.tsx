@@ -42,14 +42,24 @@ import { CustomAmountInput } from './custom-amount-input';
 import { useStripeBilling } from '@/hooks/use-stripe-billing';
 import type { WalletWithComputed, LedgerEntry } from '@/types/billing';
 import { formatBRL } from '@/types/billing';
-import { CREDIT_PACKAGES } from '@/types/stripe';
 import type { SubscriptionStatus } from '@/types/stripe';
+
+interface CreditPackageItem {
+  id: string;
+  name: string;
+  label: string | null;
+  price_brl_cents: number;
+  credits: number;
+  bonus_credits: number;
+  is_highlighted: boolean;
+}
 
 interface RechargePageContentProps {
   tenantId: string;
   tenantName: string;
   wallet: WalletWithComputed | null;
   rechargeHistory: LedgerEntry[];
+  creditPackages: CreditPackageItem[];
 }
 
 function formatDate(dateStr: string): string {
@@ -60,11 +70,10 @@ function formatDate(dateStr: string): string {
   });
 }
 
-const POPULAR_PACKAGE_ID = '1000';
-
 export function RechargePageContent({
   wallet,
   rechargeHistory,
+  creditPackages,
 }: RechargePageContentProps) {
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -266,47 +275,49 @@ export function RechargePageContent({
             Pacotes de Créditos
           </h2>
           <div className="grid gap-4 md:grid-cols-3">
-            {CREDIT_PACKAGES.map((pkg) => {
-              const isPopular = pkg.id === POPULAR_PACKAGE_ID;
-              return (
-                <Card
-                  key={pkg.id}
-                  className={`flex flex-col relative ${isPopular ? 'border-primary shadow-md' : ''}`}
-                >
-                  {isPopular && (
-                    <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2">
-                      Mais Popular
-                    </Badge>
-                  )}
-                  <CardHeader>
-                    <CardTitle className="text-2xl">
-                      R$ {(pkg.amountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
-                    </CardTitle>
-                    <CardDescription>
-                      {pkg.credits.toLocaleString('pt-BR')} créditos
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex-1">
-                    <p className="text-sm text-muted-foreground">
-                      Necessários para o Agente IA funcionar. Os créditos não expiram.
-                    </p>
-                  </CardContent>
-                  <CardFooter>
-                    <Button
-                      className="w-full"
-                      variant={isPopular ? 'default' : 'outline'}
-                      onClick={() => handleBuyCredits(pkg.id)}
-                      disabled={loadingPackage !== null}
-                    >
-                      {loadingPackage === pkg.id ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : null}
-                      Comprar
-                    </Button>
-                  </CardFooter>
-                </Card>
-              );
-            })}
+            {creditPackages.map((pkg) => (
+              <Card
+                key={pkg.id}
+                className={`flex flex-col relative ${pkg.is_highlighted ? 'border-primary shadow-md' : ''}`}
+              >
+                {pkg.is_highlighted && (
+                  <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+                    Mais Popular
+                  </Badge>
+                )}
+                <CardHeader>
+                  <CardTitle className="text-2xl">
+                    {pkg.label || `R$ ${(pkg.price_brl_cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`}
+                  </CardTitle>
+                  <CardDescription>
+                    {pkg.credits.toLocaleString('pt-BR')} créditos
+                    {pkg.bonus_credits > 0 && (
+                      <span className="text-green-600 ml-1">
+                        +{pkg.bonus_credits.toLocaleString('pt-BR')} bônus
+                      </span>
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <p className="text-sm text-muted-foreground">
+                    Necessários para o Agente IA funcionar. Os créditos não expiram.
+                  </p>
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    className="w-full"
+                    variant={pkg.is_highlighted ? 'default' : 'outline'}
+                    onClick={() => handleBuyCredits(pkg.id)}
+                    disabled={loadingPackage !== null}
+                  >
+                    {loadingPackage === pkg.id ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : null}
+                    Comprar
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         </div>
 

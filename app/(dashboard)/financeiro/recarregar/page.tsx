@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { RechargePageContent } from '@/components/billing/recharge-page-content';
 import { getWallet, getRechargeHistory } from '@/lib/queries/billing';
 
@@ -42,10 +43,19 @@ export default async function RecarregarPage() {
   }
 
   // Busca dados
-  const [wallet, rechargeHistory] = await Promise.all([
+  const adminSupabase = createAdminClient();
+  const [wallet, rechargeHistory, packagesResult] = await Promise.all([
     getWallet(tenantId),
     getRechargeHistory(tenantId, 10),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (adminSupabase as any)
+      .from('credit_packages')
+      .select('id, name, label, price_brl_cents, credits, bonus_credits, is_highlighted')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
   ]);
+
+  const creditPackages = packagesResult.data || [];
 
   return (
     <RechargePageContent
@@ -53,6 +63,7 @@ export default async function RecarregarPage() {
       tenantName={tenantName}
       wallet={wallet}
       rechargeHistory={rechargeHistory}
+      creditPackages={creditPackages}
     />
   );
 }

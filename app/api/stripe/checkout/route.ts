@@ -6,7 +6,7 @@ import {
   createCreditCheckoutSession,
   createSubscriptionCheckoutSession,
 } from '@/lib/stripe/helpers';
-import { CREDIT_PACKAGES } from '@/types/stripe';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { StripeErrorResponse } from '@/types/stripe';
 
 /**
@@ -72,8 +72,16 @@ export async function POST(request: NextRequest) {
     const input = parsed.data;
 
     if (input.mode === 'payment') {
-      const pkg = CREDIT_PACKAGES.find((p) => p.id === input.packageId);
-      if (!pkg) {
+      const adminSupabase = createAdminClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pkg, error: pkgError } = await (adminSupabase as any)
+        .from('credit_packages')
+        .select('price_brl_cents, credits')
+        .eq('id', input.packageId)
+        .eq('is_active', true)
+        .single();
+
+      if (pkgError || !pkg) {
         return NextResponse.json<StripeErrorResponse>(
           { error: 'Pacote não encontrado', code: 'package_not_found' },
           { status: 400 }
@@ -82,7 +90,7 @@ export async function POST(request: NextRequest) {
 
       url = await createCreditCheckoutSession(
         tenantId,
-        pkg.amountCents,
+        pkg.price_brl_cents,
         pkg.credits,
         successUrl,
         cancelUrl
