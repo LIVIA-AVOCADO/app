@@ -3,9 +3,7 @@ import { z } from 'zod';
 export const createCheckoutSchema = z.discriminatedUnion('mode', [
   z.object({
     mode: z.literal('payment'),
-    packageId: z.enum(['500', '1000', '1500'], {
-      message: 'Pacote inválido. Escolha 500, 1000 ou 1500.',
-    }),
+    packageId: z.string().uuid('ID de pacote inválido'),
   }),
   z.object({
     mode: z.literal('custom_payment'),
