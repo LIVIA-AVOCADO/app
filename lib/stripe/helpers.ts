@@ -21,9 +21,16 @@ export async function getOrCreateStripeCustomer(tenantId: string): Promise<strin
     throw new Error(`Tenant not found: ${tenantId}`);
   }
 
-  // Return existing customer
+  // Validate existing customer still exists in current Stripe environment (test vs live)
   if (tenant.stripe_customer_id) {
-    return tenant.stripe_customer_id;
+    try {
+      const existing = await getStripe().customers.retrieve(tenant.stripe_customer_id);
+      if (!existing.deleted) {
+        return tenant.stripe_customer_id;
+      }
+    } catch {
+      // Customer not found in current environment (e.g. test ID used in live mode) — create new one
+    }
   }
 
   // Create new Stripe customer
