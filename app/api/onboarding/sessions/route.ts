@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   const adminClient = createAdminClient();
 
   const { data, error } = await adminClient.rpc(
-    'create_session' as never,
+    'onboarding_create_session' as never,
     { p_template_id: templateId, p_created_by: user.id } as never
   );
 
@@ -47,5 +47,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ data });
+  // onboarding_create_session retorna RETURNS TABLE → array com 1 linha
+  const session = Array.isArray(data) ? data[0] : data;
+  return NextResponse.json({ data: session });
 }

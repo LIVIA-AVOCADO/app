@@ -66,6 +66,7 @@ export default async function DashboardLayout({
           userName={user?.full_name || 'Usuário'}
           tenantName={tenantName}
           avatarUrl={user?.avatar_url}
+          hasTenant={!!user?.tenant_id}
         />
         <SidebarInset className="flex flex-col w-full h-screen overflow-x-hidden pl-4 md:pl-6">
           <SubscriptionWarningBanner

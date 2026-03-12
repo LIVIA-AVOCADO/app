@@ -1,11 +1,12 @@
 /**
  * Queries para o módulo de Onboarding
  *
- * Tabelas do schema `onboarding` não têm tipos gerados —
- * usamos (supabase as any) com eslint-disable conforme padrão do projeto.
+ * Usa adminClient + RPCs wrapper no schema public para acessar
+ * tabelas do schema `onboarding` (não exposto no PostgREST).
+ * Segurança garantida por SECURITY DEFINER + validação de ownership.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type {
   OnboardingTemplate,
   OnboardingSession,
@@ -22,18 +23,14 @@ import type {
 export async function getActiveTemplates(): Promise<
   Record<string, OnboardingTemplate[]>
 > {
-  const supabase = await createClient();
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .schema('onboarding')
-    .from('onboarding_templates')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+  const { data, error } = await (createAdminClient().rpc as any)(
+    'onboarding_get_active_templates',
+    {}
+  );
 
   if (error) {
-    console.error('Error fetching onboarding templates:', error);
+    console.error('[onboarding] Error fetching templates:', JSON.stringify(error));
     return {};
   }
 
@@ -56,23 +53,19 @@ export async function getActiveTemplates(): Promise<
 export async function getTemplateById(
   templateId: string
 ): Promise<OnboardingTemplate | null> {
-  const supabase = await createClient();
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .schema('onboarding')
-    .from('onboarding_templates')
-    .select('*')
-    .eq('id', templateId)
-    .eq('is_active', true)
-    .maybeSingle();
+  const { data, error } = await (createAdminClient().rpc as any)(
+    'onboarding_get_template',
+    { p_template_id: templateId }
+  );
 
   if (error) {
-    console.error('Error fetching template:', error);
+    console.error('[onboarding] Error fetching template:', JSON.stringify(error));
     return null;
   }
 
-  return data as OnboardingTemplate | null;
+  const rows = data as OnboardingTemplate[] | null;
+  return rows?.[0] ?? null;
 }
 
 // ------------------------------------------------------------
@@ -86,26 +79,50 @@ export async function getSession(
   sessionId: string,
   userId: string
 ): Promise<OnboardingSessionWithTemplate | null> {
-  const supabase = await createClient();
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .schema('onboarding')
-    .from('tenant_onboarding_sessions')
-    .select(`
-      *,
-      template:onboarding_templates(*)
-    `)
-    .eq('id', sessionId)
-    .eq('created_by', userId)
-    .maybeSingle();
+  const { data, error } = await (createAdminClient().rpc as any)(
+    'onboarding_get_session',
+    { p_session_id: sessionId, p_user_id: userId }
+  );
 
   if (error) {
-    console.error('Error fetching onboarding session:', error);
+    console.error('[onboarding] Error fetching session:', JSON.stringify(error));
     return null;
   }
 
-  return data as OnboardingSessionWithTemplate | null;
+  const rows = (data ?? []) as Record<string, unknown>[];
+  if (rows.length === 0) return null;
+
+  const row = rows[0] as Record<string, unknown>;
+  // Remonta o objeto com template aninhado (campos prefixados t_ pelo RPC)
+  return {
+    id:              row.id,
+    template_id:     row.template_id,
+    created_by:      row.created_by,
+    tenant_id:       row.tenant_id,
+    status:          row.status,
+    payload:         row.payload,
+    current_step:    row.current_step,
+    completed_steps: row.completed_steps,
+    error_message:   row.error_message,
+    activated_at:    row.activated_at,
+    updated_at:      row.updated_at,
+    created_at:      row.created_at,
+    template: {
+      id:                   row.t_id,
+      name:                 row.t_name,
+      niche:                row.t_niche,
+      description:          row.t_description,
+      default_neurocore_id: row.t_default_neurocore_id,
+      wizard_schema:        row.t_wizard_schema,
+      default_payload:      row.t_default_payload,
+      activation_rules:     row.t_activation_rules,
+      is_active:            row.t_is_active,
+      sort_order:           row.t_sort_order,
+      created_at:           row.t_created_at,
+      updated_at:           row.t_updated_at,
+    },
+  } as unknown as OnboardingSessionWithTemplate;
 }
 
 /**
@@ -115,23 +132,17 @@ export async function getSession(
 export async function getUserLatestSession(
   userId: string
 ): Promise<OnboardingSession | null> {
-  const supabase = await createClient();
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .schema('onboarding')
-    .from('tenant_onboarding_sessions')
-    .select('*')
-    .eq('created_by', userId)
-    .not('status', 'in', '("active","failed")')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await (createAdminClient().rpc as any)(
+    'onboarding_get_latest_session',
+    { p_user_id: userId }
+  );
 
   if (error) {
-    console.error('Error fetching latest onboarding session:', error);
+    console.error('[onboarding] Error fetching latest session:', JSON.stringify(error));
     return null;
   }
 
-  return data as OnboardingSession | null;
+  const rows = data as OnboardingSession[] | null;
+  return rows?.[0] ?? null;
 }

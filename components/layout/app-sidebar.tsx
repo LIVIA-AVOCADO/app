@@ -45,15 +45,21 @@ interface AppSidebarProps {
   userName?: string;
   tenantName?: string;
   avatarUrl?: string;
+  hasTenant?: boolean;
 }
 
 export function AppSidebar({
   userName = 'Usuário',
   tenantName,
   avatarUrl,
+  hasTenant = false,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const visibleNavItems = hasTenant
+    ? navItems.filter((item) => !item.url.startsWith('/onboarding'))
+    : navItems;
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -103,7 +109,7 @@ export function AppSidebar({
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 // Check if current path matches this item or any of its subitems
                 const baseUrl = item.url.split('?')[0] ?? item.url;
                 const isActive = item.items

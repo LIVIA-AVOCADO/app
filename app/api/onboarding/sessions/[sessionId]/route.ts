@@ -63,7 +63,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const adminClient = createAdminClient();
 
   const { data, error } = await adminClient.rpc(
-    'save_step' as never,
+    'onboarding_save_step' as never,
     {
       p_session_id:   sessionId,
       p_step_key:     stepKey,

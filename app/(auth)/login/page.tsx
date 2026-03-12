@@ -34,7 +34,7 @@ export default async function LoginPage() {
         <LoginForm />
 
         <p className="mt-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
-          Tem um código de convite?{' '}
+          Não tem conta?{' '}
           <a
             href="/signup"
             className="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
