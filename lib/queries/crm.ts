@@ -119,7 +119,6 @@ export async function getConversationStatusCounts(
   tenantId: string
 ): Promise<{
   open: number;
-  paused: number;
   closed: number;
   all: number;
 }> {
@@ -132,19 +131,17 @@ export async function getConversationStatusCounts(
 
   if (error) {
     console.error('Error fetching conversation counts:', error);
-    return { open: 0, paused: 0, closed: 0, all: 0 };
+    return { open: 0, closed: 0, all: 0 };
   }
 
   const counts = {
     open: 0,
-    paused: 0,
     closed: 0,
     all: data.length,
   };
 
   data.forEach((conv: any) => {
     if (conv.status === 'open') counts.open++;
-    else if (conv.status === 'paused') counts.paused++;
     else if (conv.status === 'closed') counts.closed++;
   });
 

@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     // Generated database types from Supabase CLI:
     "types/database.ts",
     "types/database-old.ts",
+    // Large dashboard types file:
+    "types/dashboard.ts",
   ]),
   // Custom strict rules for LIVIA MVP
   {

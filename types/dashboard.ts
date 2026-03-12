@@ -13,7 +13,7 @@ export interface DashboardFilters {
   endDate?: Date;
   channelId?: string | null;
   agentId?: string | null;
-  status?: 'open' | 'paused' | 'closed' | null;
+  status?: 'open' | 'closed' | null;
 }
 
 // ============================================================================
@@ -98,7 +98,6 @@ export interface HeatmapData {
  */
 export interface StatusFunnelData {
   open: number;
-  paused: number;
   closed: number;
 }
 
@@ -322,7 +321,6 @@ export interface FunnelKPIs {
 export interface StatusEvolutionData {
   date: string; // ISO date
   open: number;
-  paused: number;
   closed: number;
 }
 

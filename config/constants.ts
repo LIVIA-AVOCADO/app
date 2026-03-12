@@ -147,7 +147,6 @@ export const MIN_SIMILARITY_SCORE = 0.3;
  */
 export const CONVERSATION_STATUS = {
   OPEN: 'open',
-  PAUSED: 'paused',
   CLOSED: 'closed',
 } as const;
 

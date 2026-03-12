@@ -133,7 +133,7 @@ export interface ContactFilters {
  */
 export interface ConversationFilters {
   search?: string; // Busca por nome ou phone do contato
-  status?: Conversation['status']; // 'open' | 'paused' | 'closed'
+  status?: Conversation['status']; // 'open' | 'closed'
   categoryId?: string; // Filtrar por categoria específica
   includeClosedConversations?: boolean; // Se true, inclui conversas encerradas
   limit?: number;

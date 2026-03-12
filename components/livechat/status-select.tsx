@@ -39,10 +39,6 @@ const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
     label: 'Ativa',
     badgeClass: 'bg-green-600 text-white',
   },
-  [CONVERSATION_STATUS.PAUSED]: {
-    label: 'Aguardando',
-    badgeClass: 'bg-yellow-600 text-white',
-  },
   [CONVERSATION_STATUS.CLOSED]: {
     label: 'Encerrada',
     badgeClass: 'bg-gray-600 text-white',
