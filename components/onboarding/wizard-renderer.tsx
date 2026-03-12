@@ -1,18 +1,32 @@
 'use client';
 
 import type { WizardStepConfig, StepProps } from '@/types/onboarding';
-import { CompanyStep }    from './steps/company-step';
-import { AgentStep }      from './steps/agent-step';
-import { KnowledgeStep }  from './steps/knowledge-step';
-import { TagsStep }       from './steps/tags-step';
+import { CompanyStep }           from './steps/company-step';
+import { BusinessProfileStep }   from './steps/business-profile-step';
+import { CatalogStep }           from './steps/catalog-step';
+import { FaqStep }               from './steps/faq-step';
+import { ServiceStep }           from './steps/service-step';
+import { ScriptStep }            from './steps/script-step';
+import { AgentStep }             from './steps/agent-step';
+import { AiOperationStep }       from './steps/ai-operation-step';
+import { ConversationRulesStep } from './steps/conversation-rules-step';
+import { KnowledgeStep }         from './steps/knowledge-step';
+import { TagsStep }              from './steps/tags-step';
 
 // Mapeamento estático: step.key → componente React
 // Aberto para extensão (adicionar novos steps aqui), fechado para modificação no renderer.
 const STEP_COMPONENTS: Record<string, React.ComponentType<StepProps>> = {
-  company:    CompanyStep,
-  agent:      AgentStep,
-  knowledge:  KnowledgeStep,
-  tags:       TagsStep,
+  company:            CompanyStep,
+  business_profile:   BusinessProfileStep,
+  catalog:            CatalogStep,
+  faq:                FaqStep,
+  service:            ServiceStep,
+  script:             ScriptStep,
+  agent:              AgentStep,
+  ai_operation:       AiOperationStep,
+  conversation_rules: ConversationRulesStep,
+  knowledge:          KnowledgeStep,
+  tags:               TagsStep,
 };
 
 interface WizardRendererProps extends StepProps {
