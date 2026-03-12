@@ -15,8 +15,10 @@ import { createClient } from '@supabase/supabase-js';
 
 const PUBLIC_ROUTES = [
   '/login',
+  '/signup',
   '/auth/callback',
   '/api/stripe/webhook',
+  '/api/auth/signup',
   '/financeiro/checkout',
 ];
 

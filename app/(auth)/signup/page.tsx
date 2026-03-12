@@ -1,13 +1,12 @@
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
-import { LoginForm } from '@/components/auth/login-form';
+import { SignupForm } from '@/components/auth/signup-form';
 
-export default async function LoginPage() {
+export default async function SignupPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Se já estiver logado, redireciona para livechat
   if (user) {
     redirect('/livechat');
   }
@@ -31,19 +30,9 @@ export default async function LoginPage() {
           </p>
         </div>
 
-        <LoginForm />
+        <SignupForm />
 
-        <p className="mt-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
-          Tem um código de convite?{' '}
-          <a
-            href="/signup"
-            className="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
-          >
-            Criar conta
-          </a>
-        </p>
-
-        <p className="mt-3 text-center text-xs text-zinc-500 dark:text-zinc-500">
+        <p className="mt-6 text-center text-xs text-zinc-500 dark:text-zinc-500">
           MVP - WhatsApp Customer Service Platform
         </p>
       </div>

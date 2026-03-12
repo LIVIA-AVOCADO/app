@@ -46,6 +46,11 @@ export function LoginForm() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const searchParams = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search)
+    : null;
+  const justRegistered = searchParams?.get('cadastro') === 'ok';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -104,6 +109,12 @@ export function LoginForm() {
 
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
+          {justRegistered && (
+            <div className="rounded-lg bg-green-50 dark:bg-green-950/20 p-3 text-sm text-green-600 dark:text-green-400">
+              Conta criada com sucesso! Faça login para continuar.
+            </div>
+          )}
+
           {error && (
             <div className="rounded-lg bg-red-50 dark:bg-red-950/20 p-3 text-sm text-red-600 dark:text-red-400">
               {error}
