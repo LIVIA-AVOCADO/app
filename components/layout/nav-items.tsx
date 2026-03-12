@@ -1,4 +1,4 @@
-import { MessageSquare, BookOpen, Kanban, Bot, BarChart3, Wallet, Settings } from 'lucide-react';
+import { MessageSquare, BookOpen, Kanban, Bot, BarChart3, Wallet, Settings, Rocket } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 /**
@@ -25,6 +25,12 @@ export interface NavItem {
  * Arquivo dedicado apenas à configuração de navegação
  */
 export const navItems: NavItem[] = [
+  {
+    title: 'Onboarding',
+    url:   '/onboarding',
+    icon:  Rocket,
+    badge: 'NEW',
+  },
   {
     title: 'Livechat',
     url: '/livechat',

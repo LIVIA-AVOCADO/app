@@ -22,7 +22,7 @@ const PUBLIC_ROUTES = [
   '/financeiro/checkout',
 ];
 
-const TENANT_EXEMPT_ROUTES = ['/aguardando-acesso', '/perfil'];
+const TENANT_EXEMPT_ROUTES = ['/aguardando-acesso', '/perfil', '/onboarding'];
 
 const SUBSCRIPTION_CACHE_TTL_SECONDS = 300;
 
@@ -42,7 +42,8 @@ function isDashboardRoute(pathname: string): boolean {
     pathname.startsWith('/reativacao') ||
     pathname.startsWith('/relatorios') ||
     pathname.startsWith('/aguardando-acesso') ||
-    pathname.startsWith('/gerenciar-usuarios')
+    pathname.startsWith('/gerenciar-usuarios') ||
+    pathname.startsWith('/onboarding')
   );
 }
 
