@@ -237,7 +237,6 @@ export function useRealtimeConversations(
           event: '*',
           schema: 'public',
           table: 'conversations',
-          filter: `tenant_id=eq.${tenantId}`,
         },
         handleConversationChange
       )
