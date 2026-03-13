@@ -98,7 +98,7 @@ export function LivechatContent({
           // Skeleton aparece INSTANTANEAMENTE
           <div className="flex flex-col h-full">
             <div className="p-4 border-b">
-              <div className="h-6 w-48 bg-muted animate-pulse rounded" />
+              <div className="h-6 w-48 bg-foreground/[0.08] animate-pulse rounded" />
             </div>
             <MessagesSkeleton />
           </div>
