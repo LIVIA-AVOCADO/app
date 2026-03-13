@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { MessageSquare, ArrowLeft } from 'lucide-react';
 import { ContactList } from './contact-list';
 import { ConversationView } from './conversation-view';
 import { CustomerDataPanel } from './customer-data-panel';
@@ -38,7 +39,12 @@ export function LivechatContent({
     if (selectedConversationId) {
       updateConversation(selectedConversationId, updates);
     }
-  }, [selectedConversationId, updateConversation]);
+    // Ao encerrar conversa, volta para o empty state após breve delay
+    // para que o usuário veja o feedback visual antes de navegar
+    if (updates.status === 'closed') {
+      setTimeout(() => router.push('/livechat'), 600);
+    }
+  }, [selectedConversationId, updateConversation, router]);
 
   // Handler que dispara ANTES da navegação
   const handleConversationClick = (conversationId: string) => {
@@ -108,12 +114,23 @@ export function LivechatContent({
             onConversationUpdate={handleConversationUpdate}
           />
         ) : (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center space-y-2">
-              <h2 className="text-xl font-semibold">Selecione uma conversa</h2>
-              <p className="text-muted-foreground">
-                Escolha uma conversa para visualizar as mensagens
-              </p>
+          <div className="flex h-full items-center justify-center animate-in fade-in-0 duration-300">
+            <div className="text-center space-y-4 max-w-sm px-6">
+              <div className="flex justify-center">
+                <div className="w-16 h-16 rounded-2xl icon-gradient-brand flex items-center justify-center shadow-md">
+                  <MessageSquare className="h-8 w-8 text-white" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <h2 className="text-xl font-semibold">Selecione uma conversa</h2>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Escolha um atendimento no painel ao lado para visualizar as mensagens e interagir com o cliente.
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/70">
+                <ArrowLeft className="h-3 w-3" />
+                <span>Use os filtros para encontrar conversas mais rapidamente</span>
+              </div>
             </div>
           </div>
         )}
