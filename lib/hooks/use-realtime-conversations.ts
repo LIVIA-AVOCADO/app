@@ -219,6 +219,13 @@ export function useRealtimeConversations(
 
     // #region agent log
     console.log('[RT-DBG] subscribe()', {tenantId, channels: supabase.getChannels().length, retryCount: retryCountRef.current});
+    supabase.auth.getSession().then(({data}) => {
+      const uid = data?.session?.user?.id;
+      console.log('[RT-DBG] session', {uid: uid?.slice(0,8), email: data?.session?.user?.email});
+      supabase.from('conversations').select('id').eq('tenant_id', tenantId).limit(1).then(({data: rows, error: qErr}) => {
+        console.log('[RT-DBG] postrest-query', {rows: rows?.length, error: qErr?.message || null});
+      });
+    });
     // #endregion
 
     if (retryTimeoutRef.current) {
