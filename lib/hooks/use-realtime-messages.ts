@@ -121,6 +121,9 @@ export function useRealtimeMessages(
         handleUpdate
       )
       .subscribe((status, err) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7468/ingest/9ca4e704-5ea1-4ecc-bdf2-ebf3d33f0fe1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7c8c6a'},body:JSON.stringify({sessionId:'7c8c6a',location:'use-realtime-messages.ts:status',message:`msgs status=${status}`,data:{status,err:err?.message||null,conversationId,channels:supabaseRef.current.getChannels().length},timestamp:Date.now(),hypothesisId:'H1,H2'})}).catch(()=>{});
+        // #endregion
         if (status === 'SUBSCRIBED') {
           retryCountRef.current = 0;
           return;
