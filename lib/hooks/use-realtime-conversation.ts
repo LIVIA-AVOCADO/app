@@ -19,7 +19,9 @@ const BASE_DELAY = 1000;
 
 export function useRealtimeConversation(initialConversation: Conversation) {
   const [conversation, setConversation] = useState<Conversation>(initialConversation);
-  const supabase = createClient();
+
+  // Instância única do Supabase — nunca recriada
+  const supabaseRef = useRef(createClient());
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const retryCountRef = useRef(0);
@@ -38,6 +40,8 @@ export function useRealtimeConversation(initialConversation: Conversation) {
 
   // Subscribe with retry logic
   const subscribe = useCallback(() => {
+    const supabase = supabaseRef.current;
+
     // Clean up existing channel
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
@@ -61,7 +65,7 @@ export function useRealtimeConversation(initialConversation: Conversation) {
           retryCountRef.current = 0;
         }
 
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           if (retryCountRef.current < MAX_RETRIES) {
             const delay = Math.min(BASE_DELAY * Math.pow(2, retryCountRef.current), 30000);
 
@@ -74,10 +78,11 @@ export function useRealtimeConversation(initialConversation: Conversation) {
       });
 
     channelRef.current = channel;
-  }, [supabase, initialConversation.id, handleUpdate]);
+  }, [initialConversation.id, handleUpdate]);
 
   useEffect(() => {
     subscribe();
+    const supabase = supabaseRef.current;
 
     return () => {
       // Cleanup on unmount
@@ -86,6 +91,7 @@ export function useRealtimeConversation(initialConversation: Conversation) {
       }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

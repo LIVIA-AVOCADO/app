@@ -58,9 +58,22 @@ export function useRealtimeMessages(
 
     const newMessage: MessageWithSender = { ...payload.new, senderUser };
     setMessages((prev) => {
-      // Evita duplicata (pode chegar via SSR e realtime ao mesmo tempo)
-      if (prev.some((m) => m.id === newMessage.id)) return prev;
+      const existingIndex = prev.findIndex((m) => m.id === newMessage.id);
+      // Substitui mensagem otimista (sem senderUser) pela versão completa do realtime
+      if (existingIndex !== -1) {
+        const result = [...prev];
+        result[existingIndex] = newMessage;
+        return result;
+      }
       return [...prev, newMessage];
+    });
+  }, []);
+
+  // Inserção otimista — chamada imediatamente após o envio, sem esperar realtime
+  const addMessage = useCallback((message: MessageWithSender) => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === message.id)) return prev;
+      return [...prev, message];
     });
   }, []);
 
@@ -139,5 +152,5 @@ export function useRealtimeMessages(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  return { messages };
+  return { messages, addMessage };
 }

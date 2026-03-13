@@ -10,6 +10,7 @@ import { QuickReplyCommand } from './quick-reply-command';
 import { useQuickReplyCommand } from '@/hooks/use-quick-reply-command';
 import { usePrefetchQuickReplies } from '@/hooks/use-quick-replies-cache';
 import type { Conversation } from '@/types/database-helpers';
+import type { MessageWithSender } from '@/types/livechat';
 import { PauseIAConfirmDialog } from './pause-ia-confirm-dialog';
 import { useApiCall } from '@/lib/hooks';
 
@@ -18,6 +19,7 @@ interface MessageInputProps {
   tenantId: string;
   contactName: string;
   onSend?: () => void;
+  onMessageSent?: (message: MessageWithSender) => void;
   disabled?: boolean;
 }
 
@@ -26,6 +28,7 @@ export function MessageInput({
   tenantId,
   contactName,
   onSend,
+  onMessageSent,
   disabled = false,
 }: MessageInputProps) {
   const [content, setContent] = useState('');
@@ -103,6 +106,31 @@ export function MessageInput({
 
       if (!result) {
         toast.error('Erro ao enviar mensagem');
+        return;
+      }
+
+      // Inserção otimista: exibe a mensagem imediatamente sem esperar realtime
+      const resp = result as { message?: { id: string; status?: string } };
+      if (resp.message?.id && onMessageSent) {
+        const now = new Date().toISOString();
+        const optimisticMessage: MessageWithSender = {
+          id: resp.message.id,
+          conversation_id: conversation.id,
+          content: messageContent,
+          sender_type: 'attendant',
+          sender_user_id: null,
+          sender_agent_id: null,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          status: (resp.message.status ?? 'pending') as any,
+          timestamp: now,
+          created_at: now,
+          updated_at: now,
+          external_message_id: null,
+          feedback_text: null,
+          feedback_type: null,
+          senderUser: null,
+        };
+        onMessageSent(optimisticMessage);
       }
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);

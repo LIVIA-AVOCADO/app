@@ -34,7 +34,7 @@ export function ConversationView({
   conversationTags,
   onConversationUpdate,
 }: ConversationViewProps) {
-  const { messages } = useRealtimeMessages(
+  const { messages, addMessage } = useRealtimeMessages(
     initialConversation.id,
     initialMessages
   );
@@ -59,7 +59,6 @@ export function ConversationView({
   // Detecta mudança de conversa
   useEffect(() => {
     if (initialConversation.id !== currentConvId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoadingTransition(true);
       setCurrentConvId(initialConversation.id);
       loadingStartTimeRef.current = Date.now();
@@ -133,6 +132,7 @@ export function ConversationView({
         tenantId={tenantId}
         contactName={contactName}
         disabled={conversation.status === 'closed'}
+        onMessageSent={addMessage}
       />
     </div>
   );
