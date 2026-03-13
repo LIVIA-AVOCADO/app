@@ -246,7 +246,7 @@ export function useRealtimeConversations(
 
     const channel = supabase
       .channel(`livechat:${tenantId}`, {
-        config: { broadcast: { self: false } },
+        config: { broadcast: { self: true } },
       })
       .on<Conversation>(
         'postgres_changes',
@@ -271,6 +271,14 @@ export function useRealtimeConversations(
         }
         // #endregion
       )
+      // #region agent log
+      .on('system', {}, (payload: unknown) => {
+        console.log('[RT-DBG] SYSTEM', payload);
+      })
+      .on('broadcast', { event: 'ping' }, () => {
+        console.log('[RT-DBG] BROADCAST-PONG received');
+      })
+      // #endregion
       .subscribe((status, err) => {
         // #region agent log
         console.log('[RT-DBG] status', {status, err: err?.message || null, retryCount: retryCountRef.current, channels: supabaseRef.current.getChannels().length});
@@ -278,6 +286,12 @@ export function useRealtimeConversations(
 
         if (status === 'SUBSCRIBED') {
           isSubscribedRef.current = true;
+          // #region agent log
+          if (channelRef.current) {
+            channelRef.current.send({ type: 'broadcast', event: 'ping', payload: { t: Date.now() } });
+            console.log('[RT-DBG] broadcast ping sent');
+          }
+          // #endregion
           if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
           stabilityTimerRef.current = setTimeout(() => {
             retryCountRef.current = 0;
