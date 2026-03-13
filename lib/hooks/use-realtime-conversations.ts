@@ -240,6 +240,22 @@ export function useRealtimeConversations(
         },
         handleConversationChange
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload: unknown) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const p = payload as any;
+          console.log(`[RT] MSG event=${p.eventType} conv=${p.new?.conversation_id?.slice(0,8)}`);
+        }
+      )
+      .on('system', {}, (payload: unknown) => {
+        console.log('[RT] SYSTEM:', payload);
+      })
       .subscribe((status, err) => {
         console.log(`[RT] status=${status} tenant=${tenantId?.slice(0,8)} err=${err?.message || 'none'}`);
 
