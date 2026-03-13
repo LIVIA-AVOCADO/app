@@ -247,9 +247,22 @@ export function useRealtimeConversations(
           event: '*',
           schema: 'public',
           table: 'conversations',
-          filter: `tenant_id=eq.${tenantId}`,
         },
         handleConversationChange
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+        },
+        // #region agent log
+        (payload: unknown) => {
+          const p = payload as {eventType?: string; new?: {conversation_id?: string}};
+          console.log('[RT-DBG] MSG-RAW', {eventType: p.eventType, convId: p.new?.conversation_id?.slice(0,8)});
+        }
+        // #endregion
       )
       .subscribe((status, err) => {
         // #region agent log
