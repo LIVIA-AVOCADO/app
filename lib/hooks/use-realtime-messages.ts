@@ -3,9 +3,14 @@
 /**
  * Hook: useRealtimeMessages
  *
- * Subscreve em tempo real às novas mensagens de uma conversa
+ * Subscreve em tempo real às mensagens de uma conversa específica.
  *
- * Inclui reconexão automática com backoff exponencial
+ * Design decisions:
+ * - supabase via useRef → instância única, sem recriação a cada render
+ * - Canal recriado apenas quando conversationId muda
+ * - Retry exponencial com MAX_RETRIES tentativas
+ * - handleInsert async: busca info do sender apenas para mensagens
+ *   de attendant; mensagens de customer/ai são adicionadas imediatamente
  */
 
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -14,27 +19,34 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { MessageWithSender } from '@/types/livechat';
 import type { Message } from '@/types/database-helpers';
 
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 10;
 const BASE_DELAY = 1000;
 
-export function useRealtimeMessages(conversationId: string, initialMessages: MessageWithSender[]) {
+export function useRealtimeMessages(
+  conversationId: string,
+  initialMessages: MessageWithSender[]
+) {
   const [messages, setMessages] = useState<MessageWithSender[]>(initialMessages);
-  const supabase = createClient();
+
+  // Instância única do Supabase — nunca recriada
+  const supabaseRef = useRef(createClient());
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Reset messages when conversation changes
+  // Reseta mensagens ao trocar de conversa
   useEffect(() => {
     setMessages(initialMessages);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  // Handler for new messages (INSERT)
+  // INSERT — nova mensagem chegou
   const handleInsert = useCallback(async (payload: { new: Message }) => {
-    // Fetch sender info if needed
+    const supabase = supabaseRef.current;
     let senderUser = null;
+
+    // Busca dados do atendente apenas se necessário
     if (payload.new.sender_type === 'attendant' && payload.new.sender_user_id) {
       const { data } = await supabase
         .from('users')
@@ -44,36 +56,31 @@ export function useRealtimeMessages(conversationId: string, initialMessages: Mes
       senderUser = data;
     }
 
-    const newMessage: MessageWithSender = {
-      ...payload.new,
-      senderUser,
-    };
+    const newMessage: MessageWithSender = { ...payload.new, senderUser };
+    setMessages((prev) => {
+      // Evita duplicata (pode chegar via SSR e realtime ao mesmo tempo)
+      if (prev.some((m) => m.id === newMessage.id)) return prev;
+      return [...prev, newMessage];
+    });
+  }, []);
 
-    setMessages((prev) => [...prev, newMessage]);
-  }, [supabase]);
-
-  // Handler for message updates (UPDATE)
+  // UPDATE — status ou conteúdo de mensagem alterado
   const handleUpdate = useCallback((payload: { new: Message }) => {
     setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === payload.new.id
-          ? { ...msg, ...payload.new }
-          : msg
-      )
+      prev.map((msg) => (msg.id === payload.new.id ? { ...msg, ...payload.new } : msg))
     );
   }, []);
 
-  // Subscribe with retry logic
   const subscribe = useCallback(() => {
-    // Clean up existing channel
+    const supabase = supabaseRef.current;
+
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
     const channel = supabase
-      .channel(`conversation:${conversationId}:messages`)
-      // Listener for INSERT (new message)
+      .channel(`messages:${conversationId}`)
       .on<Message>(
         'postgres_changes',
         {
@@ -84,7 +91,6 @@ export function useRealtimeMessages(conversationId: string, initialMessages: Mes
         },
         handleInsert
       )
-      // Listener for UPDATE (status update)
       .on<Message>(
         'postgres_changes',
         {
@@ -95,15 +101,19 @@ export function useRealtimeMessages(conversationId: string, initialMessages: Mes
         },
         handleUpdate
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           retryCountRef.current = 0;
+          return;
         }
 
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          if (err) {
+            console.error('[useRealtimeMessages] channel error:', err);
+          }
+
           if (retryCountRef.current < MAX_RETRIES) {
             const delay = Math.min(BASE_DELAY * Math.pow(2, retryCountRef.current), 30000);
-
             retryTimeoutRef.current = setTimeout(() => {
               retryCountRef.current++;
               subscribe();
@@ -113,18 +123,17 @@ export function useRealtimeMessages(conversationId: string, initialMessages: Mes
       });
 
     channelRef.current = channel;
-  }, [supabase, conversationId, handleInsert, handleUpdate]);
+  }, [conversationId, handleInsert, handleUpdate]);
 
   useEffect(() => {
     subscribe();
+    const supabase = supabaseRef.current;
 
     return () => {
-      // Cleanup on unmount
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

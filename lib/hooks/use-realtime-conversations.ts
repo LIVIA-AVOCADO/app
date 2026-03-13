@@ -3,19 +3,18 @@
 /**
  * Hook: useRealtimeConversations
  *
- * Versão otimizada que trabalha DIRETAMENTE com ConversationWithContact[]
+ * Canal único (single WebSocket) para todas as mudanças do livechat:
+ * - UPDATE/INSERT/DELETE em conversations
+ * - INSERT em messages (atualiza preview e move conversa para o topo)
+ * - * em conversation_tags (atualiza tags)
  *
- * Subscreve em tempo real:
- * - Mudanças de status (UPDATE em conversations)
- * - Novas conversas (INSERT em conversations)
- * - Conversas deletadas (DELETE em conversations)
- * - Novas mensagens (INSERT em messages - para atualizar preview/timestamp)
- * - Mudanças em tags (INSERT/UPDATE/DELETE em conversation_tags)
- *
- * Inclui:
- * - Reconexão automática com backoff exponencial
- * - Proteção contra race condition (initialData vs realtime)
- * - Debounce no re-sort para performance
+ * Design decisions:
+ * - Um único .channel() com múltiplos .on() → menos pontos de falha,
+ *   um único WebSocket, um único handler de status com retry
+ * - supabase via useRef → instância única por hook, sem recriação
+ * - Handlers via useRef → sempre acessam state/callbacks atuais
+ *   sem precisar recriar o canal quando deps mudam
+ * - Retry exponencial com MAX_RETRIES tentativas
  */
 
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -25,122 +24,108 @@ import type { RealtimeChannel, RealtimePostgresDeletePayload, RealtimePostgresCh
 import type { ConversationWithContact, ConversationTagWithTag } from '@/types/livechat';
 import type { Conversation, Message } from '@/types/database-helpers';
 
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 10;
 const BASE_DELAY = 1000;
-const SORT_DEBOUNCE_MS = 100; // Reduzido de 300ms para 100ms para melhor responsividade
+const SORT_DEBOUNCE_MS = 100;
 
 export function useRealtimeConversations(
   tenantId: string,
   initialConversations: ConversationWithContact[]
 ) {
-  // State
   const [conversations, setConversations] = useState<ConversationWithContact[]>(
-    sortByLastMessage(initialConversations)
+    () => sortByLastMessage(initialConversations)
   );
 
-  const supabase = createClient();
+  // Instância única do Supabase — nunca recriada
+  const supabaseRef = useRef(createClient());
 
-  // Refs for managing subscriptions and state
-  const conversationsChannelRef = useRef<RealtimeChannel | null>(null);
-  const messagesChannelRef = useRef<RealtimeChannel | null>(null);
-  const tagsChannelRef = useRef<RealtimeChannel | null>(null);
+  // Canal único para todos os eventos
+  const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // Controle de retry
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Race condition protection: track if subscription is ready
-  const subscriptionReadyRef = useRef(false);
-  const hasReceivedInitialDataRef = useRef(false);
+  // Proteção contra race condition: não sobrescrever estado do realtime
+  // com dados SSR após a inscrição estar ativa
+  const isSubscribedRef = useRef(false);
+  const hasInitialDataRef = useRef(false);
 
-  // Debounced sort function to avoid re-sorting on every message
+  // Ref para o tenantId (usado dentro dos handlers sem recriar canal)
+  const tenantIdRef = useRef(tenantId);
+  useEffect(() => {
+    tenantIdRef.current = tenantId;
+  }, [tenantId]);
+
+  // Debounce do sort para não re-ordenar a cada evento individual
   const debouncedSort = useDebouncedCallback(() => {
     setConversations((prev) => sortByLastMessage([...prev]));
   }, SORT_DEBOUNCE_MS);
 
-  // Reset when initialConversations changes, but respect subscription state
+  // Sincroniza dados SSR apenas quando a inscrição ainda não está ativa
   useEffect(() => {
-    // Only update if subscription is not ready OR this is the first time
-    if (!subscriptionReadyRef.current || !hasReceivedInitialDataRef.current) {
+    if (!isSubscribedRef.current || !hasInitialDataRef.current) {
       setConversations(sortByLastMessage(initialConversations));
-      hasReceivedInitialDataRef.current = true;
+      hasInitialDataRef.current = true;
     }
   }, [initialConversations]);
 
-  // ========================================
-  // Handlers
-  // ========================================
+  // ============================================================
+  // Handlers — usam refs para acessar supabase e tenantId atuais
+  // ============================================================
 
-  // Handle conversation UPDATE
-  // Se last_message_at mudou, move para o topo imediatamente
   const handleConversationUpdate = useCallback((payload: { new: Conversation }) => {
+    if (payload.new.tenant_id !== tenantIdRef.current) return;
+
     setConversations((prev) => {
       const index = prev.findIndex((c) => c.id === payload.new.id);
-
       if (index === -1) return prev;
 
       const existing = prev[index];
       if (!existing) return prev;
 
-      const updatedConversation: ConversationWithContact = {
+      const updated: ConversationWithContact = {
         ...existing,
         ...payload.new,
-        // Preserve data that doesn't come in realtime payload
         contact: existing.contact,
         lastMessage: existing.lastMessage,
         conversation_tags: existing.conversation_tags,
         category: existing.category,
       };
 
-      // Se last_message_at mudou E não está no topo, move para o topo
       const lastMessageChanged = existing.last_message_at !== payload.new.last_message_at;
-
       if (lastMessageChanged && index !== 0) {
-        const withoutCurrent = prev.filter((_, i) => i !== index);
-        return [updatedConversation, ...withoutCurrent];
+        return [updated, ...prev.filter((_, i) => i !== index)];
       }
 
-      // Caso contrário, apenas atualiza no lugar
-      const updated = [...prev];
-      updated[index] = updatedConversation;
-      return updated;
+      const result = [...prev];
+      result[index] = updated;
+      return result;
     });
+
     debouncedSort();
   }, [debouncedSort]);
 
-  // Handle conversation INSERT
   const handleConversationInsert = useCallback(async (payload: { new: Conversation }) => {
-    // Verify tenant
-    if (payload.new.tenant_id !== tenantId) {
-      return;
-    }
+    if (payload.new.tenant_id !== tenantIdRef.current) return;
 
-    // Fetch complete conversation data
+    const supabase = supabaseRef.current;
     const { data, error } = await supabase
       .from('conversations')
       .select(`
         *,
         contacts!inner(*),
         conversation_tags(
-          tag:tags(
-            id,
-            tag_name,
-            color,
-            is_category,
-            order_index
-          )
+          tag:tags(id, tag_name, color, is_category, order_index)
         )
       `)
       .eq('id', payload.new.id)
       .single();
 
-    if (error || !data) {
-      return;
-    }
+    if (error || !data) return;
 
     setConversations((prev) => {
-      // Avoid duplicates
-      if (prev.some((c) => c.id === data.id)) {
-        return prev;
-      }
+      if (prev.some((c) => c.id === data.id)) return prev;
 
       const dataAny = data as unknown as Record<string, unknown>;
       const tags = (dataAny.conversation_tags || []) as unknown as ConversationTagWithTag[];
@@ -159,46 +144,45 @@ export function useRealtimeConversations(
 
       return sortByLastMessage([newConv, ...prev]);
     });
-  }, [tenantId, supabase]);
+  }, []);
 
-  // Handle conversation DELETE
   const handleConversationDelete = useCallback((payload: RealtimePostgresDeletePayload<{ id: string }>) => {
     setConversations((prev) => prev.filter((c) => c.id !== payload.old.id));
   }, []);
 
-  // Handle message INSERT
-  // Move a conversa para o TOPO imediatamente quando uma mensagem chega
   const handleMessageInsert = useCallback((payload: { new: Message }) => {
     setConversations((prev) => {
       const index = prev.findIndex((c) => c.id === payload.new.conversation_id);
-
       if (index === -1) return prev;
 
       const existing = prev[index];
       if (!existing) return prev;
 
-      // Atualiza a conversa com a nova mensagem
-      const updatedConversation: ConversationWithContact = {
+      const updated: ConversationWithContact = {
         ...existing,
         lastMessage: payload.new,
         last_message_at: payload.new.timestamp || payload.new.created_at,
+        // Marca como não lida quando a mensagem é do cliente
+        ...(payload.new.sender_type === 'customer' && {
+          has_unread: true,
+          unread_count: (existing.unread_count || 0) + 1,
+        }),
       };
 
-      // Se já está no topo, apenas atualiza
+      // Sempre move para o topo quando nova mensagem chega
       if (index === 0) {
-        const updated = [...prev];
-        updated[0] = updatedConversation;
-        return updated;
+        const result = [...prev];
+        result[0] = updated;
+        return result;
       }
 
-      // Move para o topo IMEDIATAMENTE
-      const withoutCurrent = prev.filter((_, i) => i !== index);
-      return [updatedConversation, ...withoutCurrent];
+      return [updated, ...prev.filter((_, i) => i !== index)];
     });
   }, []);
 
-  // Handle tags changes
-  const handleTagsChange = useCallback(async (payload: RealtimePostgresChangesPayload<{ conversation_id: string }>) => {
+  const handleTagsChange = useCallback(async (
+    payload: RealtimePostgresChangesPayload<{ conversation_id: string }>
+  ) => {
     const conversationId =
       payload.eventType === 'DELETE'
         ? payload.old?.conversation_id
@@ -206,36 +190,21 @@ export function useRealtimeConversations(
 
     if (!conversationId) return;
 
-    // Fetch updated tags for the conversation
-    const { data: tagsData, error: tagsError } = await supabase
+    const supabase = supabaseRef.current;
+    const { data: tagsData, error } = await supabase
       .from('conversation_tags')
       .select(`
         id,
         tag_id,
-        tag:tags(
-          id,
-          tag_name,
-          color,
-          is_category,
-          order_index,
-          active,
-          created_at,
-          id_tenant,
-          prompt_to_ai
-        )
+        tag:tags(id, tag_name, color, is_category, order_index, active, created_at, id_tenant, prompt_to_ai)
       `)
       .eq('conversation_id', conversationId);
 
-    if (tagsError) {
-      return;
-    }
+    if (error) return;
 
     setConversations((prev) => {
       const index = prev.findIndex((c) => c.id === conversationId);
-
-      if (index === -1) {
-        return prev;
-      }
+      if (index === -1) return prev;
 
       const existing = prev[index];
       if (!existing) return prev;
@@ -246,130 +215,84 @@ export function useRealtimeConversations(
         .filter((tag) => tag && tag.is_category)
         .sort((a, b) => (a?.order_index || 0) - (b?.order_index || 0))[0] || null) as ConversationWithContact['category'];
 
-      const updated = [...prev];
-      updated[index] = {
-        ...existing,
-        conversation_tags: tags,
-        category,
-      };
-      return updated;
+      const result = [...prev];
+      result[index] = { ...existing, conversation_tags: tags, category };
+      return result;
     });
-  }, [supabase]);
+  }, []);
 
-  // ========================================
-  // Subscribe with retry logic
-  // ========================================
+  // ============================================================
+  // Canal único com todos os listeners + retry robusto
+  // ============================================================
   const subscribe = useCallback(() => {
-    // Clean up existing channels
-    if (conversationsChannelRef.current) {
-      supabase.removeChannel(conversationsChannelRef.current);
-      conversationsChannelRef.current = null;
-    }
-    if (messagesChannelRef.current) {
-      supabase.removeChannel(messagesChannelRef.current);
-      messagesChannelRef.current = null;
-    }
-    if (tagsChannelRef.current) {
-      supabase.removeChannel(tagsChannelRef.current);
-      tagsChannelRef.current = null;
+    const supabase = supabaseRef.current;
+
+    // Limpa canal anterior se existir
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
-    // ========================================
-    // Channel 1: Conversations
-    // Sem filtro server-side — filtragem por tenant feita nos handlers
-    // para garantir recebimento dos eventos independente da configuração do Supabase
-    // ========================================
-    const conversationsChannel = supabase
-      .channel(`tenant:${tenantId}:conversations`)
+    const channel = supabase
+      .channel(`livechat:${tenantId}`, {
+        config: { broadcast: { self: false } },
+      })
+      // --- conversations ---
       .on<Conversation>(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'conversations',
-        },
-        (payload) => {
-          if (payload.new.tenant_id !== tenantId) return;
-          handleConversationUpdate(payload);
-        }
+        { event: 'UPDATE', schema: 'public', table: 'conversations' },
+        handleConversationUpdate
       )
       .on<Conversation>(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'conversations',
-        },
+        { event: 'INSERT', schema: 'public', table: 'conversations' },
         handleConversationInsert
       )
       .on<{ id: string }>(
         'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'conversations',
-        },
+        { event: 'DELETE', schema: 'public', table: 'conversations' },
         handleConversationDelete
       )
-      .subscribe((status) => {
+      // --- messages (para atualizar preview + mover conversa ao topo) ---
+      .on<Message>(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        handleMessageInsert
+      )
+      // --- conversation_tags ---
+      .on<{ conversation_id: string }>(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversation_tags' },
+        handleTagsChange
+      )
+      .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          subscriptionReadyRef.current = true;
+          isSubscribedRef.current = true;
           retryCountRef.current = 0;
+          return;
         }
 
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          subscriptionReadyRef.current = false;
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          isSubscribedRef.current = false;
+
+          if (err) {
+            console.error('[useRealtimeConversations] channel error:', err);
+          }
 
           if (retryCountRef.current < MAX_RETRIES) {
             const delay = Math.min(BASE_DELAY * Math.pow(2, retryCountRef.current), 30000);
-
             retryTimeoutRef.current = setTimeout(() => {
               retryCountRef.current++;
               subscribe();
             }, delay);
+          } else {
+            console.error('[useRealtimeConversations] max retries reached, giving up');
           }
         }
       });
 
-    conversationsChannelRef.current = conversationsChannel;
-
-    // ========================================
-    // Channel 2: Messages
-    // ========================================
-    const messagesChannel = supabase
-      .channel(`messages:tenant:${tenantId}`)
-      .on<Message>(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        },
-        handleMessageInsert
-      )
-      .subscribe();
-
-    messagesChannelRef.current = messagesChannel;
-
-    // ========================================
-    // Channel 3: Tags
-    // ========================================
-    const tagsChannel = supabase
-      .channel(`conversation_tags:tenant:${tenantId}`)
-      .on<{ conversation_id: string }>(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'conversation_tags',
-        },
-        handleTagsChange
-      )
-      .subscribe();
-
-    tagsChannelRef.current = tagsChannel;
+    channelRef.current = channel;
   }, [
-    supabase,
     tenantId,
     handleConversationUpdate,
     handleConversationInsert,
@@ -380,58 +303,42 @@ export function useRealtimeConversations(
 
   useEffect(() => {
     subscribe();
+    const supabase = supabaseRef.current;
 
     return () => {
-      // Cleanup on unmount
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
-      if (conversationsChannelRef.current) {
-        supabase.removeChannel(conversationsChannelRef.current);
-      }
-      if (messagesChannelRef.current) {
-        supabase.removeChannel(messagesChannelRef.current);
-      }
-      if (tagsChannelRef.current) {
-        supabase.removeChannel(tagsChannelRef.current);
-      }
+      isSubscribedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId]);
 
-  // Atualização otimista: atualiza uma conversa específica sem esperar realtime
+  // Atualização otimista — sem esperar realtime
   const updateConversation = useCallback((conversationId: string, updates: Partial<ConversationWithContact>) => {
     setConversations((prev) => {
       const index = prev.findIndex((c) => c.id === conversationId);
       if (index === -1) return prev;
       const existing = prev[index];
       if (!existing) return prev;
-      const updated = [...prev];
-      updated[index] = { ...existing, ...updates };
-      return updated;
+      const result = [...prev];
+      result[index] = { ...existing, ...updates };
+      return result;
     });
   }, []);
 
   return { conversations, updateConversation };
 }
 
-// ========================================
-// Helper: Sort by last message
-// ========================================
-function sortByLastMessage(
-  convs: ConversationWithContact[]
-): ConversationWithContact[] {
+// ============================================================
+// Helper
+// ============================================================
+function sortByLastMessage(convs: ConversationWithContact[]): ConversationWithContact[] {
   return [...convs].sort((a, b) => {
-    // Prioridade: lastMessage.timestamp > last_message_at > created_at
-    // Isso garante que usamos o timestamp mais recente disponível
     const timeA = a.lastMessage?.timestamp || a.last_message_at || a.created_at;
     const timeB = b.lastMessage?.timestamp || b.last_message_at || b.created_at;
-
-    // Usa getTime() para comparação numérica precisa
-    const dateA = new Date(timeA).getTime();
-    const dateB = new Date(timeB).getTime();
-
-    // Ordenação decrescente (mais recente primeiro)
-    return dateB - dateA;
+    return new Date(timeB).getTime() - new Date(timeA).getTime();
   });
 }
