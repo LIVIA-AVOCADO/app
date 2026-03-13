@@ -250,14 +250,19 @@ export function useRealtimeConversations(
 
     const channel = supabase
       .channel(`livechat-${tenantId}`)
-      .on<Conversation>(
+      .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'conversations',
         },
-        handleConversationChange
+        // #region agent log
+        (payload: unknown) => {
+          console.log('[RT-DBG] INLINE-HIT', (payload as Record<string, unknown>)?.eventType);
+          handleConversationChange(payload as RealtimePostgresChangesPayload<Conversation>);
+        }
+        // #endregion
       )
       .subscribe((status, err) => {
         // #region agent log
