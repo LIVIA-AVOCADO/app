@@ -118,6 +118,9 @@ export function useRealtimeConversations(
   const handleConversationChange = useCallback(async (
     payload: RealtimePostgresChangesPayload<Conversation>
   ) => {
+    const _id = payload.eventType === 'DELETE' ? (payload.old as {id?:string})?.id : (payload.new as Conversation)?.id;
+    console.log(`[RT] event=${payload.eventType} conv=${_id?.slice(0,8)}`);
+
     // --- DELETE ---
     if (payload.eventType === 'DELETE') {
       const oldId = (payload.old as { id?: string })?.id;
@@ -206,6 +209,7 @@ export function useRealtimeConversations(
   // ============================================================
   const subscribe = useCallback(() => {
     const supabase = supabaseRef.current;
+    console.log(`[RT] subscribe() tenantId=${tenantId} channels=${supabase.getChannels().length}`);
 
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
@@ -238,6 +242,8 @@ export function useRealtimeConversations(
         handleConversationChange
       )
       .subscribe((status, err) => {
+        console.log(`[RT] status=${status} tenant=${tenantId?.slice(0,8)} err=${err?.message || 'none'}`);
+
         if (status === 'SUBSCRIBED') {
           isSubscribedRef.current = true;
           if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
