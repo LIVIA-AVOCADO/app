@@ -11,6 +11,8 @@
  * - Retry exponencial com MAX_RETRIES tentativas
  * - handleInsert async: busca info do sender apenas para mensagens
  *   de attendant; mensagens de customer/ai são adicionadas imediatamente
+ * - clearTimeout APÓS removeChannel: removeChannel dispara CLOSED sincronamente,
+ *   que agenda retry espúrio — deve ser limpo imediatamente depois
  */
 
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -28,25 +30,21 @@ export function useRealtimeMessages(
 ) {
   const [messages, setMessages] = useState<MessageWithSender[]>(initialMessages);
 
-  // Instância única do Supabase — nunca recriada
   const supabaseRef = useRef(createClient());
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Reseta mensagens ao trocar de conversa
   useEffect(() => {
     setMessages(initialMessages);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  // INSERT — nova mensagem chegou
   const handleInsert = useCallback(async (payload: { new: Message }) => {
     const supabase = supabaseRef.current;
     let senderUser = null;
 
-    // Busca dados do atendente apenas se necessário
     if (payload.new.sender_type === 'attendant' && payload.new.sender_user_id) {
       const { data } = await supabase
         .from('users')
@@ -59,7 +57,6 @@ export function useRealtimeMessages(
     const newMessage: MessageWithSender = { ...payload.new, senderUser };
     setMessages((prev) => {
       const existingIndex = prev.findIndex((m) => m.id === newMessage.id);
-      // Substitui mensagem otimista (sem senderUser) pela versão completa do realtime
       if (existingIndex !== -1) {
         const result = [...prev];
         result[existingIndex] = newMessage;
@@ -69,7 +66,6 @@ export function useRealtimeMessages(
     });
   }, []);
 
-  // Inserção otimista — chamada imediatamente após o envio, sem esperar realtime
   const addMessage = useCallback((message: MessageWithSender) => {
     setMessages((prev) => {
       if (prev.some((m) => m.id === message.id)) return prev;
@@ -77,7 +73,6 @@ export function useRealtimeMessages(
     });
   }, []);
 
-  // UPDATE — status ou conteúdo de mensagem alterado
   const handleUpdate = useCallback((payload: { new: Message }) => {
     setMessages((prev) =>
       prev.map((msg) => (msg.id === payload.new.id ? { ...msg, ...payload.new } : msg))
@@ -87,9 +82,20 @@ export function useRealtimeMessages(
   const subscribe = useCallback(() => {
     const supabase = supabaseRef.current;
 
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
+    }
+
+    // removeChannel dispara CLOSED sincronamente → limpar retry espúrio
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
     }
 
     const channel = supabase
@@ -147,6 +153,11 @@ export function useRealtimeMessages(
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+      }
+      // removeChannel dispara CLOSED sincronamente → limpar retry espúrio
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

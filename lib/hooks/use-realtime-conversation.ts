@@ -6,7 +6,9 @@
  * Subscreve em tempo real às mudanças de estado de uma conversa
  * (status, ia_active, etc)
  *
- * Inclui reconexão automática com backoff exponencial
+ * Inclui reconexão automática com backoff exponencial.
+ * clearTimeout APÓS removeChannel: removeChannel dispara CLOSED sincronamente,
+ * que agenda retry espúrio — deve ser limpo imediatamente depois.
  */
 
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -20,32 +22,38 @@ const BASE_DELAY = 1000;
 export function useRealtimeConversation(initialConversation: Conversation) {
   const [conversation, setConversation] = useState<Conversation>(initialConversation);
 
-  // Instância única do Supabase — nunca recriada
   const supabaseRef = useRef(createClient());
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Reset conversation when it changes
   useEffect(() => {
     setConversation(initialConversation);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConversation.id]);
 
-  // Handler for conversation updates
   const handleUpdate = useCallback((payload: { new: Conversation }) => {
     setConversation(payload.new);
   }, []);
 
-  // Subscribe with retry logic
   const subscribe = useCallback(() => {
     const supabase = supabaseRef.current;
 
-    // Clean up existing channel
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
+    }
+
+    // removeChannel dispara CLOSED sincronamente → limpar retry espúrio
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
     }
 
     const channel = supabase
@@ -60,15 +68,18 @@ export function useRealtimeConversation(initialConversation: Conversation) {
         },
         handleUpdate
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           retryCountRef.current = 0;
         }
 
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          if (err) {
+            console.error('[useRealtimeConversation] channel error:', err);
+          }
+
           if (retryCountRef.current < MAX_RETRIES) {
             const delay = Math.min(BASE_DELAY * Math.pow(2, retryCountRef.current), 30000);
-
             retryTimeoutRef.current = setTimeout(() => {
               retryCountRef.current++;
               subscribe();
@@ -85,13 +96,17 @@ export function useRealtimeConversation(initialConversation: Conversation) {
     const supabase = supabaseRef.current;
 
     return () => {
-      // Cleanup on unmount
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+      }
+      // removeChannel dispara CLOSED sincronamente → limpar retry espúrio
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
