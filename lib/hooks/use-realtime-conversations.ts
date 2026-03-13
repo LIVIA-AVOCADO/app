@@ -270,10 +270,19 @@ export function useRealtimeConversations(
   }, [tenantId, handleConversationChange]);
 
   useEffect(() => {
-    subscribe();
     const supabase = supabaseRef.current;
+    let cancelled = false;
+
+    // Wait for auth session to be loaded before subscribing.
+    // createBrowserClient (@supabase/ssr) loads tokens from cookies async;
+    // subscribing before auth is ready causes Realtime to connect without
+    // a valid JWT, making RLS silently filter all events.
+    supabase.auth.getSession().then(() => {
+      if (!cancelled) subscribe();
+    });
 
     return () => {
+      cancelled = true;
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
       if (channelRef.current) {

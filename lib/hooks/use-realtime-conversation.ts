@@ -93,10 +93,15 @@ export function useRealtimeConversation(initialConversation: Conversation) {
   }, [initialConversation.id, handleUpdate]);
 
   useEffect(() => {
-    subscribe();
     const supabase = supabaseRef.current;
+    let cancelled = false;
+
+    supabase.auth.getSession().then(() => {
+      if (!cancelled) subscribe();
+    });
 
     return () => {
+      cancelled = true;
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }

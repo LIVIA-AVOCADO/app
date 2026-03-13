@@ -146,10 +146,15 @@ export function useRealtimeMessages(
   }, [conversationId, handleInsert, handleUpdate]);
 
   useEffect(() => {
-    subscribe();
     const supabase = supabaseRef.current;
+    let cancelled = false;
+
+    supabase.auth.getSession().then(() => {
+      if (!cancelled) subscribe();
+    });
 
     return () => {
+      cancelled = true;
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
