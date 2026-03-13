@@ -219,6 +219,10 @@ export function useRealtimeConversations(
 
     // #region agent log
     console.log('[RT-DBG] subscribe()', {tenantId, channels: supabase.getChannels().length, retryCount: retryCountRef.current});
+    if (typeof window !== 'undefined') {
+      (window as unknown as Record<string, unknown>).__dbg_sb = supabase;
+      console.log('[RT-DBG] supabase client exposed as window.__dbg_sb');
+    }
     supabase.auth.getSession().then(({data}) => {
       const uid = data?.session?.user?.id;
       console.log('[RT-DBG] session', {uid: uid?.slice(0,8), email: data?.session?.user?.email});
