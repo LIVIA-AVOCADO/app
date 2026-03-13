@@ -69,7 +69,7 @@ export function useRealtimeConversations(
   const fetchLatestMessage = useCallback(async (conversationId: string) => {
     const { data } = await supabaseRef.current
       .from('messages')
-      .select('id, conversation_id, content, timestamp, sender_type, sender_user_id, created_at')
+      .select('*')
       .eq('conversation_id', conversationId)
       .order('timestamp', { ascending: false })
       .limit(1)
