@@ -40,6 +40,25 @@ export function useRealtimeConversations(
 
   const supabaseRef = useRef(createClient());
   const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // #region agent log
+  useEffect(() => {
+    const sb = createClient();
+    const testCh = sb.channel('effect-test-' + Math.random().toString(36).slice(2, 8))
+      .on(
+        'postgres_changes' as 'system',
+        { event: '*', schema: 'public', table: 'conversations' } as Record<string, string>,
+        (payload: unknown) => {
+          const p = payload as Record<string, unknown>;
+          console.log('[RT-DBG] EFFECT-TEST-EVENT!', p?.eventType);
+        }
+      )
+      .subscribe((status: string) => {
+        console.log('[RT-DBG] EFFECT-TEST-STATUS', status);
+      });
+    return () => { sb.removeChannel(testCh); };
+  }, []);
+  // #endregion
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
