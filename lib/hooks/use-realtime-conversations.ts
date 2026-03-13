@@ -121,7 +121,7 @@ export function useRealtimeConversations(
     // #region agent log
     try {
     const _evId = payload.eventType === 'DELETE' ? (payload.old as {id?:string})?.id : (payload.new as Conversation)?.id;
-    fetch('http://127.0.0.1:7468/ingest/9ca4e704-5ea1-4ecc-bdf2-ebf3d33f0fe1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7c8c6a'},body:JSON.stringify({sessionId:'7c8c6a',location:'use-realtime-conversations.ts:event',message:`event=${payload.eventType}`,data:{eventType:payload.eventType,convId:_evId,tenantId:(payload.new as Conversation)?.tenant_id},timestamp:Date.now(),hypothesisId:'H3,H5'})}).catch(()=>{});
+    console.log('[RT-DBG] event', {eventType: payload.eventType, convId: _evId?.slice(0,8), tenantId: (payload.new as Conversation)?.tenant_id?.slice(0,8)});
     // #endregion
     // --- DELETE ---
     if (payload.eventType === 'DELETE') {
@@ -206,7 +206,7 @@ export function useRealtimeConversations(
     debouncedSort();
     // #region agent log
     } catch (handlerErr: unknown) {
-      fetch('http://127.0.0.1:7468/ingest/9ca4e704-5ea1-4ecc-bdf2-ebf3d33f0fe1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7c8c6a'},body:JSON.stringify({sessionId:'7c8c6a',location:'use-realtime-conversations.ts:handlerError',message:'handler threw',data:{error:String(handlerErr)},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+      console.error('[RT-DBG] HANDLER ERROR', handlerErr);
     }
     // #endregion
   }, [debouncedSort, fetchLatestMessage, fetchFullConversation]);
@@ -218,7 +218,7 @@ export function useRealtimeConversations(
     const supabase = supabaseRef.current;
 
     // #region agent log
-    fetch('http://127.0.0.1:7468/ingest/9ca4e704-5ea1-4ecc-bdf2-ebf3d33f0fe1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7c8c6a'},body:JSON.stringify({sessionId:'7c8c6a',location:'use-realtime-conversations.ts:subscribe',message:'subscribe() called',data:{tenantId,channels:supabase.getChannels().length,retryCount:retryCountRef.current},timestamp:Date.now(),hypothesisId:'H1,H2'})}).catch(()=>{});
+    console.log('[RT-DBG] subscribe()', {tenantId, channels: supabase.getChannels().length, retryCount: retryCountRef.current});
     // #endregion
 
     if (retryTimeoutRef.current) {
@@ -253,7 +253,7 @@ export function useRealtimeConversations(
       )
       .subscribe((status, err) => {
         // #region agent log
-        fetch('http://127.0.0.1:7468/ingest/9ca4e704-5ea1-4ecc-bdf2-ebf3d33f0fe1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7c8c6a'},body:JSON.stringify({sessionId:'7c8c6a',location:'use-realtime-conversations.ts:status',message:`status=${status}`,data:{status,err:err?.message||null,retryCount:retryCountRef.current,channels:supabaseRef.current.getChannels().length},timestamp:Date.now(),hypothesisId:'H2,H4'})}).catch(()=>{});
+        console.log('[RT-DBG] status', {status, err: err?.message || null, retryCount: retryCountRef.current, channels: supabaseRef.current.getChannels().length});
         // #endregion
 
         if (status === 'SUBSCRIBED') {
@@ -279,7 +279,7 @@ export function useRealtimeConversations(
           if (retryCountRef.current < MAX_RETRIES) {
             const delay = Math.min(BASE_DELAY * Math.pow(2, retryCountRef.current), 30000);
             // #region agent log
-            fetch('http://127.0.0.1:7468/ingest/9ca4e704-5ea1-4ecc-bdf2-ebf3d33f0fe1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7c8c6a'},body:JSON.stringify({sessionId:'7c8c6a',location:'use-realtime-conversations.ts:retry',message:`retry scheduled`,data:{retryCount:retryCountRef.current,delay,status},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+            console.log('[RT-DBG] retry scheduled', {retryCount: retryCountRef.current, delay, status});
             // #endregion
             retryTimeoutRef.current = setTimeout(() => {
               retryCountRef.current++;
@@ -288,7 +288,7 @@ export function useRealtimeConversations(
           } else {
             console.error('[useRealtimeConversations] max retries reached, giving up');
             // #region agent log
-            fetch('http://127.0.0.1:7468/ingest/9ca4e704-5ea1-4ecc-bdf2-ebf3d33f0fe1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7c8c6a'},body:JSON.stringify({sessionId:'7c8c6a',location:'use-realtime-conversations.ts:maxRetries',message:'max retries reached',data:{retryCount:retryCountRef.current},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+            console.log('[RT-DBG] MAX RETRIES REACHED', {retryCount: retryCountRef.current});
             // #endregion
           }
         }
