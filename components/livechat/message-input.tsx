@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QuickRepliesPanel } from './quick-replies-panel';
 import { QuickReplyCommand } from './quick-reply-command';
@@ -170,15 +170,20 @@ export function MessageInput({
         onChange={handleContentChange}
         onKeyDown={handleKeyDown}
         disabled={disabled || isSending}
-        className="min-h-[60px] max-h-[120px] resize-none"
+        className="min-h-[60px] max-h-[120px] resize-none transition-opacity duration-200"
+        style={{ opacity: isSending ? 0.6 : 1 }}
       />
       <Button
         onClick={handleSendClick}
         disabled={!content.trim() || disabled || isSending}
         size="icon"
-        className="h-[60px] w-[60px]"
+        className="h-[60px] w-[60px] transition-all duration-200"
       >
-        <Send className="h-5 w-5" />
+        {isSending ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <Send className="h-5 w-5 transition-transform duration-150 group-hover:translate-x-0.5" />
+        )}
       </Button>
 
       <PauseIAConfirmDialog

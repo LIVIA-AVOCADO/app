@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ContactList } from './contact-list';
 import { ConversationView } from './conversation-view';
 import { CustomerDataPanel } from './customer-data-panel';
 import { MessagesSkeleton } from './messages-skeleton';
+import { useRealtimeConversations } from '@/lib/hooks/use-realtime-conversations';
 import type { ConversationWithContact, MessageWithSender } from '@/types/livechat';
 import type { Conversation, Tag } from '@/types/database-helpers';
 
@@ -20,7 +21,7 @@ interface LivechatContentProps {
 }
 
 export function LivechatContent({
-  conversations,
+  conversations: initialConversations,
   selectedConversationId,
   tenantId,
   selectedConversation,
@@ -29,7 +30,15 @@ export function LivechatContent({
   allTags,
 }: LivechatContentProps) {
   const router = useRouter();
+  const { conversations, updateConversation } = useRealtimeConversations(tenantId, initialConversations);
   const [loadingConversationId, setLoadingConversationId] = useState<string | null>(null);
+
+  // Callback para atualização otimista a partir do ConversationView
+  const handleConversationUpdate = useCallback((updates: Partial<ConversationWithContact>) => {
+    if (selectedConversationId) {
+      updateConversation(selectedConversationId, updates);
+    }
+  }, [selectedConversationId, updateConversation]);
 
   // Handler que dispara ANTES da navegação
   const handleConversationClick = (conversationId: string) => {
@@ -50,7 +59,7 @@ export function LivechatContent({
   // Resetar loading quando a conversa correta for carregada
   useEffect(() => {
     if (loadingConversationId && conversation?.id === loadingConversationId) {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingConversationId(null);
     }
   }, [conversation?.id, loadingConversationId]);
@@ -69,7 +78,7 @@ export function LivechatContent({
         </div>
         <div className="flex-1 overflow-hidden">
           <ContactList
-            initialConversations={conversations}
+            conversations={conversations}
             selectedConversationId={selectedConversationId}
             tenantId={tenantId}
             onConversationClick={handleConversationClick}
@@ -96,6 +105,7 @@ export function LivechatContent({
             contactPhone={selectedConversation.contact.phone}
             allTags={allTags}
             conversationTags={selectedConversation.conversation_tags}
+            onConversationUpdate={handleConversationUpdate}
           />
         ) : (
           <div className="flex h-full items-center justify-center">

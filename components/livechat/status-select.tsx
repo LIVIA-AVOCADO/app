@@ -14,7 +14,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Select,
   SelectContent,
@@ -23,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CONVERSATION_STATUS } from '@/config/constants';
 import type { ConversationStatus } from '@/types/database-helpers';
@@ -32,6 +32,7 @@ interface StatusSelectProps {
   tenantId: string;
   currentStatus: ConversationStatus;
   disabled?: boolean;
+  onStatusChange?: (newStatus: ConversationStatus) => void;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
@@ -50,8 +51,8 @@ export function StatusSelect({
   tenantId,
   currentStatus,
   disabled = false,
+  onStatusChange,
 }: StatusSelectProps) {
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedValue, setSelectedValue] = useState<ConversationStatus>(currentStatus);
 
@@ -69,7 +70,8 @@ export function StatusSelect({
     if (newStatus === currentStatus) return;
 
     setIsLoading(true);
-    setSelectedValue(newStatus); // UI otimista
+    setSelectedValue(newStatus); // UI otimista no select
+    onStatusChange?.(newStatus); // Atualiza o painel de conversas imediatamente
 
     try {
       const response = await fetch('/api/conversations/update-status', {
@@ -89,14 +91,12 @@ export function StatusSelect({
       }
 
       toast.success('Status atualizado com sucesso');
-
-      // Revalidar para buscar dados atualizados
-      router.refresh();
     } catch (error) {
       console.error('[StatusSelect] Error:', error);
 
-      // Reverter para valor anterior
+      // Reverter para valor anterior (no select e no painel)
       setSelectedValue(currentStatus);
+      onStatusChange?.(currentStatus);
 
       toast.error(
         error instanceof Error ? error.message : 'Erro ao atualizar status'
@@ -117,14 +117,21 @@ export function StatusSelect({
       onValueChange={handleStatusChange}
       disabled={disabled || isLoading}
     >
-      <SelectTrigger className="w-[160px] h-7 text-xs">
+      <SelectTrigger className="w-[160px] h-7 text-xs transition-opacity duration-200">
         <SelectValue>
-          <Badge
-            variant="default"
-            className={currentConfig.badgeClass}
-          >
-            {currentConfig.label}
-          </Badge>
+          {isLoading ? (
+            <span className="flex items-center gap-1.5">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span className="text-xs text-muted-foreground">Salvando...</span>
+            </span>
+          ) : (
+            <Badge
+              variant="default"
+              className={`${currentConfig.badgeClass} transition-colors duration-300`}
+            >
+              {currentConfig.label}
+            </Badge>
+          )}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>

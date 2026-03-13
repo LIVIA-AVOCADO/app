@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { MessageItem } from './message-item';
 import { MessageInput } from './message-input';
@@ -11,7 +11,7 @@ import { useRealtimeMessages } from '@/lib/hooks/use-realtime-messages';
 import { useRealtimeConversation } from '@/lib/hooks/use-realtime-conversation';
 import { useChatScroll } from '@/lib/hooks/use-chat-scroll';
 import type { Conversation, Tag } from '@/types/database-helpers';
-import type { MessageWithSender } from '@/types/livechat';
+import type { ConversationWithContact, MessageWithSender } from '@/types/livechat';
 
 interface ConversationViewProps {
   initialConversation: Conversation;
@@ -21,6 +21,7 @@ interface ConversationViewProps {
   contactPhone?: string | null;
   allTags: Tag[]; // Todas as tags do tenant
   conversationTags?: Array<{ tag: Tag }>; // Tags atuais da conversa
+  onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
 }
 
 export function ConversationView({
@@ -31,6 +32,7 @@ export function ConversationView({
   contactPhone,
   allTags,
   conversationTags,
+  onConversationUpdate,
 }: ConversationViewProps) {
   const { messages } = useRealtimeMessages(
     initialConversation.id,
@@ -41,6 +43,14 @@ export function ConversationView({
   const { scrollRef, isAtBottom, unreadCount, scrollToBottom } =
     useChatScroll(messages);
 
+  // IDs das mensagens iniciais — memoizado por conversa (muda só quando troca de conversa)
+  // Mensagens além deste set são "novas" e recebem animação de entrada
+  const initialMessageIds = useMemo(
+    () => new Set(initialMessages.map((m) => m.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [initialConversation.id] // Recalcula apenas quando a conversa muda, não a cada nova mensagem
+  );
+
   // Loading transition state
   const [isLoadingTransition, setIsLoadingTransition] = useState(false);
   const [currentConvId, setCurrentConvId] = useState(initialConversation.id);
@@ -49,7 +59,7 @@ export function ConversationView({
   // Detecta mudança de conversa
   useEffect(() => {
     if (initialConversation.id !== currentConvId) {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoadingTransition(true);
       setCurrentConvId(initialConversation.id);
       loadingStartTimeRef.current = Date.now();
@@ -78,6 +88,7 @@ export function ConversationView({
         tenantId={tenantId}
         allTags={allTags}
         conversationTags={conversationTags}
+        onConversationUpdate={onConversationUpdate}
       />
 
       <div className="flex-1 relative overflow-hidden">
@@ -100,6 +111,7 @@ export function ConversationView({
                     message={message}
                     conversationId={conversation.id}
                     tenantId={tenantId}
+                    isNew={!initialMessageIds.has(message.id)}
                   />
                 ))
               )}

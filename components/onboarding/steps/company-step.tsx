@@ -26,7 +26,7 @@ export function CompanyStep({ payload, onChange, disabled }: StepProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
+        <h3 className="text-sm font-semibold mb-4">
           Dados da Empresa
         </h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -68,7 +68,7 @@ export function CompanyStep({ payload, onChange, disabled }: StepProps) {
       <Separator />
 
       <div>
-        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
+        <h3 className="text-sm font-semibold mb-4">
           Responsável Técnico
         </h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -103,7 +103,7 @@ export function CompanyStep({ payload, onChange, disabled }: StepProps) {
       <Separator />
 
       <div>
-        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
+        <h3 className="text-sm font-semibold mb-4">
           Responsável Financeiro
         </h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

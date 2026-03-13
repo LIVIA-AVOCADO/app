@@ -52,7 +52,7 @@ export function TagsStep({ payload, onChange, disabled }: StepProps) {
     <div className="space-y-6">
       {/* Formulário de nova tag */}
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 space-y-4">
-        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+        <h3 className="text-sm font-semibold">
           Nova tag
         </h3>
 

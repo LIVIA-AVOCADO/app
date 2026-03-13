@@ -10,13 +10,12 @@ import { Separator } from '@/components/ui/separator';
 import { ContactItem } from './contact-item';
 import { TagSelector } from '@/components/tags/tag-selector';
 import { Search, MessageCircle } from 'lucide-react';
-import { useRealtimeConversations } from '@/lib/hooks/use-realtime-conversations';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
 import type { ConversationWithContact } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 
 interface ContactListProps {
-  initialConversations: ConversationWithContact[];
+  conversations: ConversationWithContact[];
   selectedConversationId?: string;
   tenantId: string;
   onConversationClick?: (conversationId: string) => void;
@@ -24,15 +23,11 @@ interface ContactListProps {
 }
 
 export function ContactList({
-  initialConversations,
+  conversations,
   selectedConversationId,
-  tenantId,
   onConversationClick,
   allTags,
 }: ContactListProps) {
-  // ✅ Hook simplificado - trabalha direto com conversas (sem transformações)
-  const { conversations } = useRealtimeConversations(tenantId, initialConversations);
-
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<
@@ -231,7 +226,7 @@ export function ContactList({
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2 scroll-smooth">
         {filteredConversations.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="text-center py-8 text-muted-foreground animate-in fade-in-0 duration-300">
             {searchQuery ? (
               'Nenhuma conversa encontrada para esta busca'
             ) : showOnlyUnread && statusFilter === 'manual' ? (

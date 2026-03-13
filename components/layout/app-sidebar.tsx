@@ -22,6 +22,7 @@ import { navItems } from './nav-items';
 import { cn } from '@/lib/utils';
 import { SidebarFooter } from '@/components/ui/sidebar';
 import { SidebarUserProfile } from './sidebar-user-profile';
+import { APP_VERSION } from '@/config/constants';
 
 /**
  * Componente principal do Sidebar do LIVIA
@@ -104,7 +105,7 @@ export function AppSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden text-[10px] font-semibold tracking-widest uppercase text-white/40 px-2">
             Menu Principal
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -125,18 +126,17 @@ export function AppSidebar({
                       asChild
                       isActive={isActive}
                       tooltip={item.title}
+                      className={cn(
+                        isActive &&
+                          '!bg-sidebar-primary !text-sidebar-primary-foreground shadow-sm hover:!bg-sidebar-primary/90'
+                      )}
                     >
                       <Link href={item.url}>
-                        <item.icon
-                          className={cn(
-                            'h-4 w-4',
-                            isActive && 'text-primary'
-                          )}
-                        />
+                        <item.icon className="h-4 w-4 shrink-0" />
                         <span className="flex items-center gap-2 flex-1">
                           {item.title}
                           {item.badge === 'BETA' && (
-                            <span className="text-[10px] font-normal text-muted-foreground">
+                            <span className="text-[10px] font-normal opacity-60">
                               BETA
                             </span>
                           )}
@@ -185,6 +185,11 @@ export function AppSidebar({
           tenantName={tenantName}
           avatarUrl={avatarUrl}
         />
+        <div className="px-3 pb-1 group-data-[collapsible=icon]:hidden">
+          <span className="text-[10px] text-muted-foreground/50 select-none">
+            v{APP_VERSION}
+          </span>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

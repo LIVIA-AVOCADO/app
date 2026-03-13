@@ -25,7 +25,7 @@ export function AgentStep({ payload, onChange, disabled }: StepProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
+        <h3 className="text-sm font-semibold mb-4">
           Identidade do Agente
         </h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -78,7 +78,7 @@ export function AgentStep({ payload, onChange, disabled }: StepProps) {
       <Separator />
 
       <div>
-        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
+        <h3 className="text-sm font-semibold mb-4">
           Perfil e Comportamento
         </h3>
         <div className="space-y-4">

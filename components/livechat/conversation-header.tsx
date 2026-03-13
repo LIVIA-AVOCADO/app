@@ -3,9 +3,10 @@
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Pause, MessageSquare, FileText } from 'lucide-react';
+import { Pause, MessageSquare, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Conversation, Tag } from '@/types/database-helpers';
+import type { ConversationWithContact } from '@/types/livechat';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
 import { ConversationSummaryModal } from './conversation-summary-modal';
 import { PauseIAConfirmDialog } from './pause-ia-confirm-dialog';
@@ -19,6 +20,7 @@ interface ConversationHeaderProps {
   tenantId: string;
   allTags: Tag[]; // Todas as tags do tenant
   conversationTags?: Array<{ tag: Tag }>; // Tags atuais da conversa
+  onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
 }
 
 export function ConversationHeader({
@@ -28,6 +30,7 @@ export function ConversationHeader({
   tenantId,
   allTags,
   conversationTags = [],
+  onConversationUpdate,
 }: ConversationHeaderProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showPauseIADialog, setShowPauseIADialog] = useState(false);
@@ -67,6 +70,8 @@ export function ConversationHeader({
       }
 
       toast.success('IA pausada - Modo manual permanente');
+      // Atualiza o painel de conversas imediatamente (sem esperar realtime)
+      onConversationUpdate?.({ ia_active: false });
     } catch (error) {
       console.error('Erro ao pausar IA:', error);
       toast.error('Erro ao pausar IA. Tente novamente.');
@@ -100,6 +105,7 @@ export function ConversationHeader({
             disabled={!conversation.ia_active || isUpdating || iaDisabled}
             variant="outline"
             size="sm"
+            className="transition-all duration-200 min-w-[110px]"
             title={
               !conversation.ia_active
                 ? "IA pausada. Não pode ser retomada durante a conversa (perda de contexto)."
@@ -108,9 +114,18 @@ export function ConversationHeader({
                 : "Pausar IA - Atendimento passará para modo manual permanente"
             }
           >
-            <Pause className="h-4 w-4 mr-2" />
-            Pausar IA
-          </Button>     
+            {isUpdating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Pausando...
+              </>
+            ) : (
+              <>
+                <Pause className="h-4 w-4 mr-2" />
+                Pausar IA
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -142,20 +157,19 @@ export function ConversationHeader({
           conversationId={conversation.id}
           tenantId={tenantId}
           currentStatus={conversation.status}
+          onStatusChange={(newStatus) => onConversationUpdate?.({ status: newStatus })}
         />
 
         <span>•</span>
 
         <div className="flex items-center gap-1.5">
-          {/* <Bot className="h-3.5 w-3.5" /> */}
-          {/* <span>IA:</span> */}
           {conversation.ia_active ? (
-            <Badge variant="default" className="bg-green-600">
+            <Badge variant="success">
               IA Ativada
             </Badge>
           ) : (
-            <Badge variant="secondary" className="bg-gray-500">
-              IA Pausada (Modo Manual)
+            <Badge variant="outline" className="text-muted-foreground">
+              Modo Manual
             </Badge>
           )}
         </div>

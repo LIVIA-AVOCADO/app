@@ -27,7 +27,7 @@ export function Header({ userName, userEmail, avatarUrl }: HeaderProps) {
         <div className="flex items-center gap-3">
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-6" />
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-xl font-bold">
             LIVIA
           </h1>
         </div>

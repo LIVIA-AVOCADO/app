@@ -11,9 +11,10 @@ interface MessageItemProps {
   message: MessageWithSender;
   conversationId?: string;
   tenantId?: string;
+  isNew?: boolean;
 }
 
-export function MessageItem({ message, conversationId, tenantId }: MessageItemProps) {
+export function MessageItem({ message, conversationId, tenantId, isNew = false }: MessageItemProps) {
   const isCustomer = message.sender_type === 'customer';
   const isAttendant = message.sender_type === 'attendant';
   const isIA = message.sender_type === 'ai';
@@ -35,7 +36,8 @@ export function MessageItem({ message, conversationId, tenantId }: MessageItemPr
     <div
       className={cn(
         'flex gap-3 mb-4',
-        isCustomer ? 'flex-row' : 'flex-row-reverse'
+        isCustomer ? 'flex-row' : 'flex-row-reverse',
+        isNew && 'animate-in fade-in-0 slide-in-from-bottom-3 duration-200'
       )}
     >
       {/* Avatar */}

@@ -69,7 +69,7 @@ export function ReviewLayout({ session }: ReviewLayoutProps) {
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
         <div>
-          <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Revisão Final</h1>
+          <h1 className="text-base font-semibold">Revisão Final</h1>
           <p className="text-xs text-zinc-500">Confirme as informações antes de criar seu workspace</p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => router.push(`/onboarding/${session.id}`)}>

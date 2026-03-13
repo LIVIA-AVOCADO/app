@@ -115,7 +115,7 @@ export function WizardLayout({ session }: WizardLayoutProps) {
       {/* Header */}
       <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
         <div>
-          <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-base font-semibold">
             Configuração do Workspace
           </h1>
           <p className="text-xs text-zinc-500">
@@ -142,7 +142,7 @@ export function WizardLayout({ session }: WizardLayoutProps) {
         <main className="flex flex-1 flex-col overflow-y-auto">
           <div className="flex-1 px-6 py-8 max-w-3xl w-full mx-auto">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+              <h2 className="text-xl font-semibold">
                 {currentStep.title}
               </h2>
               {currentStep.description && (

@@ -41,16 +41,15 @@ function ContactItemComponent({
   // Extract all tags from conversation (including category which will be shown after preview)
   const allTags = conversation_tags?.map(ct => ct.tag).filter(tag => tag && tag.id) || [];
 
-  // Determine label and color based on status + ia_active
+  // Determine label and badge variant based on status + ia_active
   const getStatusDisplay = () => {
     if (status === 'closed') {
-      return { label: 'Encerrada', color: 'bg-gray-400' };
+      return { label: 'Encerrada', badgeVariant: 'outline' as const };
     }
-    // status === 'open' (only active status now)
     if (ia_active) {
-      return { label: 'IA Ativa', color: 'bg-green-600' };
+      return { label: 'IA Ativa', badgeVariant: 'success' as const };
     } else {
-      return { label: 'Modo Manual', color: 'bg-blue-600' };
+      return { label: 'Modo Manual', badgeVariant: 'info' as const };
     }
   };
 
@@ -59,8 +58,10 @@ function ContactItemComponent({
   return (
     <Card
       className={cn(
-        'p-4 cursor-pointer hover:bg-accent transition-colors',
-        isSelected && 'bg-accent border-primary'
+        'p-4 cursor-pointer transition-all duration-200 hover:bg-accent/60 hover:shadow-md hover:-translate-y-px',
+        isSelected
+          ? 'border border-primary/50 bg-primary/5 shadow-md shadow-primary/10'
+          : 'border-0'
       )}
       onClick={onClick}
     >
@@ -102,8 +103,8 @@ function ContactItemComponent({
 
           <div className="flex items-center gap-2">
             <Badge
-              variant="secondary"
-              className={cn('text-white', statusDisplay.color)}
+              variant={statusDisplay.badgeVariant}
+              className="transition-colors duration-300"
             >
               {statusDisplay.label}
             </Badge>

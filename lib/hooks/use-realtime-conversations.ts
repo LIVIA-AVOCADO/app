@@ -276,6 +276,8 @@ export function useRealtimeConversations(
 
     // ========================================
     // Channel 1: Conversations
+    // Sem filtro server-side — filtragem por tenant feita nos handlers
+    // para garantir recebimento dos eventos independente da configuração do Supabase
     // ========================================
     const conversationsChannel = supabase
       .channel(`tenant:${tenantId}:conversations`)
@@ -285,9 +287,11 @@ export function useRealtimeConversations(
           event: 'UPDATE',
           schema: 'public',
           table: 'conversations',
-          filter: `tenant_id=eq.${tenantId}`,
         },
-        handleConversationUpdate
+        (payload) => {
+          if (payload.new.tenant_id !== tenantId) return;
+          handleConversationUpdate(payload);
+        }
       )
       .on<Conversation>(
         'postgres_changes',
@@ -295,7 +299,6 @@ export function useRealtimeConversations(
           event: 'INSERT',
           schema: 'public',
           table: 'conversations',
-          filter: `tenant_id=eq.${tenantId}`,
         },
         handleConversationInsert
       )
@@ -305,7 +308,6 @@ export function useRealtimeConversations(
           event: 'DELETE',
           schema: 'public',
           table: 'conversations',
-          filter: `tenant_id=eq.${tenantId}`,
         },
         handleConversationDelete
       )
@@ -397,7 +399,20 @@ export function useRealtimeConversations(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId]);
 
-  return { conversations };
+  // Atualização otimista: atualiza uma conversa específica sem esperar realtime
+  const updateConversation = useCallback((conversationId: string, updates: Partial<ConversationWithContact>) => {
+    setConversations((prev) => {
+      const index = prev.findIndex((c) => c.id === conversationId);
+      if (index === -1) return prev;
+      const existing = prev[index];
+      if (!existing) return prev;
+      const updated = [...prev];
+      updated[index] = { ...existing, ...updates };
+      return updated;
+    });
+  }, []);
+
+  return { conversations, updateConversation };
 }
 
 // ========================================
