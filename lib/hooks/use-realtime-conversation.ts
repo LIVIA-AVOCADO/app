@@ -69,9 +69,7 @@ export function useRealtimeConversation(initialConversation: Conversation) {
         handleUpdate
       )
       .subscribe((status, err) => {
-        // #region agent log
-        console.log('[RT-DBG] conv-state-status', {status, err: err?.message || null, convId: initialConversation.id?.slice(0,8), channels: supabaseRef.current.getChannels().length});
-        // #endregion
+       
         if (status === 'SUBSCRIBED') {
           retryCountRef.current = 0;
         }

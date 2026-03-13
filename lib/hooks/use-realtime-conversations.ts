@@ -4,14 +4,13 @@
  * Hook: useRealtimeConversations
  *
  * Canal leve para mudanças do livechat, otimizado para o Supabase Realtime:
- * - Apenas 1 subscription (event: '*' em conversations filtrado por tenant_id)
+ * - Apenas 1 subscription (event: '*' em conversations)
  * - Mensagens e conversation_tags NÃO são escutadas aqui para reduzir volume
  * - Quando last_message_at muda, busca-se a última mensagem via query
  * - Tags são atualizadas quando a conversa é selecionada ou via page refresh
  *
  * Design decisions:
  * - 1 subscription (não 4+) → menos carga no Supabase Realtime (crítico no free plan)
- * - filter server-side por tenant_id → Supabase envia apenas eventos deste tenant
  * - Retry exponencial com estabilidade: retryCount só reseta após
  *   STABILITY_WINDOW_MS de conexão estável
  * - clearTimeout APÓS removeChannel: removeChannel dispara CLOSED sincronamente,
@@ -40,25 +39,6 @@ export function useRealtimeConversations(
 
   const supabaseRef = useRef(createClient());
   const channelRef = useRef<RealtimeChannel | null>(null);
-
-  // #region agent log
-  useEffect(() => {
-    const sb = createClient();
-    const testCh = sb.channel('effect-test-' + Math.random().toString(36).slice(2, 8))
-      .on(
-        'postgres_changes' as 'system',
-        { event: '*', schema: 'public', table: 'conversations' } as Record<string, string>,
-        (payload: unknown) => {
-          const p = payload as Record<string, unknown>;
-          console.log('[RT-DBG] EFFECT-TEST-EVENT!', p?.eventType);
-        }
-      )
-      .subscribe((status: string) => {
-        console.log('[RT-DBG] EFFECT-TEST-STATUS', status);
-      });
-    return () => { sb.removeChannel(testCh); };
-  }, []);
-  // #endregion
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -137,12 +117,6 @@ export function useRealtimeConversations(
   const handleConversationChange = useCallback(async (
     payload: RealtimePostgresChangesPayload<Conversation>
   ) => {
-    // #region agent log
-    try {
-    const _evId = payload.eventType === 'DELETE' ? (payload.old as {id?:string})?.id : (payload.new as Conversation)?.id;
-    console.log('[RT-DBG] event', {eventType: payload.eventType, convId: _evId?.slice(0,8), tenantId: (payload.new as Conversation)?.tenant_id?.slice(0,8)});
-    // #endregion
-    // --- DELETE ---
     if (payload.eventType === 'DELETE') {
       const oldId = (payload.old as { id?: string })?.id;
       if (oldId) {
@@ -154,7 +128,6 @@ export function useRealtimeConversations(
     const conv = payload.new as Conversation;
     if (!conv || conv.tenant_id !== tenantIdRef.current) return;
 
-    // --- INSERT ---
     if (payload.eventType === 'INSERT') {
       const fullConv = await fetchFullConversation(conv.id);
       if (!fullConv) return;
@@ -223,33 +196,13 @@ export function useRealtimeConversations(
     }
 
     debouncedSort();
-    // #region agent log
-    } catch (handlerErr: unknown) {
-      console.error('[RT-DBG] HANDLER ERROR', handlerErr);
-    }
-    // #endregion
   }, [debouncedSort, fetchLatestMessage, fetchFullConversation]);
 
   // ============================================================
-  // 1 único canal, 1 única subscription (com filtro server-side)
+  // 1 único canal, 1 única subscription
   // ============================================================
   const subscribe = useCallback(() => {
     const supabase = supabaseRef.current;
-
-    // #region agent log
-    console.log('[RT-DBG] subscribe()', {tenantId, channels: supabase.getChannels().length, retryCount: retryCountRef.current});
-    if (typeof window !== 'undefined') {
-      (window as unknown as Record<string, unknown>).__dbg_sb = supabase;
-      console.log('[RT-DBG] supabase client exposed as window.__dbg_sb');
-    }
-    supabase.auth.getSession().then(({data}) => {
-      const uid = data?.session?.user?.id;
-      console.log('[RT-DBG] session', {uid: uid?.slice(0,8), email: data?.session?.user?.email});
-      supabase.from('conversations').select('id').eq('tenant_id', tenantId).limit(1).then(({data: rows, error: qErr}) => {
-        console.log('[RT-DBG] postrest-query', {rows: rows?.length, error: qErr?.message || null});
-      });
-    });
-    // #endregion
 
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
@@ -268,26 +221,19 @@ export function useRealtimeConversations(
     }
 
     const channel = supabase
-      .channel(`livechat-${tenantId}`)
-      .on(
+      .channel(`livechat-${tenantId}`, {
+        config: { broadcast: { self: false } },
+      })
+      .on<Conversation>(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'conversations',
         },
-        // #region agent log
-        (payload: unknown) => {
-          console.log('[RT-DBG] INLINE-HIT', (payload as Record<string, unknown>)?.eventType);
-          handleConversationChange(payload as RealtimePostgresChangesPayload<Conversation>);
-        }
-        // #endregion
+        handleConversationChange
       )
       .subscribe((status, err) => {
-        // #region agent log
-        console.log('[RT-DBG] status', {status, err: err?.message || null, retryCount: retryCountRef.current, channels: supabaseRef.current.getChannels().length});
-        // #endregion
-
         if (status === 'SUBSCRIBED') {
           isSubscribedRef.current = true;
           if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
@@ -310,18 +256,12 @@ export function useRealtimeConversations(
 
           if (retryCountRef.current < MAX_RETRIES) {
             const delay = Math.min(BASE_DELAY * Math.pow(2, retryCountRef.current), 30000);
-            // #region agent log
-            console.log('[RT-DBG] retry scheduled', {retryCount: retryCountRef.current, delay, status});
-            // #endregion
             retryTimeoutRef.current = setTimeout(() => {
               retryCountRef.current++;
               subscribe();
             }, delay);
           } else {
             console.error('[useRealtimeConversations] max retries reached, giving up');
-            // #region agent log
-            console.log('[RT-DBG] MAX RETRIES REACHED', {retryCount: retryCountRef.current});
-            // #endregion
           }
         }
       });

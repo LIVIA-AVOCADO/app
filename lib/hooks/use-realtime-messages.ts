@@ -121,9 +121,7 @@ export function useRealtimeMessages(
         handleUpdate
       )
       .subscribe((status, err) => {
-        // #region agent log
-        console.log('[RT-DBG] msgs-status', {status, err: err?.message || null, conversationId: conversationId?.slice(0,8), channels: supabaseRef.current.getChannels().length});
-        // #endregion
+       
         if (status === 'SUBSCRIBED') {
           retryCountRef.current = 0;
           return;
