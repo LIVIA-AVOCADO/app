@@ -37,6 +37,11 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { toast } from 'sonner';
 import type { QuickReply } from '@/types/livechat';
 import { useApiCall } from '@/lib/hooks';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface QuickRepliesPanelProps {
   conversationId: string;
@@ -225,67 +230,80 @@ export function QuickRepliesPanel({
                   const isPopular = top3Ids.includes(reply.id);
 
                   return (
-                    <div
-                      key={reply.id}
-                      className="relative flex items-start gap-2 px-2 py-3 hover:bg-accent cursor-pointer group"
-                      onClick={() => handleSelect(reply)}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {reply.emoji && (
-                            <span className="text-lg">{reply.emoji}</span>
-                          )}
-                          <span className="font-medium text-sm truncate">
-                            {reply.title}
-                          </span>
-                          {isPopular && (
-                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                              Popular
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {reply.content}
-                        </p>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          Usado {reply.usage_count}x
-                        </div>
-                      </div>
+                    <Tooltip key={reply.id} delayDuration={600}>
+                      <TooltipTrigger asChild>
+                        <div
+                          className="relative flex items-start gap-2 px-2 py-3 hover:bg-accent cursor-pointer group"
+                          onClick={() => handleSelect(reply)}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {reply.emoji && (
+                                <span className="text-lg">{reply.emoji}</span>
+                              )}
+                              <span className="font-medium text-sm truncate">
+                                {reply.title}
+                              </span>
+                              {isPopular && (
+                                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                                  Popular
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {reply.content}
+                            </p>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Usado {reply.usage_count}x
+                            </div>
+                          </div>
 
-                      {/* Menu ellipsis */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditDialog(reply);
-                            }}
-                          >
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenDeleteDialog(reply);
-                            }}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                          {/* Menu ellipsis */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditDialog(reply);
+                                }}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenDeleteDialog(reply);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="right"
+                        sideOffset={8}
+                        className="max-w-xs"
+                      >
+                        <div className="max-h-48 overflow-y-auto">
+                          <p className="font-semibold mb-1">{reply.title}</p>
+                          <p className="whitespace-pre-wrap break-words text-xs">{reply.content}</p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   );
                   })}
                 </CommandGroup>

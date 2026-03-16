@@ -17,6 +17,11 @@ import type { QuickReply } from '@/types/livechat';
 import type { QuickReplyMode } from '@/hooks/use-quick-reply-command';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface QuickReplyCommandProps {
   isOpen: boolean;
@@ -173,22 +178,38 @@ export function QuickReplyCommand({
                     {reply.emoji || (mode === 'popular' ? '⚡' : '💬')}
                   </span>
 
-                  {/* Conteúdo */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{reply.title}</span>
-                      {mode === 'popular' && (
-                        <span className="text-xs text-muted-foreground">
-                          {reply.usage_count}x
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {reply.content.length > 60
-                        ? `${reply.content.substring(0, 60)}...`
-                        : reply.content}
-                    </p>
-                  </div>
+                  {/* Conteúdo com tooltip ao hover */}
+                  <Tooltip delayDuration={600}>
+                    <TooltipTrigger asChild>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{reply.title}</span>
+                          {mode === 'popular' && (
+                            <span className="text-xs text-muted-foreground">
+                              {reply.usage_count}x
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {reply.content.length > 60
+                            ? `${reply.content.substring(0, 60)}...`
+                            : reply.content}
+                        </p>
+                      </div>
+                    </TooltipTrigger>
+                    {reply.content.length > 60 && (
+                      <TooltipContent
+                        side="right"
+                        sideOffset={8}
+                        className="max-w-xs"
+                      >
+                        <div className="max-h-48 overflow-y-auto">
+                          <p className="font-semibold mb-1">{reply.title}</p>
+                          <p className="whitespace-pre-wrap break-words text-xs">{reply.content}</p>
+                        </div>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 </CommandItem>
               ))}
             </CommandGroup>
