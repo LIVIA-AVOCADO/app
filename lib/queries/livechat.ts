@@ -204,8 +204,8 @@ export async function getConversationsWithContact(
     query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
   }
 
-  let { data: conversationsData } = await query;
-  const { error: conversationsError } = await query;
+  // eslint-disable-next-line prefer-const
+  let { data: conversationsData, error: conversationsError } = await query;
 
   if (conversationsError) throw conversationsError;
   if (!conversationsData || conversationsData.length === 0) return [];

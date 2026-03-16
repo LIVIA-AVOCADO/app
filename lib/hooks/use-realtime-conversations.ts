@@ -55,10 +55,33 @@ export function useRealtimeConversations(
   }, SORT_DEBOUNCE_MS);
 
   useEffect(() => {
-    if (!isSubscribedRef.current || !hasInitialDataRef.current) {
+    if (!hasInitialDataRef.current) {
+      // Primeira carga: inicializa o estado completo
       setConversations(sortByLastMessage(initialConversations));
       hasInitialDataRef.current = true;
+      return;
     }
+
+    // Após router.refresh(), mescla dados do servidor (ex: conversation_tags atualizados)
+    // sem sobrescrever mudanças feitas pelo Realtime (last_message_at, status, etc.)
+    setConversations((prev) => {
+      const serverMap = new Map(initialConversations.map((c) => [c.id, c]));
+      const merged = prev.map((existing) => {
+        const fromServer = serverMap.get(existing.id);
+        if (!fromServer) return existing;
+        // Mantém last_message_at e lastMessage do estado local (Realtime é mais recente)
+        // mas atualiza campos que só chegam via server refresh (ex: conversation_tags)
+        return {
+          ...fromServer,
+          lastMessage: existing.lastMessage ?? fromServer.lastMessage,
+          last_message_at: existing.last_message_at ?? fromServer.last_message_at,
+        };
+      });
+      // Adiciona novas conversas que vieram do servidor mas não estão no estado local
+      const existingIds = new Set(prev.map((c) => c.id));
+      const newFromServer = initialConversations.filter((c) => !existingIds.has(c.id));
+      return sortByLastMessage([...merged, ...newFromServer]);
+    });
   }, [initialConversations]);
 
   // ============================================================
@@ -83,7 +106,7 @@ export function useRealtimeConversations(
         *,
         contacts!inner(*),
         conversation_tags(
-          tag:tags(id, tag_name, color, is_category, order_index)
+          tag:tags(id, tag_name, tag_type, color, is_category, order_index)
         )
       `)
       .eq('id', conversationId)
