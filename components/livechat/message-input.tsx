@@ -3,8 +3,7 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { Send } from 'lucide-react';
 import { QuickRepliesPanel } from './quick-replies-panel';
 import { QuickReplyCommand } from './quick-reply-command';
 import { useQuickReplyCommand } from '@/hooks/use-quick-reply-command';
@@ -12,14 +11,17 @@ import { usePrefetchQuickReplies } from '@/hooks/use-quick-replies-cache';
 import type { Conversation } from '@/types/database-helpers';
 import type { MessageWithSender } from '@/types/livechat';
 import { PauseIAConfirmDialog } from './pause-ia-confirm-dialog';
-import { useApiCall } from '@/lib/hooks';
+import { useSendMessage } from '@/lib/hooks/use-send-message';
 
 interface MessageInputProps {
   conversation: Conversation;
   tenantId: string;
   contactName: string;
   onSend?: () => void;
-  onMessageSent?: (message: MessageWithSender) => void;
+  onOptimisticAdd: (message: MessageWithSender) => void;
+  onTempConfirmed: (tempId: string, confirmed: MessageWithSender) => void;
+  onTempFailed: (tempId: string) => void;
+  onTyping?: () => void;
   disabled?: boolean;
 }
 
@@ -28,7 +30,10 @@ export function MessageInput({
   tenantId,
   contactName,
   onSend,
-  onMessageSent,
+  onOptimisticAdd,
+  onTempConfirmed,
+  onTempFailed,
+  onTyping,
   disabled = false,
 }: MessageInputProps) {
   const [content, setContent] = useState('');
@@ -39,22 +44,17 @@ export function MessageInput({
   // Prefetch: carrega respostas rápidas em background para abertura instantânea
   usePrefetchQuickReplies({ tenantId });
 
-  // API calls hooks
-  const resumeConversation = useApiCall('/api/conversations/resume', 'POST', {
-    suppressSuccessToast: true,
-    suppressErrorToast: true, // Handled manually below
-  });
-
-  const sendMessageApi = useApiCall('/api/n8n/send-message', 'POST', {
-    suppressSuccessToast: true,
-    suppressErrorToast: true, // Handled manually below
-    onSuccess: () => {
+  const { sendMessage } = useSendMessage({
+    conversation,
+    tenantId,
+    onOptimisticAdd,
+    onTempConfirmed,
+    onTempFailed,
+    onAfterSend: () => {
       setContent('');
       onSend?.();
     },
   });
-
-  const isSending = resumeConversation.isLoading || sendMessageApi.isLoading;
 
   // Hook para gerenciar command palette de respostas rápidas
   const quickReplyCommand = useQuickReplyCommand({
@@ -75,7 +75,7 @@ export function MessageInput({
   });
 
   const handleSendClick = () => {
-    if (!content.trim() || isSending) return;
+    if (!content.trim()) return;
 
     // Se IA está ativa, mostrar confirmação antes de enviar
     if (conversation.ia_active) {
@@ -84,60 +84,12 @@ export function MessageInput({
       return;
     }
 
-    // Se IA já está pausada, enviar direto
     sendMessage(content.trim());
   };
 
   const handleConfirmSendAndPauseIA = () => {
     sendMessage(pendingMessage);
     setPendingMessage('');
-  };
-
-  const sendMessage = async (messageContent: string) => {
-    if (!messageContent || isSending) return;
-
-    try {
-      // Enviar mensagem normalmente
-      const result = await sendMessageApi.execute({
-        conversationId: conversation.id,
-        tenantId: tenantId,
-        content: messageContent,
-      });
-
-      if (!result) {
-        toast.error('Erro ao enviar mensagem');
-        return;
-      }
-
-      // Inserção otimista: exibe a mensagem imediatamente sem esperar realtime
-      const resp = result as { message?: { id: string; status?: string } };
-      if (resp.message?.id && onMessageSent) {
-        const now = new Date().toISOString();
-        const optimisticMessage: MessageWithSender = {
-          id: resp.message.id,
-          conversation_id: conversation.id,
-          content: messageContent,
-          sender_type: 'attendant',
-          sender_user_id: null,
-          sender_agent_id: null,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          status: (resp.message.status ?? 'pending') as any,
-          timestamp: now,
-          created_at: now,
-          updated_at: now,
-          external_message_id: null,
-          feedback_text: null,
-          feedback_type: null,
-          senderUser: null,
-        };
-        onMessageSent(optimisticMessage);
-      }
-    } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Erro ao enviar mensagem'
-      );
-    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -180,6 +132,9 @@ export function MessageInput({
 
     // Notifica o hook sobre mudanças no input (para detectar "/" e "//")
     quickReplyCommand.handleTextareaInput(newValue, cursorPos);
+
+    // Sinaliza digitação para typing indicator
+    if (newValue.trim()) onTyping?.();
   };
 
   return (
@@ -189,7 +144,7 @@ export function MessageInput({
         tenantId={tenantId}
         contactName={contactName}
         onSelect={handleQuickReplySelect}
-        disabled={disabled || isSending}
+        disabled={disabled}
       />
       <Textarea
         ref={textareaRef}
@@ -197,21 +152,16 @@ export function MessageInput({
         value={content}
         onChange={handleContentChange}
         onKeyDown={handleKeyDown}
-        disabled={disabled || isSending}
-        className="min-h-[60px] max-h-[120px] resize-none transition-opacity duration-200"
-        style={{ opacity: isSending ? 0.6 : 1 }}
+        disabled={disabled}
+        className="min-h-[60px] max-h-[120px] resize-none"
       />
       <Button
         onClick={handleSendClick}
-        disabled={!content.trim() || disabled || isSending}
+        disabled={!content.trim() || disabled}
         size="icon"
-        className="h-[60px] w-[60px] transition-all duration-200"
+        className="h-[60px] w-[60px]"
       >
-        {isSending ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : (
-          <Send className="h-5 w-5 transition-transform duration-150 group-hover:translate-x-0.5" />
-        )}
+        <Send className="h-5 w-5" />
       </Button>
 
       <PauseIAConfirmDialog

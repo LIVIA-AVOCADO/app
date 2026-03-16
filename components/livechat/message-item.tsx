@@ -12,9 +12,10 @@ interface MessageItemProps {
   conversationId?: string;
   tenantId?: string;
   isNew?: boolean;
+  onRetry?: (messageId: string, content: string) => void;
 }
 
-export function MessageItem({ message, conversationId, tenantId, isNew = false }: MessageItemProps) {
+export function MessageItem({ message, conversationId, tenantId, isNew = false, onRetry }: MessageItemProps) {
   const isCustomer = message.sender_type === 'customer';
   const isAttendant = message.sender_type === 'attendant';
   const isIA = message.sender_type === 'ai';
@@ -37,7 +38,8 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false }
       className={cn(
         'flex gap-3 mb-4',
         isCustomer ? 'flex-row' : 'flex-row-reverse',
-        isNew && 'animate-in fade-in-0 slide-in-from-bottom-3 duration-200'
+        isNew && 'animate-in fade-in-0 slide-in-from-bottom-3 duration-200',
+        message.status === 'pending' && 'opacity-60 transition-opacity duration-300'
       )}
     >
       {/* Avatar */}
@@ -46,7 +48,7 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false }
         <AvatarFallback className="text-xs">{initials}</AvatarFallback>
       </Avatar>
 
-      {/* Balão da mensagem */}
+      {/* Balão da mensagem + retry */}
       <div
         className={cn(
           'flex flex-col max-w-[70%]',
@@ -110,6 +112,16 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false }
             </div>
           )}
         </div>
+
+        {/* Retry fora do balão, alinhado à direita (apenas atendente com falha) */}
+        {message.status === 'failed' && isAttendant && onRetry && (
+          <button
+            onClick={() => onRetry(message.id, message.content)}
+            className="mt-1 text-xs text-destructive underline underline-offset-2 hover:opacity-80 transition-opacity"
+          >
+            Tentar novamente
+          </button>
+        )}
       </div>
     </div>
   );

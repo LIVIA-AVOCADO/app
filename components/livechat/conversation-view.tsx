@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { MessageItem } from './message-item';
 import { MessageInput } from './message-input';
 import { ConversationHeader } from './conversation-header';
 import { ScrollToBottomButton } from './scroll-to-bottom-button';
 import { MessagesSkeleton } from './messages-skeleton';
+import { TypingIndicator } from './typing-indicator';
 import { useRealtimeMessages } from '@/lib/hooks/use-realtime-messages';
 import { useRealtimeConversation } from '@/lib/hooks/use-realtime-conversation';
 import { useChatScroll } from '@/lib/hooks/use-chat-scroll';
+import { useTypingPresence } from '@/lib/hooks/use-typing-presence';
+import { useSendMessage } from '@/lib/hooks/use-send-message';
 import type { Conversation, Tag } from '@/types/database-helpers';
 import type { ConversationWithContact, MessageWithSender } from '@/types/livechat';
 
@@ -34,11 +37,27 @@ export function ConversationView({
   conversationTags,
   onConversationUpdate,
 }: ConversationViewProps) {
-  const { messages, addMessage } = useRealtimeMessages(
-    initialConversation.id,
-    initialMessages
-  );
+  const { messages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage } =
+    useRealtimeMessages(initialConversation.id, initialMessages);
   const { conversation } = useRealtimeConversation(initialConversation);
+  const { isRemoteTyping, broadcastTyping } = useTypingPresence(initialConversation.id);
+
+  // Retry: remove a mensagem falha e reenvia
+  const { sendMessage: retrySend } = useSendMessage({
+    conversation,
+    tenantId,
+    onOptimisticAdd: addMessage,
+    onTempConfirmed: replaceTempMessage,
+    onTempFailed: (tempId) => updateMessageStatus(tempId, 'failed'),
+  });
+
+  const handleRetry = useCallback(
+    (failedId: string, content: string) => {
+      removeMessage(failedId);
+      retrySend(content);
+    },
+    [removeMessage, retrySend]
+  );
 
   const { scrollRef, isAtBottom, unreadCount, scrollToBottom } =
     useChatScroll(messages);
@@ -111,9 +130,11 @@ export function ConversationView({
                     conversationId={conversation.id}
                     tenantId={tenantId}
                     isNew={!initialMessageIds.has(message.id)}
+                    onRetry={handleRetry}
                   />
                 ))
               )}
+              <TypingIndicator isVisible={isRemoteTyping} />
             </div>
 
             <ScrollToBottomButton
@@ -132,7 +153,10 @@ export function ConversationView({
         tenantId={tenantId}
         contactName={contactName}
         disabled={conversation.status === 'closed'}
-        onMessageSent={addMessage}
+        onOptimisticAdd={addMessage}
+        onTempConfirmed={replaceTempMessage}
+        onTempFailed={(tempId) => updateMessageStatus(tempId, 'failed')}
+        onTyping={broadcastTyping}
       />
     </div>
   );

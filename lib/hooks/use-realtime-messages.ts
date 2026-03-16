@@ -18,7 +18,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { MessageWithSender } from '@/types/livechat';
+import type { MessageWithSender, MessageStatus } from '@/types/livechat';
 import type { Message } from '@/types/database-helpers';
 
 const MAX_RETRIES = 10;
@@ -56,12 +56,28 @@ export function useRealtimeMessages(
 
     const newMessage: MessageWithSender = { ...payload.new, senderUser };
     setMessages((prev) => {
-      const existingIndex = prev.findIndex((m) => m.id === newMessage.id);
-      if (existingIndex !== -1) {
+      // 1. Dedup por ID exato (caso normal)
+      const exactIdx = prev.findIndex((m) => m.id === newMessage.id);
+      if (exactIdx !== -1) {
         const result = [...prev];
-        result[existingIndex] = newMessage;
+        result[exactIdx] = newMessage;
         return result;
       }
+
+      // 2. Substitui mensagem temp (otimismo verdadeiro) pelo ID real do banco
+      const tempIdx = prev.findIndex(
+        (m) =>
+          m.id.startsWith('temp-') &&
+          m.content === newMessage.content &&
+          m.sender_type === 'attendant' &&
+          m.conversation_id === newMessage.conversation_id
+      );
+      if (tempIdx !== -1) {
+        const result = [...prev];
+        result[tempIdx] = newMessage;
+        return result;
+      }
+
       return [...prev, newMessage];
     });
   }, []);
@@ -71,6 +87,30 @@ export function useRealtimeMessages(
       if (prev.some((m) => m.id === message.id)) return prev;
       return [...prev, message];
     });
+  }, []);
+
+  const replaceTempMessage = useCallback(
+    (tempId: string, confirmedMessage: MessageWithSender) => {
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === tempId);
+        if (idx === -1) return prev; // já substituído pelo Realtime INSERT
+        const next = [...prev];
+        next[idx] = confirmedMessage;
+        return next;
+      });
+    },
+    []
+  );
+
+  const updateMessageStatus = useCallback((id: string, status: MessageStatus) => {
+    setMessages((prev) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prev.map((m) => (m.id === id ? { ...m, status: status as any } : m))
+    );
+  }, []);
+
+  const removeMessage = useCallback((id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
   }, []);
 
   const handleUpdate = useCallback((payload: { new: Message }) => {
@@ -169,5 +209,5 @@ export function useRealtimeMessages(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  return { messages, addMessage };
+  return { messages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage };
 }
