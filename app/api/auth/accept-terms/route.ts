@@ -20,7 +20,7 @@ export async function POST() {
 
   if (error) {
     console.error('[accept-terms] Erro ao gravar aceite:', error);
-    return NextResponse.json({ error: 'Erro ao registrar aceite.', detail: error }, { status: 500 });
+    return NextResponse.json({ error: 'Erro ao registrar aceite.' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

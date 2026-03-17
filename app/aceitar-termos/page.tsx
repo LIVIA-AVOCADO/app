@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 
 export default function AceitarTermosPage() {
-  const router = useRouter();
   const [accepted, setAccepted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,13 +16,11 @@ export default function AceitarTermosPage() {
 
     try {
       const res = await fetch('/api/auth/accept-terms', { method: 'POST' });
-      const data = await res.json();
       if (!res.ok) {
-        setError(`Erro: ${JSON.stringify(data)}`);
+        setError('Não foi possível registrar o aceite. Tente novamente.');
         return;
       }
-      router.push('/livechat');
-      router.refresh();
+      window.location.href = '/livechat';
     } catch {
       setError('Erro de conexão. Tente novamente.');
     } finally {
