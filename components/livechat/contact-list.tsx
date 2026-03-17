@@ -195,13 +195,8 @@ export function ContactList({
           <>
             <Separator className="my-2" />
             <div className="flex items-center justify-between">
-              <Label htmlFor="unread-toggle" className="text-sm text-muted-foreground flex items-center gap-1.5">
-                Apenas não lidas
-                {unreadInManualCount > 0 && (
-                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-green-500 rounded-full">
-                    {unreadInManualCount > 99 ? '99+' : unreadInManualCount}
-                  </span>
-                )}
+              <Label htmlFor="unread-toggle" className="text-sm text-muted-foreground">
+                Apenas não lidas ({unreadInManualCount})
               </Label>
               <Switch
                 id="unread-toggle"
