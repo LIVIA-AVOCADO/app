@@ -190,6 +190,28 @@ export function LoginForm() {
               </>
             )}
           </Button>
+
+          <p className="text-center text-xs text-zinc-400 dark:text-zinc-500 leading-relaxed">
+            Ao continuar, você concorda com nossos{' '}
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-zinc-600"
+            >
+              Termos de Serviço
+            </a>{' '}
+            e{' '}
+            <a
+              href="/privacy-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-zinc-600"
+            >
+              Política de Privacidade
+            </a>
+            .
+          </p>
         </CardFooter>
       </form>
     </Card>

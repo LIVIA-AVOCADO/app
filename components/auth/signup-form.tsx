@@ -29,6 +29,7 @@ export function SignupForm() {
   const [isLoading, setIsLoading]       = useState(false);
   const [error, setError]               = useState<string | null>(null);
   const [passwordTouched, setPasswordTouched] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const passwordValid = PASSWORD_RULES.every((r) => r.test(password));
   const passwordsMatch = password === confirmPassword;
@@ -37,6 +38,10 @@ export function SignupForm() {
     e.preventDefault();
     setError(null);
 
+    if (!termsAccepted) {
+      setError('Você precisa aceitar os Termos de Serviço e a Política de Privacidade.');
+      return;
+    }
     if (!passwordValid) {
       setError('A senha não atende aos requisitos.');
       return;
@@ -187,7 +192,38 @@ export function SignupForm() {
         </CardContent>
 
         <CardFooter className="mt-4 flex flex-col gap-4">
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              disabled={isLoading}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-zinc-300 accent-zinc-900"
+            />
+            <span className="text-sm text-zinc-600 dark:text-zinc-400 leading-snug">
+              Li e aceito os{' '}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-zinc-800 dark:text-zinc-200 underline underline-offset-2 hover:text-zinc-900"
+              >
+                Termos de Serviço
+              </a>{' '}
+              e a{' '}
+              <a
+                href="/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-zinc-800 dark:text-zinc-200 underline underline-offset-2 hover:text-zinc-900"
+              >
+                Política de Privacidade
+              </a>
+              .
+            </span>
+          </label>
+
+          <Button type="submit" className="w-full" disabled={isLoading || !termsAccepted}>
             {isLoading ? 'Criando conta...' : 'Criar conta'}
           </Button>
 
