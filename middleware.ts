@@ -96,11 +96,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const { data: userData } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: userData } = await (supabase as any)
     .from('users')
-    .select('tenant_id')
+    .select('tenant_id, terms_accepted_at')
     .eq('id', user.id)
     .single();
+
+  // Redireciona para aceite de termos se o usuário ainda não aceitou
+  const hasAcceptedTerms = !!userData?.terms_accepted_at;
+  if (!hasAcceptedTerms && pathname !== '/aceitar-termos') {
+    return NextResponse.redirect(new URL('/aceitar-termos', request.url));
+  }
 
   const hasTenant = !!userData?.tenant_id;
 
