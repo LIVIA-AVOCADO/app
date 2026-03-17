@@ -16,6 +16,30 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import type { ConversationWithContact } from '@/types/livechat';
 
+interface RawTag {
+  id: string;
+  tag_name: string;
+  color: string | null;
+  is_category: boolean;
+  order_index: number | null;
+  active: boolean;
+  created_at: string;
+  id_neurocore: string | null;
+  prompt_to_ai: string | null;
+}
+
+interface RawConversationTag {
+  id: string;
+  tag_id: string;
+  tag: RawTag | null;
+}
+
+interface RawConversation {
+  conversation_tags: RawConversationTag[] | null;
+  contacts: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 const PAGE_SIZE = 50;
 
 interface ConversationFilters {
@@ -79,17 +103,17 @@ export function useConversationsInfinite(
       }
 
       // Transform data to ConversationWithContact format
-      const conversations = (data || []).map((conv: any) => {
-        const tags = (conv.conversation_tags || []).map((ct: any) => ({
+      const conversations = (data as RawConversation[] || []).map((conv) => {
+        const tags = (conv.conversation_tags || []).map((ct: RawConversationTag) => ({
           ...ct,
           tag: ct.tag,
         }));
 
         // Find category (is_category = true, sorted by order_index)
         const category = tags
-          .map((ct: any) => ct.tag)
-          .filter((tag: any) => tag && tag.is_category)
-          .sort((a: any, b: any) => (a?.order_index || 0) - (b?.order_index || 0))[0] || null;
+          .map((ct: RawConversationTag) => ct.tag)
+          .filter((tag): tag is RawTag => tag !== null && tag.is_category)
+          .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))[0] || null;
 
         return {
           ...conv,
@@ -97,7 +121,7 @@ export function useConversationsInfinite(
           lastMessage: null, // Will be populated by realtime
           conversation_tags: tags,
           category,
-        } as ConversationWithContact;
+        } as unknown as ConversationWithContact;
       });
 
       // Client-side filtering for search and tags

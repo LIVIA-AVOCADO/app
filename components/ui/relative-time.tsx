@@ -1,11 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 import { formatRelativeTime } from '@/lib/utils/contact-list';
 
 interface RelativeTimeProps {
   timestamp: string | null | undefined;
   className?: string;
+}
+
+function subscribe() {
+  return () => {};
 }
 
 /**
@@ -14,11 +18,7 @@ interface RelativeTimeProps {
  * entre servidor e cliente.
  */
 export function RelativeTime({ timestamp, className }: RelativeTimeProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribe, () => true, () => false);
 
   // No servidor e durante hidratação, não renderiza nada
   if (!mounted) {

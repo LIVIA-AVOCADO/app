@@ -80,8 +80,8 @@ export function ContactListVirtualized({
   });
 
   // Auto-carregar quando chega perto do fim
+  const virtualItems = rowVirtualizer.getVirtualItems();
   useEffect(() => {
-    const virtualItems = rowVirtualizer.getVirtualItems();
     if (virtualItems.length === 0) return;
 
     const lastItem = virtualItems[virtualItems.length - 1];
@@ -95,7 +95,8 @@ export function ContactListVirtualized({
       fetchNextPage();
     }
   }, [
-    rowVirtualizer.getVirtualItems(),
+    virtualItems,
+    rowVirtualizer,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
