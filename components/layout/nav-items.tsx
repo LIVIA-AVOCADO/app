@@ -1,6 +1,7 @@
 import { MessageSquare, BookOpen, Kanban, Bot, BarChart3, Wallet, Settings, Rocket } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { MODULE_KEYS, type ModuleKey } from '@/lib/permissions';
+// MODULE_KEYS é a fonte de verdade — não há necessidade de seed no banco para novos módulos.
 
 /**
  * Tipo para subitems de navegação
@@ -88,30 +89,30 @@ export const navItems: NavItem[] = [
       { title: 'Reativação',        url: '/reativacao',              moduleKey: MODULE_KEYS.REATIVACAO },
       { title: 'Tags',              url: '/configuracoes/tags',       moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Controle da IA',    url: '/configuracoes/controle-ia', moduleKey: MODULE_KEYS.CONFIGURACOES },
-      { title: 'Gerenciar Usuários', url: '/gerenciar-usuarios',     adminOnly: true },
+      { title: 'Gerenciar Usuários', url: '/gerenciar-usuarios',     moduleKey: MODULE_KEYS.GERENCIAR_USUARIOS },
     ],
   },
   {
     title:     'Relatórios',
     url:       '/relatorios/principal',
     icon:      BarChart3,
-    adminOnly: true,
+    moduleKey: MODULE_KEYS.RELATORIOS,
     items: [
-      { title: 'Principal',  url: '/relatorios/principal',  adminOnly: true },
-      { title: 'Conversas',  url: '/relatorios/conversas',  adminOnly: true },
-      { title: 'Tags',       url: '/relatorios/tags',       adminOnly: true },
+      { title: 'Principal',  url: '/relatorios/principal',  moduleKey: MODULE_KEYS.RELATORIOS },
+      { title: 'Conversas',  url: '/relatorios/conversas',  moduleKey: MODULE_KEYS.RELATORIOS },
+      { title: 'Tags',       url: '/relatorios/tags',       moduleKey: MODULE_KEYS.RELATORIOS },
     ],
   },
   {
     title:     'Financeiro',
     url:       '/financeiro/saldo',
     icon:      Wallet,
-    adminOnly: true,
+    moduleKey: MODULE_KEYS.FINANCEIRO,
     items: [
-      { title: 'Saldo & Créditos', url: '/financeiro/saldo',      adminOnly: true },
-      { title: 'Consumo',          url: '/financeiro/consumo',     adminOnly: true },
-      { title: 'Extrato',          url: '/financeiro/extrato',     adminOnly: true },
-      { title: 'Recarregar',       url: '/financeiro/recarregar',  adminOnly: true },
+      { title: 'Saldo & Créditos', url: '/financeiro/saldo',      moduleKey: MODULE_KEYS.FINANCEIRO },
+      { title: 'Consumo',          url: '/financeiro/consumo',     moduleKey: MODULE_KEYS.FINANCEIRO },
+      { title: 'Extrato',          url: '/financeiro/extrato',     moduleKey: MODULE_KEYS.FINANCEIRO },
+      { title: 'Recarregar',       url: '/financeiro/recarregar',  moduleKey: MODULE_KEYS.FINANCEIRO },
     ],
   },
 ];

@@ -5,29 +5,97 @@
  *
  * Princípios SOLID aplicados:
  * - S: módulo dedicado exclusivamente a permissões
- * - O: adicionar nova rota/módulo = adicionar entrada em ROUTE_PERMISSIONS, sem alterar funções
+ * - O: nova rota/módulo = nova entrada em MODULE_KEYS + MODULES_CONFIG + ROUTE_PERMISSIONS
+ *      sem alterar nenhuma função existente
  * - D: consumidores dependem das abstrações exportadas, não de lógica espalhada
+ *
+ * Fonte de verdade dos módulos disponíveis: MODULES_CONFIG (código).
+ * Não há dependência da tabela feature_modules do banco para listar módulos.
+ * O banco só armazena quais módulos cada usuário possui (users.modules[]).
  */
 
 // ---------------------------------------------------------------------------
-// Constantes de módulos — devem coincidir com feature_modules.key no banco
+// Constantes de módulos
 // ---------------------------------------------------------------------------
 
 export const MODULE_KEYS = {
-  LIVECHAT:       'livechat',
-  CRM:            'crm',
-  KNOWLEDGE_BASE: 'knowledge-base',
-  AGENTS:         'agents',
-  REATIVACAO:     'reativacao',
-  CONFIGURACOES:  'configuracoes',
+  LIVECHAT:           'livechat',
+  CRM:                'crm',
+  KNOWLEDGE_BASE:     'knowledge-base',
+  AGENTS:             'agents',
+  REATIVACAO:         'reativacao',
+  CONFIGURACOES:      'configuracoes',
+  FINANCEIRO:         'financeiro',
+  RELATORIOS:         'relatorios',
+  GERENCIAR_USUARIOS: 'gerenciar-usuarios',
 } as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS];
 
 // ---------------------------------------------------------------------------
-// Mapa de rota → permissão necessária
-// Padrão Open/Closed: nova rota = nova entrada aqui, sem tocar nas funções.
+// Configuração dos módulos — substitui a tabela feature_modules do banco.
+// Adicionar novo módulo = adicionar entrada aqui. Zero dependência de DB.
+// ---------------------------------------------------------------------------
+
+export interface ModuleConfig {
+  key: ModuleKey;
+  name: string;
+  description: string;
+}
+
+export const MODULES_CONFIG: ModuleConfig[] = [
+  {
+    key:         MODULE_KEYS.LIVECHAT,
+    name:        'Livechat',
+    description: 'Acesso à caixa de entrada e atendimento de conversas',
+  },
+  {
+    key:         MODULE_KEYS.CRM,
+    name:        'CRM',
+    description: 'Gestão de contatos e funil de vendas',
+  },
+  {
+    key:         MODULE_KEYS.KNOWLEDGE_BASE,
+    name:        'Base de Conhecimento',
+    description: 'Gerenciamento de bases e validação de respostas da IA',
+  },
+  {
+    key:         MODULE_KEYS.AGENTS,
+    name:        'Agentes IA',
+    description: 'Criação e configuração de agentes de inteligência artificial',
+  },
+  {
+    key:         MODULE_KEYS.REATIVACAO,
+    name:        'Reativação',
+    description: 'Regras e configurações de reativação automática de conversas',
+  },
+  {
+    key:         MODULE_KEYS.CONFIGURACOES,
+    name:        'Configurações',
+    description: 'Tags, controle da IA e demais configurações do workspace',
+  },
+  {
+    key:         MODULE_KEYS.FINANCEIRO,
+    name:        'Financeiro',
+    description: 'Saldo, créditos, consumo e extrato financeiro',
+  },
+  {
+    key:         MODULE_KEYS.RELATORIOS,
+    name:        'Relatórios',
+    description: 'Relatórios de conversas, tags e desempenho da equipe',
+  },
+  {
+    key:         MODULE_KEYS.GERENCIAR_USUARIOS,
+    name:        'Gerenciar Usuários',
+    description: 'Associação e controle de acesso dos usuários da equipe',
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Mapa de rota → módulo necessário
+// Padrão Open/Closed: nova rota protegida = nova entrada aqui.
 // Ordem importa: padrões mais específicos primeiro.
+// adminOnly reservado apenas para /onboarding (fluxo de criação de tenant).
 // ---------------------------------------------------------------------------
 
 interface RoutePermission {
@@ -36,10 +104,10 @@ interface RoutePermission {
 }
 
 const ROUTE_PERMISSIONS: Array<{ pattern: string; permission: RoutePermission }> = [
-  { pattern: '/gerenciar-usuarios', permission: { adminOnly: true } },
-  { pattern: '/financeiro',         permission: { adminOnly: true } },
-  { pattern: '/relatorios',         permission: { adminOnly: true } },
   { pattern: '/onboarding',         permission: { adminOnly: true } },
+  { pattern: '/gerenciar-usuarios', permission: { moduleKey: MODULE_KEYS.GERENCIAR_USUARIOS } },
+  { pattern: '/financeiro',         permission: { moduleKey: MODULE_KEYS.FINANCEIRO } },
+  { pattern: '/relatorios',         permission: { moduleKey: MODULE_KEYS.RELATORIOS } },
   { pattern: '/livechat',           permission: { moduleKey: MODULE_KEYS.LIVECHAT } },
   { pattern: '/crm',                permission: { moduleKey: MODULE_KEYS.CRM } },
   { pattern: '/knowledge-base',     permission: { moduleKey: MODULE_KEYS.KNOWLEDGE_BASE } },

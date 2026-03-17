@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ManageUsersContent } from '@/components/admin/manage-users-content';
+import { MODULES_CONFIG } from '@/lib/permissions';
 
 export default async function GerenciarUsuariosPage() {
   const supabase = await createClient();
@@ -25,11 +26,6 @@ export default async function GerenciarUsuariosPage() {
 
   const tenantId = userData.tenant_id;
 
-  const { data: featureModules } = await supabase
-    .from('feature_modules')
-    .select('id, key, name, description, icon')
-    .order('name');
-
   const adminClient = createAdminClient();
   const { data: tenantUsers } = await adminClient
     .from('users')
@@ -40,7 +36,7 @@ export default async function GerenciarUsuariosPage() {
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       <ManageUsersContent
-        featureModules={featureModules || []}
+        featureModules={MODULES_CONFIG}
         tenantUsers={tenantUsers || []}
       />
     </div>

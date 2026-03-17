@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { UsersList } from './users-list';
 
-interface FeatureModule { id: string; key: string; name: string; description: string; icon: string; }
+interface FeatureModule { key: string; name: string; description: string; }
 interface FoundUser { id: string; full_name: string; email: string; avatar_url: string | null; }
 interface TenantUser {
   id: string; full_name: string; email: string;

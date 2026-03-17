@@ -16,7 +16,7 @@ import {
 import { Users, Pencil, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface FeatureModule { id: string; key: string; name: string; description: string; icon: string; }
+interface FeatureModule { key: string; name: string; description: string; }
 interface TenantUser {
   id: string; full_name: string; email: string;
   avatar_url: string | null; modules: string[]; role: string; is_active: boolean;

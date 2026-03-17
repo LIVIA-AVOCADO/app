@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isSuperAdmin } from '@/lib/permissions';
+import { isSuperAdmin, hasModule, MODULE_KEYS } from '@/lib/permissions';
 
 /**
  * PATCH /api/users/[id]/modules
@@ -33,14 +33,20 @@ export async function PATCH(
     return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   }
 
-  // Verifica se o solicitante é super_admin com tenant
-  const { data: adminUser } = await supabase
+  // Verifica se o solicitante é super_admin ou possui o módulo gerenciar-usuarios
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: adminUser } = await (supabase as any)
     .from('users')
-    .select('tenant_id, role')
+    .select('tenant_id, role, modules')
     .eq('id', user.id)
     .single();
 
-  if (!adminUser?.tenant_id || !isSuperAdmin(adminUser.role ?? '')) {
+  const canManage =
+    adminUser?.tenant_id &&
+    (isSuperAdmin(adminUser.role ?? '') ||
+      hasModule(adminUser.modules ?? [], MODULE_KEYS.GERENCIAR_USUARIOS));
+
+  if (!canManage) {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
   }
 
