@@ -1,16 +1,20 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
+import { canAccessRoute } from '@/lib/permissions';
 
 /**
- * Middleware de Auth + Assinatura
+ * Middleware de Auth + Permissões + Assinatura
  *
- * Intercepta rotas do dashboard e verifica:
- * 1. Autenticacao (redireciona para /login se nao autenticado)
- * 2. Associacao a tenant (redireciona para /aguardando-acesso se sem tenant)
- * 3. Status da assinatura (redireciona para /financeiro/recarregar se cancelada)
+ * Intercepta rotas do dashboard e verifica (nesta ordem):
+ * 1. Autenticação   → redireciona para /login se não autenticado
+ * 2. Aceite termos  → redireciona para /aceitar-termos se pendente
+ * 3. Tenant         → redireciona para /aguardando-acesso se sem tenant
+ * 4. Permissão RBAC → redireciona para /perfil se role/módulo insuficiente
+ * 5. Assinatura     → redireciona para /financeiro/recarregar se cancelada
  *
- * Cache: status da assinatura e lido via cookie 'x-sub-status' com TTL de 5 min.
+ * Cache: status da assinatura via cookie 'x-sub-status' com TTL de 5 min.
+ * Role e módulos são lidos diretamente do banco (mesma query de users).
  */
 
 const PUBLIC_ROUTES = [
@@ -99,11 +103,11 @@ export async function middleware(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: userData } = await (supabase as any)
     .from('users')
-    .select('tenant_id, terms_accepted_at')
+    .select('tenant_id, terms_accepted_at, role, modules')
     .eq('id', user.id)
     .single();
 
-  // Redireciona para aceite de termos se o usuário ainda não aceitou
+  // 2. Aceite de termos
   const hasAcceptedTerms = !!userData?.terms_accepted_at;
   if (!hasAcceptedTerms && pathname !== '/aceitar-termos') {
     return NextResponse.redirect(new URL('/aceitar-termos', request.url));
@@ -123,6 +127,13 @@ export async function middleware(request: NextRequest) {
 
   if (!hasTenant) {
     return response;
+  }
+
+  // 4. RBAC: verifica role e módulos do usuário
+  const userRole    = userData?.role    ?? 'user';
+  const userModules = userData?.modules ?? [];
+  if (!canAccessRoute(userRole, userModules, pathname)) {
+    return NextResponse.redirect(new URL('/perfil', request.url));
   }
 
   const cachedStatus = request.cookies.get('x-sub-status')?.value;

@@ -34,10 +34,11 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  // Busca dados do usuário e tenant
-  const { data: userData } = await supabase
+  // Busca dados do usuário e tenant (inclui role e modules para RBAC)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: userData } = await (supabase as any)
     .from('users')
-    .select('tenant_id, full_name, email, avatar_url, tenants(name)')
+    .select('tenant_id, full_name, email, avatar_url, role, modules, tenants(name)')
     .eq('id', authData.user.id)
     .single();
 
@@ -67,6 +68,8 @@ export default async function DashboardLayout({
           tenantName={tenantName}
           avatarUrl={user?.avatar_url}
           hasTenant={!!user?.tenant_id}
+          userRole={user?.role ?? 'user'}
+          userModules={user?.modules ?? []}
         />
         <SidebarInset className="flex flex-col w-full h-screen overflow-x-hidden pl-4 md:pl-6">
           <SubscriptionWarningBanner

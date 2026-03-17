@@ -18,7 +18,9 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from '@/components/ui/sidebar';
-import { navItems } from './nav-items';
+import { navItems, type NavItem, type NavSubItem } from './nav-items';
+import { isSuperAdmin, hasModule } from '@/lib/permissions';
+import type { ModuleKey } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { SidebarFooter } from '@/components/ui/sidebar';
 import { SidebarUserProfile } from './sidebar-user-profile';
@@ -30,16 +32,13 @@ import { APP_VERSION } from '@/config/constants';
  * Princípios SOLID:
  * - Single Responsibility: Renderiza sidebar completo (toggle + navegação + perfil)
  * - Open/Closed: Extensível via navItems, fechado para modificação
- * - Dependency Inversion: Depende da abstração Sidebar (shadcn)
+ * - Dependency Inversion: Depende das abstrações NavItem e das funções de permissão
  *
  * Features:
- * - Toggle integrado no header (sempre acessível, expandido ou colapsado)
- * - Auto-collapse no livechat (gerenciado pelo hook no layout)
- * - Modo icon quando collapsed
- * - Link ativo destacado
- * - Footer com perfil do usuário clicável
- * - Layout responsivo (toggle + logo alinhados quando expandido, empilhados quando colapsado)
- * - Acessibilidade completa
+ * - Filtragem de nav items por role (super_admin vs user) e módulos atribuídos
+ * - Super admins veem tudo; users veem apenas o que seus módulos permitem
+ * - Subitens filtrados individualmente; pai oculto se todos os filhos forem bloqueados
+ * - URL do pai atualizada para o primeiro subitem visível
  */
 
 interface AppSidebarProps {
@@ -47,6 +46,42 @@ interface AppSidebarProps {
   tenantName?: string;
   avatarUrl?: string;
   hasTenant?: boolean;
+  userRole?: string;
+  userModules?: string[];
+}
+
+function isItemVisible(
+  adminOnly: boolean | undefined,
+  moduleKey: ModuleKey | undefined,
+  isAdmin: boolean,
+  modules: string[],
+): boolean {
+  if (adminOnly && !isAdmin) return false;
+  if (moduleKey && !isAdmin && !hasModule(modules, moduleKey)) return false;
+  return true;
+}
+
+function filterNavItems(
+  items: NavItem[],
+  isAdmin: boolean,
+  modules: string[],
+): NavItem[] {
+  return items.reduce<NavItem[]>((acc, item) => {
+    if (item.items) {
+      const visibleSubs = item.items.filter((sub: NavSubItem) =>
+        isItemVisible(sub.adminOnly, sub.moduleKey, isAdmin, modules)
+      );
+      if (visibleSubs.length === 0) return acc;
+
+      // Atualiza URL do pai para o primeiro subitem visível
+      acc.push({ ...item, items: visibleSubs, url: visibleSubs[0]?.url ?? item.url });
+      return acc;
+    }
+
+    if (!isItemVisible(item.adminOnly, item.moduleKey, isAdmin, modules)) return acc;
+    acc.push(item);
+    return acc;
+  }, []);
 }
 
 export function AppSidebar({
@@ -54,13 +89,24 @@ export function AppSidebar({
   tenantName,
   avatarUrl,
   hasTenant = false,
+  userRole = 'user',
+  userModules = [],
 }: AppSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const visibleNavItems = hasTenant
-    ? navItems.filter((item) => !item.url.startsWith('/onboarding'))
-    : navItems;
+  const isAdmin = isSuperAdmin(userRole);
+
+  const visibleNavItems = (() => {
+    // Sem tenant: mantém comportamento original (exibe tudo, middleware já controla o acesso)
+    if (!hasTenant) return navItems;
+
+    const withoutOnboarding = navItems.filter(
+      (item) => !item.url.startsWith('/onboarding')
+    );
+
+    return filterNavItems(withoutOnboarding, isAdmin, userModules);
+  })();
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -111,10 +157,9 @@ export function AppSidebar({
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleNavItems.map((item) => {
-                // Check if current path matches this item or any of its subitems
                 const baseUrl = item.url.split('?')[0] ?? item.url;
                 const isActive = item.items
-                  ? item.items.some(sub => {
+                  ? item.items.some((sub) => {
                       const subBaseUrl = sub.url.split('?')[0] ?? sub.url;
                       return pathname.startsWith(subBaseUrl);
                     })
@@ -144,17 +189,13 @@ export function AppSidebar({
                       </Link>
                     </SidebarMenuButton>
 
-                    {/* Render Submenu if active and has items */}
                     {item.items && isActive && (
                       <SidebarMenuSub>
                         {item.items.map((subItem) => {
-                          // Simple check for query param match if present
                           const subQuery = subItem.url.split('?')[1];
                           const subCategory = new URLSearchParams(subQuery || '').get('category');
                           const currentCategory = searchParams.get('category');
 
-                          // Check if it's a path-based submenu (like /relatorios/principal)
-                          // or query-based submenu (like /meus-agentes?category=main)
                           const isSubActive = subCategory
                             ? (currentCategory === subCategory || (!currentCategory && subCategory === 'main'))
                             : pathname === subItem.url;
