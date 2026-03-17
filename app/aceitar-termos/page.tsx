@@ -18,8 +18,9 @@ export default function AceitarTermosPage() {
 
     try {
       const res = await fetch('/api/auth/accept-terms', { method: 'POST' });
+      const data = await res.json();
       if (!res.ok) {
-        setError('Não foi possível registrar o aceite. Tente novamente.');
+        setError(`Erro: ${JSON.stringify(data)}`);
         return;
       }
       router.push('/livechat');
