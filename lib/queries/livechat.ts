@@ -282,12 +282,12 @@ export async function getMessages(
       )
     `)
     .eq('conversation_id', conversationId)
-    .order('timestamp', { ascending: true })
+    .order('timestamp', { ascending: false })
     .limit(limit);
 
   if (error) throw error;
 
-  return (data || []) as MessageWithSender[];
+  return (data || []).reverse() as MessageWithSender[];
 }
 
 /**

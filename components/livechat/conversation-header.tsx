@@ -7,7 +7,7 @@ import { Pause, MessageSquare, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Conversation, Tag } from '@/types/database-helpers';
 import type { ConversationWithContact } from '@/types/livechat';
-import { getContactDisplayName } from '@/lib/utils/contact-helpers';
+import { getContactFirstName } from '@/lib/utils/contact-helpers';
 import { ConversationSummaryModal } from './conversation-summary-modal';
 import { PauseIAConfirmDialog } from './pause-ia-confirm-dialog';
 import { TagSelector } from '@/components/tags/tag-selector';
@@ -36,7 +36,7 @@ export function ConversationHeader({
   const [showPauseIADialog, setShowPauseIADialog] = useState(false);
 
   // Usar função utilitária para obter nome de exibição com fallback
-  const displayName = getContactDisplayName(contactName, contactPhone || null);
+  const displayName = getContactFirstName(contactName, contactPhone || null);
 
   // Extrair tags atuais (todas as tags da conversa)
   // Filtrar tags nulas (podem ocorrer quando tag foi deletada mas referência ainda existe)

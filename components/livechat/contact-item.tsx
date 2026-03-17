@@ -11,7 +11,7 @@ import {
 } from '@/lib/utils/contact-list';
 import { RelativeTime } from '@/components/ui/relative-time';
 import {
-  getContactDisplayName,
+  getContactFirstName,
   getContactInitials,
 } from '@/lib/utils/contact-helpers';
 import type { ConversationWithContact } from '@/types/livechat';
@@ -35,7 +35,7 @@ function ContactItemComponent({
   const lastTimestamp = getConversationLastTimestamp(conversation);
 
   // Use utility functions for display name and initials with fallback
-  const displayName = getContactDisplayName(contact.name, contact.phone);
+  const displayName = getContactFirstName(contact.name, contact.phone);
   const initials = getContactInitials(contact.name, contact.phone);
 
   // Extract all tags from conversation (including category which will be shown after preview)

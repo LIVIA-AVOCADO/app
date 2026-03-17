@@ -161,7 +161,6 @@ export function useRealtimeMessages(
         handleUpdate
       )
       .subscribe((status, err) => {
-       
         if (status === 'SUBSCRIBED') {
           retryCountRef.current = 0;
           return;

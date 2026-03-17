@@ -35,6 +35,23 @@ export function getContactDisplayName(
 }
 
 /**
+ * Retorna apenas o primeiro nome do contato (para exibição compacta).
+ * Se o displayName for telefone ou fallback, retorna como está.
+ */
+export function getContactFirstName(
+  name: string | null | undefined,
+  phone: string | null | undefined
+): string {
+  const displayName = getContactDisplayName(name, phone);
+
+  if (displayName === 'Contato sem nome' || /^\(?\d/.test(displayName)) {
+    return displayName;
+  }
+
+  return displayName.split(' ')[0] ?? displayName;
+}
+
+/**
  * Gera iniciais do contato com fallback para telefone
  * 
  * @param name - Nome do contato (pode ser null, undefined ou string)
