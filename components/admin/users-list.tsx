@@ -110,8 +110,8 @@ function EditModulesDialog({ user, featureModules, open, onClose, onSaved }: Edi
 }
 
 export function UsersList({
-  tenantUsers, featureModules, currentUserId,
-}: { tenantUsers: TenantUser[]; featureModules: FeatureModule[]; currentUserId: string }) {
+  tenantUsers, featureModules,
+}: { tenantUsers: TenantUser[]; featureModules: FeatureModule[] }) {
   const router = useRouter();
   const [editingUser, setEditingUser] = useState<TenantUser | null>(null);
   const [users, setUsers] = useState<TenantUser[]>(tenantUsers);
@@ -163,7 +163,7 @@ export function UsersList({
                     ) : (
                       <Badge variant="outline" className="text-xs">Sem módulos</Badge>
                     )}
-                    {u.id !== currentUserId && (
+                    {u.role !== 'super_admin' && (
                       <Button
                         variant="ghost"
                         size="icon"

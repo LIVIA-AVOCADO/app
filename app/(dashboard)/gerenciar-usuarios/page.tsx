@@ -42,7 +42,6 @@ export default async function GerenciarUsuariosPage() {
       <ManageUsersContent
         featureModules={featureModules || []}
         tenantUsers={tenantUsers || []}
-        currentUserId={user.id}
       />
     </div>
   );

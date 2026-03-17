@@ -25,8 +25,8 @@ function getInitials(name: string): string {
 }
 
 export function ManageUsersContent({
-  featureModules, tenantUsers, currentUserId,
-}: { featureModules: FeatureModule[]; tenantUsers: TenantUser[]; currentUserId: string }) {
+  featureModules, tenantUsers,
+}: { featureModules: FeatureModule[]; tenantUsers: TenantUser[] }) {
   const router = useRouter();
   const [code, setCode]                   = useState('');
   const [isSearching, setIsSearching]     = useState(false);
@@ -148,7 +148,7 @@ export function ManageUsersContent({
         </CardContent>
       </Card>
 
-      <UsersList tenantUsers={tenantUsers} featureModules={featureModules} currentUserId={currentUserId} />
+      <UsersList tenantUsers={tenantUsers} featureModules={featureModules} />
     </div>
   );
 }
