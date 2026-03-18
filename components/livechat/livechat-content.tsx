@@ -154,6 +154,7 @@ export function LivechatContent({
             tenantId={tenantId}
             onConversationClick={handleConversationClick}
             onConversationHover={prefetch}
+            onConversationUpdate={updateConversation}
             allTags={allTags}
           />
         </div>

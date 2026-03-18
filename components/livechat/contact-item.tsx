@@ -4,6 +4,14 @@ import { memo } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import {
   formatMessagePreview,
@@ -16,32 +24,34 @@ import {
 } from '@/lib/utils/contact-helpers';
 import type { ConversationWithContact } from '@/types/livechat';
 import { TagBadge } from './tag-badge';
+import { MoreVertical, BellOff, XCircle } from 'lucide-react';
 
 interface ContactItemProps {
   conversation: ConversationWithContact;
   isSelected?: boolean;
   onClick?: () => void;
+  onMarkUnread?: (conversationId: string) => void;
+  onClose?: (conversationId: string) => void;
 }
 
 function ContactItemComponent({
   conversation,
   isSelected = false,
   onClick,
+  onMarkUnread,
+  onClose,
 }: ContactItemProps) {
   const { contact, lastMessage, status, ia_active, category, conversation_tags, has_unread, unread_count } = conversation;
 
-  // Use utilities for formatting (Single Responsibility)
   const messagePreview = formatMessagePreview(lastMessage?.content);
   const lastTimestamp = getConversationLastTimestamp(conversation);
 
-  // Use utility functions for display name and initials with fallback
   const displayName = getContactFirstName(contact.name, contact.phone);
   const initials = getContactInitials(contact.name, contact.phone);
 
-  // Extract all tags from conversation (including category which will be shown after preview)
+  // Extract all tags from conversation
   const allTags = conversation_tags?.map(ct => ct.tag).filter(tag => tag && tag.id) || [];
 
-  // Determine label and badge variant based on status + ia_active
   const getStatusDisplay = () => {
     if (status === 'closed') {
       return { label: 'Encerrada', badgeVariant: 'outline' as const };
@@ -54,17 +64,62 @@ function ContactItemComponent({
   };
 
   const statusDisplay = getStatusDisplay();
+  const isClosed = status === 'closed';
 
   return (
     <Card
       className={cn(
-        'p-4 cursor-pointer transition-all duration-200 hover:bg-accent/60 hover:shadow-md hover:-translate-y-px',
+        'p-4 cursor-pointer transition-all duration-200 hover:bg-accent/60 hover:shadow-md hover:-translate-y-px group relative',
         isSelected
           ? 'border border-primary/50 bg-primary/5 shadow-md shadow-primary/10'
           : 'border-0'
       )}
       onClick={onClick}
     >
+      {/* Botão ⋮ — visível no hover ou quando selecionado */}
+      {(onMarkUnread || onClose) && (
+        <div
+          className={cn(
+            'absolute top-2 right-2 transition-opacity duration-150',
+            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                aria-label="Mais ações"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {onMarkUnread && !has_unread && !isClosed && (
+                <DropdownMenuItem onClick={() => onMarkUnread(conversation.id)}>
+                  <BellOff className="h-4 w-4 mr-2" />
+                  Marcar como não lida
+                </DropdownMenuItem>
+              )}
+              {onMarkUnread && !has_unread && !isClosed && onClose && (
+                <DropdownMenuSeparator />
+              )}
+              {onClose && !isClosed && (
+                <DropdownMenuItem
+                  onClick={() => onClose(conversation.id)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Encerrar conversa
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
       <div className="flex gap-3">
         <Avatar className="h-10 w-10">
           <AvatarFallback>{initials}</AvatarFallback>
@@ -117,15 +172,13 @@ function ContactItemComponent({
 
 // Custom comparison function for memo - re-render only when relevant data changes
 function arePropsEqual(prevProps: ContactItemProps, nextProps: ContactItemProps): boolean {
-  // Always re-render if selection state changes
-  if (prevProps.isSelected !== nextProps.isSelected) {
-    return false;
-  }
+  if (prevProps.isSelected !== nextProps.isSelected) return false;
+  if (prevProps.onMarkUnread !== nextProps.onMarkUnread) return false;
+  if (prevProps.onClose !== nextProps.onClose) return false;
 
   const prevConv = prevProps.conversation;
   const nextConv = nextProps.conversation;
 
-  // Compare essential fields
   return (
     prevConv.id === nextConv.id &&
     prevConv.last_message_at === nextConv.last_message_at &&
@@ -135,7 +188,6 @@ function arePropsEqual(prevProps: ContactItemProps, nextProps: ContactItemProps)
     prevConv.unread_count === nextConv.unread_count &&
     prevConv.lastMessage?.content === nextConv.lastMessage?.content &&
     prevConv.category?.id === nextConv.category?.id &&
-    // Compare tags by joining IDs
     (prevConv.conversation_tags?.map(ct => ct.tag?.id).join(',') || '') ===
     (nextConv.conversation_tags?.map(ct => ct.tag?.id).join(',') || '')
   );

@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { ContactItem } from './contact-item';
 import { TagSelector } from '@/components/tags/tag-selector';
 import { Search, MessageCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
 import type { ConversationWithContact } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
@@ -19,14 +20,17 @@ interface ContactListProps {
   tenantId: string;
   onConversationClick?: (conversationId: string) => void;
   onConversationHover?: (conversationId: string) => void;
+  onConversationUpdate?: (conversationId: string, updates: Partial<ConversationWithContact>) => void;
   allTags: Tag[];
 }
 
 export function ContactList({
   conversations,
   selectedConversationId,
+  tenantId,
   onConversationClick,
   onConversationHover,
+  onConversationUpdate,
   allTags,
 }: ContactListProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,6 +54,35 @@ export function ContactList({
       hoverTimerRef.current = null;
     }
   }, []);
+
+  const handleMarkUnread = useCallback(async (conversationId: string) => {
+    fetch('/api/conversations/mark-as-unread', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId, tenantId }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        onConversationUpdate?.(conversationId, { has_unread: true, unread_count: 1 });
+        toast.success('Conversa marcada como não lida');
+      })
+      .catch(() => toast.error('Erro ao marcar como não lida'));
+  }, [tenantId, onConversationUpdate]);
+
+  const handleCloseConversation = useCallback(async (conversationId: string) => {
+    fetch('/api/conversations/update-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId, tenantId, status: 'closed' }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        onConversationUpdate?.(conversationId, { status: 'closed' });
+        toast.success('Conversa encerrada');
+      })
+      .catch(() => toast.error('Erro ao encerrar conversa'));
+  }, [tenantId, onConversationUpdate]);
+
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [showOnlyUnread, setShowOnlyUnread] = useState(false);
   // ID da conversa que acabou de ser marcada como lida (mantém visível até clicar em outra)
@@ -270,6 +303,8 @@ export function ContactList({
               <ContactItem
                 conversation={conversation}
                 isSelected={selectedConversationId === conversation.id}
+                onMarkUnread={handleMarkUnread}
+                onClose={handleCloseConversation}
                 onClick={() => {
                   // No modo "apenas não lidas", mantém a conversa clicada visível até clicar em outra
                   if (showOnlyUnread && statusFilter === 'manual') {
