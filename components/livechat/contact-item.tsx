@@ -80,83 +80,13 @@ function ContactItemComponent({
   return (
     <Card
       className={cn(
-        'p-4 cursor-pointer transition-all duration-200 hover:bg-accent/60 hover:shadow-md hover:-translate-y-px group relative',
+        'p-4 cursor-pointer transition-all duration-200 hover:bg-accent/60 hover:shadow-md hover:-translate-y-px group',
         isSelected
           ? 'border border-primary/50 bg-primary/5 shadow-md shadow-primary/10'
           : 'border-0'
       )}
       onClick={onClick}
     >
-      {/* Botão ⋮ — visível no hover ou quando selecionado */}
-      {(onMarkUnread || onClose) && (
-        <div
-          className={cn(
-            'absolute top-2 right-2 transition-opacity duration-150',
-            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          )}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                aria-label="Mais ações"
-              >
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              {/* Adicionar tag */}
-              {onTagToggle && allTags.length > 0 && !isClosed && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <TagIcon className="h-4 w-4 mr-2" />
-                    Adicionar tag
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-48 max-h-64 overflow-y-auto">
-                    {allTags.map((tag) => {
-                      const isAssigned = conversationTagIds.has(tag.id);
-                      return (
-                        <DropdownMenuItem
-                          key={tag.id}
-                          onClick={() => onTagToggle(conversation.id, tag.id, isAssigned)}
-                          className="flex items-center justify-between"
-                        >
-                          <TagBadge tag={tag} size="sm" />
-                          {isAssigned && <Check className="h-3.5 w-3.5 text-primary ml-2 shrink-0" />}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
-
-              {onMarkUnread && !has_unread && !isClosed && (
-                <DropdownMenuItem onClick={() => onMarkUnread(conversation.id)}>
-                  <BellOff className="h-4 w-4 mr-2" />
-                  Marcar como não lida
-                </DropdownMenuItem>
-              )}
-
-              {onClose && !isClosed && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => onClose(conversation.id)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Encerrar conversa
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
-
       <div className="flex gap-3">
         <Avatar className="h-10 w-10">
           <AvatarFallback>{initials}</AvatarFallback>
@@ -166,17 +96,89 @@ function ContactItemComponent({
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-medium truncate">{displayName}</span>
-              {/* Badge de mensagens não lidas - só aparece no modo manual */}
-              {!ia_active && has_unread && unread_count > 0 && (
-                <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-green-500 rounded-full">
+              {/* Badge de mensagens não lidas */}
+              {has_unread && unread_count > 0 && (
+                <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-green-500 rounded-full shrink-0">
                   {unread_count > 99 ? '99+' : unread_count}
                 </span>
               )}
             </div>
-            <RelativeTime
-              timestamp={lastTimestamp}
-              className="text-xs text-muted-foreground shrink-0 ml-2"
-            />
+
+            {/* Timestamp + botão ⋮ lado a lado */}
+            <div className="flex items-center gap-0.5 shrink-0 ml-2">
+              <RelativeTime
+                timestamp={lastTimestamp}
+                className="text-xs text-muted-foreground"
+              />
+              {(onMarkUnread || onClose || onTagToggle) && (
+                <div
+                  className={cn(
+                    'transition-opacity duration-150',
+                    isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  )}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        aria-label="Mais ações"
+                      >
+                        <MoreVertical className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      {/* Adicionar tag */}
+                      {onTagToggle && allTags.length > 0 && !isClosed && (
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <TagIcon className="h-4 w-4 mr-2" />
+                            Adicionar tag
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className="w-48 max-h-64 overflow-y-auto">
+                            {allTags.map((tag) => {
+                              const isAssigned = conversationTagIds.has(tag.id);
+                              return (
+                                <DropdownMenuItem
+                                  key={tag.id}
+                                  onClick={() => onTagToggle(conversation.id, tag.id, isAssigned)}
+                                  className="flex items-center justify-between"
+                                >
+                                  <TagBadge tag={tag} size="sm" />
+                                  {isAssigned && <Check className="h-3.5 w-3.5 text-primary ml-2 shrink-0" />}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      )}
+
+                      {onMarkUnread && !has_unread && !isClosed && (
+                        <DropdownMenuItem onClick={() => onMarkUnread(conversation.id)}>
+                          <BellOff className="h-4 w-4 mr-2" />
+                          Marcar como não lida
+                        </DropdownMenuItem>
+                      )}
+
+                      {onClose && !isClosed && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => onClose(conversation.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Encerrar conversa
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
+            </div>
           </div>
 
           <p className="text-sm text-muted-foreground truncate mb-2">
