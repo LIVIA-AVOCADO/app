@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import {
   getConversationsWithContact,
-  getConversation,
   getMessages,
   getAllTags,
 } from '@/lib/queries/livechat';
@@ -40,7 +39,6 @@ export default async function LivechatPage({
     );
   }
 
-  // Buscar neurocore_id do tenant (tags são associadas ao neurocore)
   const { data: tenantData } = await supabase
     .from('tenants')
     .select('neurocore_id')
@@ -59,39 +57,32 @@ export default async function LivechatPage({
     );
   }
 
-  // Buscar TODAS conversas (incluindo encerradas) para permitir filtro client-side
-  const conversations = await getConversationsWithContact(tenantId, {
-    includeClosedConversations: true,
-  });
-
-  // Buscar TODAS as tags disponíveis do neurocore (intenção, checkout, falha)
-  const allTags = await getAllTags(neurocoreId);
+  // Paraleliza as duas queries independentes (ganho ~200-400ms no load inicial)
+  const [conversations, allTags] = await Promise.all([
+    getConversationsWithContact(tenantId, { includeClosedConversations: true }),
+    getAllTags(neurocoreId),
+  ]);
 
   const resolvedParams = await searchParams;
   const selectedConversationId = resolvedParams.conversation;
 
-  let selectedConversation = null;
-  let conversation = null;
-  let messages = null;
+  // Encontra a conversa selecionada na lista (sem query extra ao banco)
+  const selectedConversation = selectedConversationId
+    ? (conversations.find((c) => c.id === selectedConversationId) ?? null)
+    : null;
 
-  if (selectedConversationId) {
-    // Encontrar conversa selecionada
-    selectedConversation = conversations.find((c) => c.id === selectedConversationId);
-    if (selectedConversation) {
-      conversation = await getConversation(selectedConversation.id, tenantId);
-      if (conversation) {
-        messages = await getMessages(conversation.id);
-      }
-    }
-  }
+  // Busca mensagens apenas para o carregamento inicial (SSR)
+  // Trocas subsequentes de conversa usam a API client-side (/api/livechat/messages)
+  const messages = selectedConversation
+    ? await getMessages(selectedConversation.id)
+    : null;
 
   return (
     <LivechatContent
       conversations={conversations}
       selectedConversationId={selectedConversationId}
       tenantId={tenantId}
-      selectedConversation={selectedConversation || null}
-      conversation={conversation}
+      selectedConversation={selectedConversation}
       messages={messages}
       allTags={allTags}
     />

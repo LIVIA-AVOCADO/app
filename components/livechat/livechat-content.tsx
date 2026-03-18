@@ -1,77 +1,119 @@
 'use client';
 
+/**
+ * LivechatContent — Shell client-side do livechat
+ *
+ * Mudança principal (Fase 5 - 2026-03-18):
+ * Seleção de conversa é agora totalmente client-side.
+ * Antes: router.push() → SSR → re-fetch de todas conversas + mensagens (1-2s por clique)
+ * Depois: setState + fetchAndCache() → só busca as mensagens (200-400ms, ou 0ms se cacheado)
+ *
+ * URL é atualizada via window.history.pushState (sem SSR).
+ * SSR permanece apenas no carregamento inicial da página.
+ */
+
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { MessageSquare, ArrowLeft } from 'lucide-react';
 import { ContactList } from './contact-list';
 import { ConversationView } from './conversation-view';
 import { CustomerDataPanel } from './customer-data-panel';
 import { MessagesSkeleton } from './messages-skeleton';
 import { useRealtimeConversations } from '@/lib/hooks/use-realtime-conversations';
+import { useMessagesCache } from '@/lib/hooks/use-messages-cache';
 import type { ConversationWithContact, MessageWithSender } from '@/types/livechat';
-import type { Conversation, Tag } from '@/types/database-helpers';
+import type { Tag } from '@/types/database-helpers';
+
+// Número de conversas visíveis a pré-carregar em background no mount
+const PREFETCH_COUNT = 5;
 
 interface LivechatContentProps {
   conversations: ConversationWithContact[];
   selectedConversationId?: string;
   tenantId: string;
   selectedConversation: ConversationWithContact | null;
-  conversation: Conversation | null;
   messages: MessageWithSender[] | null;
-  allTags: Tag[]; // Todas as tags do tenant
+  allTags: Tag[];
 }
 
 export function LivechatContent({
   conversations: initialConversations,
-  selectedConversationId,
+  selectedConversationId: initialSelectedConvId,
   tenantId,
-  selectedConversation,
-  conversation,
-  messages,
+  selectedConversation: initialSelectedConversation,
+  messages: initialMessages,
   allTags,
 }: LivechatContentProps) {
-  const router = useRouter();
   const { conversations, updateConversation } = useRealtimeConversations(tenantId, initialConversations);
-  const [loadingConversationId, setLoadingConversationId] = useState<string | null>(null);
+  const { fetchAndCache, prefetch } = useMessagesCache();
 
-  // Callback para atualização otimista a partir do ConversationView
-  const handleConversationUpdate = useCallback((updates: Partial<ConversationWithContact>) => {
-    if (selectedConversationId) {
-      updateConversation(selectedConversationId, updates);
-    }
-    // Ao encerrar conversa, volta para o empty state após breve delay
-    // para que o usuário veja o feedback visual antes de navegar
-    if (updates.status === 'closed') {
-      setTimeout(() => router.push('/livechat'), 600);
-    }
-  }, [selectedConversationId, updateConversation, router]);
+  // Estado client-side da conversa selecionada (inicializado do SSR)
+  const [selectedConvId, setSelectedConvId] = useState<string | undefined>(initialSelectedConvId);
+  const [currentMessages, setCurrentMessages] = useState<MessageWithSender[] | null>(initialMessages);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
-  // Handler que dispara ANTES da navegação
-  const handleConversationClick = (conversationId: string) => {
-    // Feedback instantâneo
-    setLoadingConversationId(conversationId);
+  // Conversa ativa: busca da lista Realtime (sempre fresca) com fallback ao dado SSR inicial
+  const activeConversation = selectedConvId
+    ? (conversations.find((c) => c.id === selectedConvId) ?? initialSelectedConversation)
+    : null;
 
-    // Marcar como lida (fire and forget - não bloqueia navegação)
-    fetch('/api/conversations/mark-as-read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId, tenantId }),
-    }).catch(console.error);
-
-    // Navegação (que vai demorar 1-2s)
-    router.push(`/livechat?conversation=${conversationId}`);
-  };
-
-  // Resetar loading quando a conversa correta for carregada
+  // Prefetch silencioso das primeiras N conversas visíveis ao montar
+  // Não adiciona canais Realtime — apenas HTTP requests em background
   useEffect(() => {
-    if (loadingConversationId && conversation?.id === loadingConversationId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLoadingConversationId(null);
-    }
-  }, [conversation?.id, loadingConversationId]);
+    const toPreFetch = initialConversations
+      .slice(0, PREFETCH_COUNT)
+      .filter((c) => c.id !== initialSelectedConvId);
+    toPreFetch.forEach((c) => prefetch(c.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // only on mount — lista inicial do SSR é estável
 
-  // Detecta se está em transição de loading
-  const isLoading = loadingConversationId && conversation?.id !== loadingConversationId;
+  const handleConversationUpdate = useCallback(
+    (updates: Partial<ConversationWithContact>) => {
+      if (selectedConvId) {
+        updateConversation(selectedConvId, updates);
+      }
+      if (updates.status === 'closed') {
+        // Breve delay para feedback visual antes de voltar ao empty state
+        setTimeout(() => {
+          setSelectedConvId(undefined);
+          setCurrentMessages(null);
+          window.history.pushState(null, '', '/livechat');
+        }, 600);
+      }
+    },
+    [selectedConvId, updateConversation]
+  );
+
+  const handleConversationClick = useCallback(
+    async (conversationId: string) => {
+      if (conversationId === selectedConvId) return;
+
+      // 1. Feedback visual imediato
+      setSelectedConvId(conversationId);
+      setIsLoadingMessages(true);
+
+      // 2. Atualiza URL sem disparar SSR
+      window.history.pushState(null, '', `/livechat?conversation=${conversationId}`);
+
+      // 3. Marcar como lida (fire and forget)
+      fetch('/api/conversations/mark-as-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, tenantId }),
+      }).catch(console.error);
+
+      // 4. Busca mensagens: cache hit → instantâneo, cache miss → ~200-400ms
+      try {
+        const msgs = await fetchAndCache(conversationId);
+        setCurrentMessages(msgs);
+      } catch (err) {
+        console.error('[livechat] Failed to load messages:', err);
+        setCurrentMessages([]);
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    },
+    [selectedConvId, tenantId, fetchAndCache]
+  );
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -85,7 +127,7 @@ export function LivechatContent({
         <div className="flex-1 overflow-hidden">
           <ContactList
             conversations={conversations}
-            selectedConversationId={selectedConversationId}
+            selectedConversationId={selectedConvId}
             tenantId={tenantId}
             onConversationClick={handleConversationClick}
             allTags={allTags}
@@ -94,23 +136,23 @@ export function LivechatContent({
       </aside>
 
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        {isLoading ? (
-          // Skeleton aparece INSTANTANEAMENTE
+        {isLoadingMessages ? (
+          // Skeleton aparece INSTANTANEAMENTE enquanto busca mensagens
           <div className="flex flex-col h-full">
             <div className="p-4 border-b">
               <div className="h-6 w-48 bg-foreground/[0.08] animate-pulse rounded" />
             </div>
             <MessagesSkeleton />
           </div>
-        ) : conversation && messages && selectedConversation ? (
+        ) : activeConversation && currentMessages ? (
           <ConversationView
-            initialConversation={conversation}
-            initialMessages={messages}
+            initialConversation={activeConversation}
+            initialMessages={currentMessages}
             tenantId={tenantId}
-            contactName={selectedConversation.contact.name}
-            contactPhone={selectedConversation.contact.phone}
+            contactName={activeConversation.contact.name ?? ''}
+            contactPhone={activeConversation.contact.phone}
             allTags={allTags}
-            conversationTags={selectedConversation.conversation_tags}
+            conversationTags={activeConversation.conversation_tags}
             onConversationUpdate={handleConversationUpdate}
           />
         ) : (
@@ -136,10 +178,10 @@ export function LivechatContent({
         )}
       </main>
 
-      {selectedConversation && (
+      {activeConversation && (
         <aside className="w-80 border-l flex flex-col h-full overflow-hidden">
           <CustomerDataPanel
-            contactId={selectedConversation.contact.id}
+            contactId={activeConversation.contact.id}
             tenantId={tenantId}
           />
         </aside>

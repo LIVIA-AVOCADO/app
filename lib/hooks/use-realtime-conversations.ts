@@ -23,6 +23,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import type { ConversationWithContact, ConversationTagWithTag } from '@/types/livechat';
 import type { Conversation } from '@/types/database-helpers';
+import { invalidateMessagesCache } from './use-messages-cache';
 
 const MAX_RETRIES = 10;
 const BASE_DELAY = 1000;
@@ -173,6 +174,11 @@ export function useRealtimeConversations(
         return result;
       });
       return;
+    }
+
+    // Nova mensagem chegou: invalida cache para que o próximo acesso busque dados frescos
+    if (conv.last_message_at) {
+      invalidateMessagesCache(conv.id);
     }
 
     const latestMessage = conv.last_message_at

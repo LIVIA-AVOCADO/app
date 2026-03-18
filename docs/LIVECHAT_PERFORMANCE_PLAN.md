@@ -981,6 +981,70 @@ export function ContactList({
 
 ---
 
+## Fase 5: Navegação Client-Side (2026-03-18)
+
+**Problema raiz identificado:** A cada clique em um card, `router.push('/livechat?conversation=id')` dispara um ciclo SSR completo no Next.js — o servidor re-executa `page.tsx`, re-busca TODAS as conversas do banco (`getConversationsWithContact`) + a conversa selecionada + as mensagens em sequência (waterfall). Isso causa o delay de 1-2s a cada troca.
+
+**Solução:** Converter a seleção de conversa para estado client-side puro, mantendo o SSR apenas para o carregamento inicial.
+
+### Arquitetura
+
+```
+ANTES (SSR a cada clique):
+  Click → router.push() → SSR page.tsx → 3 queries sequenciais → re-render
+
+DEPOIS (client-side):
+  Click → setState → fetchAndCache(messages) → render instantâneo
+  URL updated via window.history.pushState (sem SSR)
+```
+
+### Componentes da solução
+
+**1. `app/api/livechat/messages/route.ts`** (novo)
+- API route para fetch client-side de mensagens
+- Auth + tenant validation
+- Retorna `MessageWithSender[]`
+
+**2. `lib/hooks/use-messages-cache.ts`** (novo)
+- Cache in-memory module-level (Map) com TTL de 30s
+- `fetchAndCache(id)` → verifica cache → fetch API → atualiza cache
+- `prefetch(id)` → fire-and-forget, sem duplicatas
+- `invalidateMessagesCache(id)` → exportada diretamente, chamada pelo `useRealtimeConversations` quando nova mensagem chega
+
+**3. `lib/hooks/use-realtime-conversations.ts`** (modificado)
+- Chama `invalidateMessagesCache(conv.id)` quando `last_message_at` muda
+- Garante que cache nunca sirva mensagens stale após evento Realtime
+
+**4. `components/livechat/livechat-content.tsx`** (refatorado)
+- `selectedConvId` e `currentMessages` como estado local (inicializados do SSR)
+- `handleConversationClick`: seta loading → `fetchAndCache` → atualiza estado
+- `window.history.pushState` para URL (sem SSR)
+- Prefetch das top-5 conversas visíveis no mount (background, sem canal Realtime extra)
+- Remove prop `conversation` (usava `getConversation()` redundante)
+
+**5. `app/(dashboard)/livechat/page.tsx`** (simplificado)
+- Remove `getConversation()` (redundante — dados já estão no `selectedConversation` da lista)
+- Paraleliza `getConversationsWithContact` + `getAllTags` com `Promise.all`
+- Mantém SSR apenas para: lista de conversas + mensagens iniciais
+
+### Ganhos esperados
+
+| Métrica | Antes | Depois |
+|---------|-------|--------|
+| Tempo por clique (1ª vez) | 1-2s (SSR) | ~200-400ms (API fetch) |
+| Tempo por clique (cache hit) | 1-2s (SSR) | ~0ms (instantâneo) |
+| Queries por clique | 3 (waterfall SSR) | 1 (messages API) |
+| Re-fetch da lista de conversas | Sempre | Nunca (Realtime cuida) |
+
+### Premissas / não-regressões
+
+- Zero novos canais Realtime (problema histórico do projeto)
+- SSR mantido para primeiro carregamento (SEO/bookmark funcionam)
+- Back button do browser: volta para URL anterior e faz SSR normalmente
+- `useRealtimeMessages` continua funcionando — recebe `initialMessages` do cache e subscreve normalmente
+
+---
+
 ## Fase 3: Otimizações de Performance
 
 ### Por que otimizar?
