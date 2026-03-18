@@ -1,4 +1,4 @@
-import { MessageSquare, BookOpen, Kanban, Bot, BarChart3, Wallet, Settings, Rocket } from 'lucide-react';
+import { MessageSquare, BookOpen, Bot, BarChart3, Wallet, Settings, Rocket } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { MODULE_KEYS, type ModuleKey } from '@/lib/permissions';
 // MODULE_KEYS é a fonte de verdade — não há necessidade de seed no banco para novos módulos.
@@ -56,13 +56,6 @@ export const navItems: NavItem[] = [
     url:       '/livechat',
     icon:      MessageSquare,
     moduleKey: MODULE_KEYS.LIVECHAT,
-  },
-  {
-    title:     'CRM',
-    url:       '/crm',
-    icon:      Kanban,
-    badge:     'BETA',
-    moduleKey: MODULE_KEYS.CRM,
   },
   {
     title:     'Base de Conhecimento',
