@@ -170,7 +170,7 @@ export function BaseConhecimentoFormDialog({
             </Label>
             <Input
               id="name"
-              placeholder="Ex: Perguntas sobre Planos"
+              placeholder="Ex: Perguntas Frequentes"
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={isLoading}
@@ -214,12 +214,16 @@ export function BaseConhecimentoFormDialog({
               placeholder="Escreva o conteúdo completo da base de conhecimento aqui...
 
 Exemplo:
-Temos os seguintes planos disponíveis:
-- Plano Básico 100MB: R$ 59,90
-- Plano Intermediário 300MB: R$ 89,90
-- Plano Premium 600MB: R$ 129,90
+Perguntas Frequentes:
 
-Todos os planos incluem instalação gratuita e WiFi 5GHz."
+1. Qual o prazo de entrega?
+Nossos pedidos são entregues em até 5 dias úteis após a confirmação do pagamento.
+
+2. Quais formas de pagamento são aceitas?
+Aceitamos cartão de crédito, débito, boleto bancário e Pix.
+
+3. Como solicitar suporte?
+Entre em contato pelo WhatsApp ou e-mail informados no site. Atendemos de segunda a sexta, das 08h às 18h."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={isLoading}

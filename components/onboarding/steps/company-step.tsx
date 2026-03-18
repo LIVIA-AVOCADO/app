@@ -32,7 +32,7 @@ export function CompanyStep({ payload, onChange, disabled }: StepProps) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Nome fantasia *">
             <Input
-              placeholder="Ex: Vida Diagnósticos"
+              placeholder="Ex: Minha Empresa"
               value={data.trade_name ?? ''}
               onChange={(e) => update({ trade_name: e.target.value })}
               disabled={disabled}
