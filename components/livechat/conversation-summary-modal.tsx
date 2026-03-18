@@ -142,7 +142,8 @@ export function ConversationSummaryModal({
   const [error, setError] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const [isIdsCopied, setIsIdsCopied] = useState(false);
+  const [isContactIdCopied, setIsContactIdCopied] = useState(false);
+  const [isConversationIdCopied, setIsConversationIdCopied] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -207,15 +208,25 @@ export function ConversationSummaryModal({
     }
   };
 
-  const handleCopyIds = async () => {
+  const handleCopyContactId = async () => {
     try {
-      const text = `contact_id: ${contactId}\nconversation_id: ${conversationId}`;
-      await navigator.clipboard.writeText(text);
-      setIsIdsCopied(true);
-      toast.success('IDs copiados!');
-      setTimeout(() => setIsIdsCopied(false), 2000);
+      await navigator.clipboard.writeText(contactId);
+      setIsContactIdCopied(true);
+      toast.success('contact_id copiado!');
+      setTimeout(() => setIsContactIdCopied(false), 2000);
     } catch {
-      toast.error('Erro ao copiar IDs.');
+      toast.error('Erro ao copiar.');
+    }
+  };
+
+  const handleCopyConversationId = async () => {
+    try {
+      await navigator.clipboard.writeText(conversationId);
+      setIsConversationIdCopied(true);
+      toast.success('conversation_id copiado!');
+      setTimeout(() => setIsConversationIdCopied(false), 2000);
+    } catch {
+      toast.error('Erro ao copiar.');
     }
   };
 
@@ -641,28 +652,41 @@ export function ConversationSummaryModal({
             Dados extraídos e resumo das interações com o cliente
           </DialogDescription>
 
-          <div className="mt-3 bg-muted/40 rounded-md px-3 py-2 flex items-center justify-between gap-2 border text-xs font-mono">
-            <div className="space-y-0.5 min-w-0">
-              <div className="flex gap-2">
+          <div className="mt-3 bg-muted/40 rounded-md border text-xs font-mono divide-y">
+            <div className="px-3 py-1.5 flex items-center justify-between gap-2">
+              <div className="flex gap-2 min-w-0">
                 <span className="text-muted-foreground shrink-0">contact_id:</span>
                 <span className="truncate">{contactId}</span>
               </div>
-              <div className="flex gap-2">
+              <button
+                onClick={handleCopyContactId}
+                className="shrink-0 p-1.5 rounded hover:bg-muted transition-colors"
+                title="Copiar contact_id"
+              >
+                {isContactIdCopied ? (
+                  <Check className="h-3.5 w-3.5 text-green-500" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </button>
+            </div>
+            <div className="px-3 py-1.5 flex items-center justify-between gap-2">
+              <div className="flex gap-2 min-w-0">
                 <span className="text-muted-foreground shrink-0">conversation_id:</span>
                 <span className="truncate">{conversationId}</span>
               </div>
+              <button
+                onClick={handleCopyConversationId}
+                className="shrink-0 p-1.5 rounded hover:bg-muted transition-colors"
+                title="Copiar conversation_id"
+              >
+                {isConversationIdCopied ? (
+                  <Check className="h-3.5 w-3.5 text-green-500" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </button>
             </div>
-            <button
-              onClick={handleCopyIds}
-              className="shrink-0 p-1.5 rounded hover:bg-muted transition-colors"
-              title="Copiar IDs"
-            >
-              {isIdsCopied ? (
-                <Check className="h-3.5 w-3.5 text-green-500" />
-              ) : (
-                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-            </button>
           </div>
 
           <div className="pt-3">
