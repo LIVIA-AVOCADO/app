@@ -81,7 +81,8 @@ export const navItems: NavItem[] = [
     items: [
       { title: 'Reativação',        url: '/reativacao',              moduleKey: MODULE_KEYS.REATIVACAO },
       { title: 'Tags',              url: '/configuracoes/tags',       moduleKey: MODULE_KEYS.CONFIGURACOES },
-      { title: 'Controle da IA',    url: '/configuracoes/controle-ia', moduleKey: MODULE_KEYS.CONFIGURACOES },
+      { title: 'Controle da IA',           url: '/configuracoes/controle-ia',             moduleKey: MODULE_KEYS.CONFIGURACOES },
+      { title: 'Encerramento Automático',  url: '/configuracoes/encerramento-automatico', moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Gerenciar Usuários', url: '/gerenciar-usuarios',     moduleKey: MODULE_KEYS.GERENCIAR_USUARIOS },
     ],
   },
