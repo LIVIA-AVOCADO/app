@@ -91,11 +91,32 @@ export function ConversationHeader({
 
   return (
     <div className="p-4 border-b">
-      {/* Linha 1: Nome do contato + ações */}
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-lg font-semibold truncate mr-2">{displayName}</h2>
+      {/* Linha 1: Nome + canal (esquerda) | Status + IA + ações (direita) */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Esquerda: nome + canal */}
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="text-lg font-semibold truncate">{displayName}</h2>
+          <div className="flex items-center gap-1 text-muted-foreground shrink-0">
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span className="text-xs">WhatsApp</span>
+          </div>
+        </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Direita: status + badge IA + botões */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <StatusSelect
+            conversationId={conversation.id}
+            tenantId={tenantId}
+            currentStatus={conversation.status}
+            onStatusChange={(newStatus) => onConversationUpdate?.({ status: newStatus })}
+          />
+
+          {conversation.ia_active ? (
+            <Badge variant="success" className="text-xs">IA</Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs text-muted-foreground">Manual</Badge>
+          )}
+
           {/* Botão de dados do cliente */}
           <TooltipProvider delayDuration={400}>
             <Tooltip>
@@ -167,35 +188,6 @@ export function ConversationHeader({
           />
         </div>
       )}
-
-      {/* Linha 3: Canal • Status • IA */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-3">
-        <div className="flex items-center gap-1">
-          <MessageSquare className="h-3.5 w-3.5" />
-          <span>WhatsApp</span>
-        </div>
-
-        <span>•</span>
-
-        <StatusSelect
-          conversationId={conversation.id}
-          tenantId={tenantId}
-          currentStatus={conversation.status}
-          onStatusChange={(newStatus) => onConversationUpdate?.({ status: newStatus })}
-        />
-
-        <span>•</span>
-
-        <div className="flex items-center gap-1.5">
-          {conversation.ia_active ? (
-            <Badge variant="success">IA Ativada</Badge>
-          ) : (
-            <Badge variant="outline" className="text-muted-foreground">
-              Modo Manual
-            </Badge>
-          )}
-        </div>
-      </div>
 
       <ConversationSummaryModal
         contactId={conversation.contact_id}
