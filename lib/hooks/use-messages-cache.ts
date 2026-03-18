@@ -4,17 +4,23 @@
  * useMessagesCache — Cache in-memory de mensagens para navegação client-side
  *
  * Design decisions:
- * - Cache module-level (Map): persiste entre re-mounts do componente
- * - TTL de 30s: curto o suficiente para ser seguro, longo o suficiente para
- *   que clicks rápidos entre conversas não disparem múltiplos fetches
- * - invalidateMessagesCache(): exportada como função pura (não hook) para que
- *   useRealtimeConversations possa chamá-la quando last_message_at muda
- * - prefetch(): fire-and-forget, sem duplicatas via prefetchingSet
- * - Sem localStorage: mensagens mudam via Realtime; cache em memória é suficiente
- *   e evita complexidade de invalidação persistente
+ * - Supabase client direto (sem passar pelo Next.js API route):
+ *   browser → Supabase = 1 round trip
+ *   browser → Next.js → Supabase = 2 round trips (overhead desnecessário)
+ *   RLS do Supabase garante isolamento de tenant, igual ao que fazem
+ *   useRealtimeConversations e useRealtimeMessages.
+ *
+ * - Deduplicação via inflight Map: hover prefetch e clique simultâneo
+ *   compartilham a mesma Promise — zero fetches duplicados.
+ *
+ * - Cache module-level (Map, TTL 30s): persiste entre re-mounts.
+ *
+ * - invalidateMessagesCache(): exportada como função pura para que
+ *   useRealtimeConversations possa chamar quando last_message_at muda.
  */
 
 import { useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import type { MessageWithSender } from '@/types/livechat';
 
 interface CacheEntry {
@@ -22,16 +28,46 @@ interface CacheEntry {
   fetchedAt: number;
 }
 
-const CACHE_TTL_MS = 30_000; // 30 segundos
+const CACHE_TTL_MS = 30_000;
 
-// Module-level: sobrevive re-mounts (navegações client-side)
+// Module-level: sobrevivem re-mounts
 const messagesCache = new Map<string, CacheEntry>();
-const prefetchingSet = new Set<string>();
+const inflight = new Map<string, Promise<MessageWithSender[]>>();
+
+// Singleton do Supabase client (evita recriar a cada chamada)
+let _supabase: ReturnType<typeof createClient> | null = null;
+function getSupabase() {
+  if (!_supabase) _supabase = createClient();
+  return _supabase;
+}
+
+/**
+ * Busca mensagens diretamente no Supabase (sem API route).
+ * RLS garante que o usuário só vê mensagens do próprio tenant.
+ */
+async function fetchMessagesFromSupabase(conversationId: string): Promise<MessageWithSender[]> {
+  const { data, error } = await getSupabase()
+    .from('messages')
+    .select(`
+      *,
+      senderUser:users!messages_sender_user_id_fkey(
+        id,
+        full_name,
+        avatar_url
+      )
+    `)
+    .eq('conversation_id', conversationId)
+    .order('timestamp', { ascending: false })
+    .limit(50);
+
+  if (error) throw error;
+  // Reverter para ordem cronológica (mais antigas primeiro)
+  return ((data || []) as MessageWithSender[]).reverse();
+}
 
 /**
  * Invalida o cache de uma conversa.
  * Chamada pelo useRealtimeConversations quando last_message_at muda.
- * Exportada como função pura (não precisa de hook).
  */
 export function invalidateMessagesCache(conversationId: string): void {
   messagesCache.delete(conversationId);
@@ -53,37 +89,41 @@ export function useMessagesCache() {
   }, []);
 
   /**
-   * Busca mensagens: retorna do cache se válido, senão faz fetch e cacheia.
+   * Busca mensagens com cache + deduplicação de in-flight requests.
+   *
+   * Cenário coberto: hover prefetch inicia fetch → usuário clica antes de terminar
+   * → ambos recebem a mesma Promise (zero fetch duplicado).
    */
   const fetchAndCache = useCallback(async (conversationId: string): Promise<MessageWithSender[]> => {
+    // 1. Cache hit → instantâneo
     const cached = getCached(conversationId);
     if (cached) return cached;
 
-    const res = await fetch(`/api/livechat/messages?conversationId=${conversationId}`);
-    if (!res.ok) throw new Error(`Failed to fetch messages: ${res.status}`);
+    // 2. Já tem um fetch em andamento → reutiliza a mesma Promise
+    const existing = inflight.get(conversationId);
+    if (existing) return existing;
 
-    const data = await res.json();
-    setCache(conversationId, data.messages);
-    return data.messages;
+    // 3. Inicia novo fetch e registra como in-flight
+    const promise = fetchMessagesFromSupabase(conversationId)
+      .then((messages) => {
+        setCache(conversationId, messages);
+        return messages;
+      })
+      .finally(() => {
+        inflight.delete(conversationId);
+      });
+
+    inflight.set(conversationId, promise);
+    return promise;
   }, [getCached, setCache]);
 
   /**
-   * Pré-carrega mensagens em background sem bloquear a UI.
-   * Ignora erros silenciosamente (é apenas uma otimização).
-   * Evita fetches duplicados via prefetchingSet.
+   * Pré-carrega mensagens em background.
+   * Reutiliza fetchAndCache para garantir deduplicação automática.
    */
   const prefetch = useCallback((conversationId: string): void => {
-    if (getCached(conversationId) || prefetchingSet.has(conversationId)) return;
-
-    prefetchingSet.add(conversationId);
-    fetch(`/api/livechat/messages?conversationId=${conversationId}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.messages) setCache(conversationId, data.messages);
-      })
-      .catch(() => {}) // Silencioso — prefetch é best-effort
-      .finally(() => prefetchingSet.delete(conversationId));
-  }, [getCached, setCache]);
+    fetchAndCache(conversationId).catch(() => {}); // Silencioso — best-effort
+  }, [fetchAndCache]);
 
   return { getCached, setCache, fetchAndCache, prefetch };
 }
