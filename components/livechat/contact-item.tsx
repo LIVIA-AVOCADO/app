@@ -23,8 +23,14 @@ import {
   getContactInitials,
 } from '@/lib/utils/contact-helpers';
 import type { ConversationWithContact } from '@/types/livechat';
+import type { Tag } from '@/types/database-helpers';
 import { TagBadge } from './tag-badge';
-import { MoreVertical, BellOff, XCircle } from 'lucide-react';
+import { MoreVertical, BellOff, XCircle, Tag as TagIcon, Check } from 'lucide-react';
+import {
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface ContactItemProps {
   conversation: ConversationWithContact;
@@ -32,6 +38,8 @@ interface ContactItemProps {
   onClick?: () => void;
   onMarkUnread?: (conversationId: string) => void;
   onClose?: (conversationId: string) => void;
+  onTagToggle?: (conversationId: string, tagId: string, isRemoving: boolean) => void;
+  allTags?: Tag[];
 }
 
 function ContactItemComponent({
@@ -40,6 +48,8 @@ function ContactItemComponent({
   onClick,
   onMarkUnread,
   onClose,
+  onTagToggle,
+  allTags = [],
 }: ContactItemProps) {
   const { contact, lastMessage, status, ia_active, category, conversation_tags, has_unread, unread_count } = conversation;
 
@@ -50,7 +60,8 @@ function ContactItemComponent({
   const initials = getContactInitials(contact.name, contact.phone);
 
   // Extract all tags from conversation
-  const allTags = conversation_tags?.map(ct => ct.tag).filter(tag => tag && tag.id) || [];
+  const conversationTagList = conversation_tags?.map(ct => ct.tag).filter(tag => tag && tag.id) || [];
+  const conversationTagIds = new Set(conversationTagList.map(t => t.id));
 
   const getStatusDisplay = () => {
     if (status === 'closed') {
@@ -96,24 +107,50 @@ function ContactItemComponent({
                 <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-52">
+              {/* Adicionar tag */}
+              {onTagToggle && allTags.length > 0 && !isClosed && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <TagIcon className="h-4 w-4 mr-2" />
+                    Adicionar tag
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-48 max-h-64 overflow-y-auto">
+                    {allTags.map((tag) => {
+                      const isAssigned = conversationTagIds.has(tag.id);
+                      return (
+                        <DropdownMenuItem
+                          key={tag.id}
+                          onClick={() => onTagToggle(conversation.id, tag.id, isAssigned)}
+                          className="flex items-center justify-between"
+                        >
+                          <TagBadge tag={tag} size="sm" />
+                          {isAssigned && <Check className="h-3.5 w-3.5 text-primary ml-2 shrink-0" />}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+
               {onMarkUnread && !has_unread && !isClosed && (
                 <DropdownMenuItem onClick={() => onMarkUnread(conversation.id)}>
                   <BellOff className="h-4 w-4 mr-2" />
                   Marcar como não lida
                 </DropdownMenuItem>
               )}
-              {onMarkUnread && !has_unread && !isClosed && onClose && (
-                <DropdownMenuSeparator />
-              )}
+
               {onClose && !isClosed && (
-                <DropdownMenuItem
-                  onClick={() => onClose(conversation.id)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Encerrar conversa
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => onClose(conversation.id)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Encerrar conversa
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -147,10 +184,10 @@ function ContactItemComponent({
           </p>
 
           {/* All tags (including category) - shown after message preview */}
-          {(category || allTags.length > 0) && (
+          {(category || conversationTagList.length > 0) && (
             <div className="flex flex-wrap items-start gap-1 mb-2 min-h-fit">
               {category && <TagBadge tag={category} size="sm" />}
-              {allTags.filter(tag => tag.id !== category?.id).map((tag) => (
+              {conversationTagList.filter(tag => tag.id !== category?.id).map((tag) => (
                 <TagBadge key={tag.id} tag={tag} size="sm" />
               ))}
             </div>
@@ -175,6 +212,8 @@ function arePropsEqual(prevProps: ContactItemProps, nextProps: ContactItemProps)
   if (prevProps.isSelected !== nextProps.isSelected) return false;
   if (prevProps.onMarkUnread !== nextProps.onMarkUnread) return false;
   if (prevProps.onClose !== nextProps.onClose) return false;
+  if (prevProps.onTagToggle !== nextProps.onTagToggle) return false;
+  if (prevProps.allTags !== nextProps.allTags) return false;
 
   const prevConv = prevProps.conversation;
   const nextConv = nextProps.conversation;

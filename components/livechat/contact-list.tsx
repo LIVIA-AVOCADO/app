@@ -83,6 +83,24 @@ export function ContactList({
       .catch(() => toast.error('Erro ao encerrar conversa'));
   }, [tenantId, onConversationUpdate]);
 
+  const handleCardTagToggle = useCallback((conversationId: string, tagId: string, isRemoving: boolean) => {
+    fetch('/api/conversations/update-tag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversationId,
+        tagId: isRemoving ? null : tagId,
+        tagIdToRemove: isRemoving ? tagId : null,
+        tenantId,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        toast.success(isRemoving ? 'Tag removida' : 'Tag adicionada');
+      })
+      .catch(() => toast.error('Erro ao atualizar tag'));
+  }, [tenantId]);
+
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [showOnlyUnread, setShowOnlyUnread] = useState(false);
   // ID da conversa que acabou de ser marcada como lida (mantém visível até clicar em outra)
@@ -305,6 +323,8 @@ export function ContactList({
                 isSelected={selectedConversationId === conversation.id}
                 onMarkUnread={handleMarkUnread}
                 onClose={handleCloseConversation}
+                onTagToggle={handleCardTagToggle}
+                allTags={allTags}
                 onClick={() => {
                   // No modo "apenas não lidas", mantém a conversa clicada visível até clicar em outra
                   if (showOnlyUnread && statusFilter === 'manual') {
