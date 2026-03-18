@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Copy, Check, Loader2, Save } from 'lucide-react';
+import { Copy, Check, Loader2, Save, Pin, PinOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,11 +19,17 @@ import { useApiCall } from '@/lib/hooks';
 interface CustomerDataPanelProps {
   contactId: string;
   tenantId: string;
+  /** Se o painel está fixado como coluna lateral */
+  isPinned?: boolean;
+  /** Callback para fixar/desafixar o painel */
+  onPinToggle?: () => void;
 }
 
 export function CustomerDataPanel({
   contactId,
   tenantId,
+  isPinned = false,
+  onPinToggle,
 }: CustomerDataPanelProps) {
   const [contact, setContact] = useState<Contact | null>(null);
   const [copied, setCopied] = useState(false);
@@ -208,7 +214,24 @@ export function CustomerDataPanel({
   return (
     <div className="h-full overflow-y-auto p-4 space-y-4">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold mb-3">Dados do Cliente</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold">Dados do Cliente</h3>
+          {onPinToggle && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={onPinToggle}
+              title={isPinned ? 'Desafixar painel' : 'Fixar painel sempre visível'}
+            >
+              {isPinned ? (
+                <PinOff className="h-3.5 w-3.5" />
+              ) : (
+                <Pin className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button
             variant="default"

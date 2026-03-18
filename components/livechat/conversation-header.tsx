@@ -3,7 +3,20 @@
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Pause, MessageSquare, FileText, Loader2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Pause, MessageSquare, FileText, Loader2, MoreVertical, User } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Conversation, Tag } from '@/types/database-helpers';
 import type { ConversationWithContact } from '@/types/livechat';
@@ -18,9 +31,13 @@ interface ConversationHeaderProps {
   contactPhone?: string | null;
   conversation: Conversation;
   tenantId: string;
-  allTags: Tag[]; // Todas as tags do tenant
-  conversationTags?: Array<{ tag: Tag }>; // Tags atuais da conversa
+  allTags: Tag[];
+  conversationTags?: Array<{ tag: Tag }>;
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
+  /** Callback para abrir/fechar o painel de dados do cliente */
+  onTogglePanel?: () => void;
+  /** Se o painel de dados está visível (sheet aberto ou coluna fixa) */
+  isPanelActive?: boolean;
 }
 
 export function ConversationHeader({
@@ -31,28 +48,23 @@ export function ConversationHeader({
   allTags,
   conversationTags = [],
   onConversationUpdate,
+  onTogglePanel,
+  isPanelActive = false,
 }: ConversationHeaderProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showPauseIADialog, setShowPauseIADialog] = useState(false);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
 
-  // Usar função utilitária para obter nome de exibição com fallback
   const displayName = getContactFirstName(contactName, contactPhone || null);
 
-  // Extrair tags atuais (todas as tags da conversa)
-  // Filtrar tags nulas (podem ocorrer quando tag foi deletada mas referência ainda existe)
   const selectedTags = useMemo(() => {
     return conversationTags
-      .map(ct => ct.tag)
+      .map((ct) => ct.tag)
       .filter((tag): tag is Tag => tag !== null && tag !== undefined);
   }, [conversationTags]);
 
-  const handlePauseIAClick = () => {
-    setShowPauseIADialog(true);
-  };
-
   const handlePauseIAConfirm = async () => {
     if (isUpdating) return;
-
     setIsUpdating(true);
     try {
       const response = await fetch('/api/conversations/pause-ia', {
@@ -60,17 +72,12 @@ export function ConversationHeader({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId: conversation.id,
-          tenantId: tenantId,
+          tenantId,
           reason: 'Pausado pelo atendente via Livechat - Modo manual permanente',
         }),
       });
-
-      if (!response.ok) {
-        throw new Error('Erro ao pausar IA');
-      }
-
+      if (!response.ok) throw new Error('Erro ao pausar IA');
       toast.success('IA pausada - Modo manual permanente');
-      // Atualiza o painel de conversas imediatamente (sem esperar realtime)
       onConversationUpdate?.({ ia_active: false });
     } catch (error) {
       console.error('Erro ao pausar IA:', error);
@@ -80,52 +87,69 @@ export function ConversationHeader({
     }
   };
 
-
   const iaDisabled = conversation.status === 'closed';
-  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
 
   return (
     <div className="p-4 border-b">
-      {/* Linha 1: Nome do contato + Botões de Ação */}
+      {/* Linha 1: Nome do contato + ações */}
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-lg font-semibold">{displayName}</h2>
+        <h2 className="text-lg font-semibold truncate mr-2">{displayName}</h2>
 
-        <div className="flex  gap-2 items-end">
-        <Button
-            onClick={() => setIsSummaryOpen(true)}
-            variant="secondary"
-            size="sm"
-            className="text-xs h-7"
-          >
-            <FileText className="h-3 w-3 mr-2" />
-            Resumo da conversa
-          </Button>
-          <Button
-            onClick={handlePauseIAClick}
-            disabled={!conversation.ia_active || isUpdating || iaDisabled}
-            variant="outline"
-            size="sm"
-            className="transition-all duration-200 min-w-[110px]"
-            title={
-              !conversation.ia_active
-                ? "IA pausada. Não pode ser retomada durante a conversa (perda de contexto)."
-                : iaDisabled
-                ? "Não é possível pausar IA em conversa encerrada"
-                : "Pausar IA - Atendimento passará para modo manual permanente"
-            }
-          >
-            {isUpdating ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Pausando...
-              </>
-            ) : (
-              <>
-                <Pause className="h-4 w-4 mr-2" />
-                Pausar IA
-              </>
-            )}
-          </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Botão de dados do cliente */}
+          <TooltipProvider delayDuration={400}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={isPanelActive ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={onTogglePanel}
+                  aria-label="Dados do cliente"
+                >
+                  <User className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {isPanelActive ? 'Fechar dados do cliente' : 'Dados do cliente'}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Menu de ações secundárias */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Mais ações"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={() => setIsSummaryOpen(true)}>
+                <FileText className="h-4 w-4 mr-2" />
+                Resumo da conversa
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                onClick={() => setShowPauseIADialog(true)}
+                disabled={!conversation.ia_active || isUpdating || iaDisabled}
+                className="text-orange-600 focus:text-orange-600"
+              >
+                {isUpdating ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Pause className="h-4 w-4 mr-2" />
+                )}
+                {conversation.ia_active ? 'Pausar IA' : 'IA já pausada'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -136,7 +160,7 @@ export function ConversationHeader({
             mode="assign"
             selectedTags={selectedTags}
             availableTags={allTags}
-            onTagToggle={() => {}} // No-op: handled internally by mode="assign"
+            onTagToggle={() => {}}
             conversationId={conversation.id}
             tenantId={tenantId}
             placeholder="Adicionar tags"
@@ -164,9 +188,7 @@ export function ConversationHeader({
 
         <div className="flex items-center gap-1.5">
           {conversation.ia_active ? (
-            <Badge variant="success">
-              IA Ativada
-            </Badge>
+            <Badge variant="success">IA Ativada</Badge>
           ) : (
             <Badge variant="outline" className="text-muted-foreground">
               Modo Manual

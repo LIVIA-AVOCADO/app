@@ -1,19 +1,12 @@
 'use client';
 
-/**
- * LivechatContent — Shell client-side do livechat
- *
- * Mudança principal (Fase 5 - 2026-03-18):
- * Seleção de conversa é agora totalmente client-side.
- * Antes: router.push() → SSR → re-fetch de todas conversas + mensagens (1-2s por clique)
- * Depois: setState + fetchAndCache() → só busca as mensagens (200-400ms, ou 0ms se cacheado)
- *
- * URL é atualizada via window.history.pushState (sem SSR).
- * SSR permanece apenas no carregamento inicial da página.
- */
-
 import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, ArrowLeft } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { ContactList } from './contact-list';
 import { ConversationView } from './conversation-view';
 import { CustomerDataPanel } from './customer-data-panel';
@@ -23,8 +16,8 @@ import { useMessagesCache } from '@/lib/hooks/use-messages-cache';
 import type { ConversationWithContact, MessageWithSender } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 
-// Número de conversas visíveis a pré-carregar em background no mount
 const PREFETCH_COUNT = 5;
+const PANEL_PINNED_KEY = 'livechat:panel:pinned';
 
 interface LivechatContentProps {
   conversations: ConversationWithContact[];
@@ -46,33 +39,43 @@ export function LivechatContent({
   const { conversations, updateConversation } = useRealtimeConversations(tenantId, initialConversations);
   const { fetchAndCache, prefetch } = useMessagesCache();
 
-  // Estado client-side da conversa selecionada (inicializado do SSR)
+  // Estado da conversa selecionada (client-side após SSR inicial)
   const [selectedConvId, setSelectedConvId] = useState<string | undefined>(initialSelectedConvId);
   const [currentMessages, setCurrentMessages] = useState<MessageWithSender[] | null>(initialMessages);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
-  // Conversa ativa: busca da lista Realtime (sempre fresca) com fallback ao dado SSR inicial
+  // Estado do painel de dados do cliente
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [isPanelPinned, setIsPanelPinned] = useState(false);
+
+  // Lê preferência de pin do localStorage após hidratação (SSR-safe)
+  useEffect(() => {
+    setIsPanelPinned(localStorage.getItem(PANEL_PINNED_KEY) === 'true');
+  }, []);
+
+  // Conversa ativa: busca da lista Realtime (sempre fresca) com fallback ao SSR inicial
   const activeConversation = selectedConvId
     ? (conversations.find((c) => c.id === selectedConvId) ?? initialSelectedConversation)
     : null;
 
-  // Prefetch silencioso das primeiras N conversas visíveis ao montar
-  // Não adiciona canais Realtime — apenas HTTP requests em background
+  // Estado visual do botão 👤 no header
+  const isPanelActive = isPanelOpen || isPanelPinned;
+
+  // Prefetch silencioso das primeiras N conversas ao montar
   useEffect(() => {
     const toPreFetch = initialConversations
       .slice(0, PREFETCH_COUNT)
       .filter((c) => c.id !== initialSelectedConvId);
     toPreFetch.forEach((c) => prefetch(c.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // only on mount — lista inicial do SSR é estável
+  }, []);
+
+  // ─── Handlers de conversa ────────────────────────────────────────────────
 
   const handleConversationUpdate = useCallback(
     (updates: Partial<ConversationWithContact>) => {
-      if (selectedConvId) {
-        updateConversation(selectedConvId, updates);
-      }
+      if (selectedConvId) updateConversation(selectedConvId, updates);
       if (updates.status === 'closed') {
-        // Breve delay para feedback visual antes de voltar ao empty state
         setTimeout(() => {
           setSelectedConvId(undefined);
           setCurrentMessages(null);
@@ -87,21 +90,16 @@ export function LivechatContent({
     async (conversationId: string) => {
       if (conversationId === selectedConvId) return;
 
-      // 1. Feedback visual imediato
       setSelectedConvId(conversationId);
       setIsLoadingMessages(true);
-
-      // 2. Atualiza URL sem disparar SSR
       window.history.pushState(null, '', `/livechat?conversation=${conversationId}`);
 
-      // 3. Marcar como lida (fire and forget)
       fetch('/api/conversations/mark-as-read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId, tenantId }),
       }).catch(console.error);
 
-      // 4. Busca mensagens: cache hit → instantâneo, cache miss → ~200-400ms
       try {
         const msgs = await fetchAndCache(conversationId);
         setCurrentMessages(msgs);
@@ -115,8 +113,33 @@ export function LivechatContent({
     [selectedConvId, tenantId, fetchAndCache]
   );
 
+  // ─── Handlers do painel de dados ─────────────────────────────────────────
+
+  const handleTogglePanel = useCallback(() => {
+    if (isPanelPinned) {
+      // Desafixar: remove a coluna lateral
+      setIsPanelPinned(false);
+      localStorage.setItem(PANEL_PINNED_KEY, 'false');
+    } else {
+      setIsPanelOpen((prev) => !prev);
+    }
+  }, [isPanelPinned]);
+
+  const handlePinToggle = useCallback(() => {
+    const next = !isPanelPinned;
+    setIsPanelPinned(next);
+    localStorage.setItem(PANEL_PINNED_KEY, String(next));
+    if (next) {
+      // Fixar: fecha o Sheet, painel vira coluna
+      setIsPanelOpen(false);
+    }
+  }, [isPanelPinned]);
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   return (
     <div className="flex h-full overflow-hidden">
+      {/* Coluna esquerda: lista de conversas */}
       <aside className="w-96 border-r flex flex-col h-full">
         <div className="p-4 border-b flex-shrink-0">
           <h2 className="text-lg font-semibold">Conversas</h2>
@@ -136,9 +159,9 @@ export function LivechatContent({
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden">
+      {/* Área principal: conversa */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {isLoadingMessages ? (
-          // Skeleton aparece INSTANTANEAMENTE enquanto busca mensagens
           <div className="flex flex-col h-full">
             <div className="p-4 border-b">
               <div className="h-6 w-48 bg-foreground/[0.08] animate-pulse rounded" />
@@ -155,6 +178,8 @@ export function LivechatContent({
             allTags={allTags}
             conversationTags={activeConversation.conversation_tags}
             onConversationUpdate={handleConversationUpdate}
+            onTogglePanel={handleTogglePanel}
+            isPanelActive={isPanelActive}
           />
         ) : (
           <div className="flex h-full items-center justify-center animate-in fade-in-0 duration-300">
@@ -179,13 +204,31 @@ export function LivechatContent({
         )}
       </main>
 
-      {activeConversation && (
-        <aside className="w-80 border-l flex flex-col h-full overflow-hidden">
+      {/* Coluna direita: painel fixado (modo pinned) */}
+      {activeConversation && isPanelPinned && (
+        <aside className="w-80 border-l flex flex-col h-full overflow-hidden shrink-0">
           <CustomerDataPanel
             contactId={activeConversation.contact.id}
             tenantId={tenantId}
+            isPinned
+            onPinToggle={handlePinToggle}
           />
         </aside>
+      )}
+
+      {/* Sheet: painel sob demanda (modo não fixado) */}
+      {activeConversation && (
+        <Sheet open={isPanelOpen && !isPanelPinned} onOpenChange={setIsPanelOpen}>
+          <SheetContent side="right" className="w-80 p-0 flex flex-col">
+            <SheetTitle className="sr-only">Dados do cliente</SheetTitle>
+            <CustomerDataPanel
+              contactId={activeConversation.contact.id}
+              tenantId={tenantId}
+              isPinned={false}
+              onPinToggle={handlePinToggle}
+            />
+          </SheetContent>
+        </Sheet>
       )}
     </div>
   );

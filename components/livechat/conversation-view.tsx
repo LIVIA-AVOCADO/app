@@ -25,6 +25,8 @@ interface ConversationViewProps {
   allTags: Tag[]; // Todas as tags do tenant
   conversationTags?: Array<{ tag: Tag }>; // Tags atuais da conversa
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
+  onTogglePanel?: () => void;
+  isPanelActive?: boolean;
 }
 
 export function ConversationView({
@@ -36,6 +38,8 @@ export function ConversationView({
   allTags,
   conversationTags,
   onConversationUpdate,
+  onTogglePanel,
+  isPanelActive,
 }: ConversationViewProps) {
   const { messages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage } =
     useRealtimeMessages(initialConversation.id, initialMessages);
@@ -107,6 +111,8 @@ export function ConversationView({
         allTags={allTags}
         conversationTags={conversationTags}
         onConversationUpdate={onConversationUpdate}
+        onTogglePanel={onTogglePanel}
+        isPanelActive={isPanelActive}
       />
 
       <div className="flex-1 relative overflow-hidden">
