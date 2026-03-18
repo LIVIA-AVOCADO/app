@@ -114,6 +114,7 @@ function sectionHasVisibleData(content: Record<string, unknown>): boolean {
 
 interface ConversationSummaryModalProps {
   contactId: string;
+  conversationId: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -132,6 +133,7 @@ interface ExtractedData {
 
 export function ConversationSummaryModal({
   contactId,
+  conversationId,
   isOpen,
   onClose,
 }: ConversationSummaryModalProps) {
@@ -140,6 +142,7 @@ export function ConversationSummaryModal({
   const [error, setError] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isIdsCopied, setIsIdsCopied] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -201,6 +204,18 @@ export function ConversationSummaryModal({
       setError('Erro ao carregar o resumo da conversa.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCopyIds = async () => {
+    try {
+      const text = `contact_id: ${contactId}\nconversation_id: ${conversationId}`;
+      await navigator.clipboard.writeText(text);
+      setIsIdsCopied(true);
+      toast.success('IDs copiados!');
+      setTimeout(() => setIsIdsCopied(false), 2000);
+    } catch {
+      toast.error('Erro ao copiar IDs.');
     }
   };
 
@@ -625,7 +640,32 @@ export function ConversationSummaryModal({
           <DialogDescription>
             Dados extraídos e resumo das interações com o cliente
           </DialogDescription>
-          <div className="pt-4">
+
+          <div className="mt-3 bg-muted/40 rounded-md px-3 py-2 flex items-center justify-between gap-2 border text-xs font-mono">
+            <div className="space-y-0.5 min-w-0">
+              <div className="flex gap-2">
+                <span className="text-muted-foreground shrink-0">contact_id:</span>
+                <span className="truncate">{contactId}</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-muted-foreground shrink-0">conversation_id:</span>
+                <span className="truncate">{conversationId}</span>
+              </div>
+            </div>
+            <button
+              onClick={handleCopyIds}
+              className="shrink-0 p-1.5 rounded hover:bg-muted transition-colors"
+              title="Copiar IDs"
+            >
+              {isIdsCopied ? (
+                <Check className="h-3.5 w-3.5 text-green-500" />
+              ) : (
+                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </button>
+          </div>
+
+          <div className="pt-3">
             <Button
               onClick={handleCopyToClipboard}
               disabled={!data || isLoading || showCollectingState}

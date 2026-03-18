@@ -177,6 +177,7 @@ export function ConversationHeader({
 
       <ConversationSummaryModal
         contactId={conversation.contact_id}
+        conversationId={conversation.id}
         isOpen={isSummaryOpen}
         onClose={() => setIsSummaryOpen(false)}
       />
