@@ -130,6 +130,7 @@ export function LivechatContent({
             selectedConversationId={selectedConvId}
             tenantId={tenantId}
             onConversationClick={handleConversationClick}
+            onConversationHover={prefetch}
             allTags={allTags}
           />
         </div>

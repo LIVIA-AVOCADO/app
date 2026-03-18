@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -19,6 +18,7 @@ interface ContactListProps {
   selectedConversationId?: string;
   tenantId: string;
   onConversationClick?: (conversationId: string) => void;
+  onConversationHover?: (conversationId: string) => void;
   allTags: Tag[];
 }
 
@@ -26,13 +26,30 @@ export function ContactList({
   conversations,
   selectedConversationId,
   onConversationClick,
+  onConversationHover,
   allTags,
 }: ContactListProps) {
-  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<
     'ia' | 'manual' | 'closed'
   >('ia');
+
+  // Debounce de hover: só dispara prefetch após 150ms para evitar falsos positivos
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleHoverEnter = useCallback((conversationId: string) => {
+    if (!onConversationHover) return;
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
+      onConversationHover(conversationId);
+    }, 150);
+  }, [onConversationHover]);
+
+  const handleHoverLeave = useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, []);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [showOnlyUnread, setShowOnlyUnread] = useState(false);
   // ID da conversa que acabou de ser marcada como lida (mantém visível até clicar em outra)
@@ -94,10 +111,10 @@ export function ContactList({
     (c) => !c.ia_active && c.status !== 'closed' && c.has_unread
   ).length;
 
-  // Limpar seleção ao mudar filtros
+  // Limpar seleção ao mudar filtros (sem SSR — só atualiza a URL)
   const clearSelection = () => {
     if (selectedConversationId) {
-      router.push('/livechat');
+      window.history.pushState(null, '', '/livechat');
     }
   };
 
@@ -245,26 +262,30 @@ export function ContactList({
           </div>
         ) : (
           filteredConversations.map((conversation) => (
-            <ContactItem
+            <div
               key={conversation.id}
-              conversation={conversation}
-              isSelected={selectedConversationId === conversation.id}
-              onClick={() => {
-                // No modo "apenas não lidas", mantém a conversa clicada visível até clicar em outra
-                if (showOnlyUnread && statusFilter === 'manual') {
-                  // Se clicou em uma conversa diferente, atualiza o justReadConversationId
-                  if (conversation.id !== justReadConversationId) {
-                    setJustReadConversationId(conversation.id);
+              onMouseEnter={() => handleHoverEnter(conversation.id)}
+              onMouseLeave={handleHoverLeave}
+            >
+              <ContactItem
+                conversation={conversation}
+                isSelected={selectedConversationId === conversation.id}
+                onClick={() => {
+                  // No modo "apenas não lidas", mantém a conversa clicada visível até clicar em outra
+                  if (showOnlyUnread && statusFilter === 'manual') {
+                    if (conversation.id !== justReadConversationId) {
+                      setJustReadConversationId(conversation.id);
+                    }
                   }
-                }
 
-                if (onConversationClick) {
-                  onConversationClick(conversation.id);
-                } else {
-                  router.push(`/livechat?conversation=${conversation.id}`);
-                }
-              }}
-            />
+                  if (onConversationClick) {
+                    onConversationClick(conversation.id);
+                  } else {
+                    window.history.pushState(null, '', `/livechat?conversation=${conversation.id}`);
+                  }
+                }}
+              />
+            </div>
           ))
         )}
       </div>
