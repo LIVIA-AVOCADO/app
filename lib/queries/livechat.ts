@@ -207,7 +207,16 @@ export async function getConversationsWithContact(
   // eslint-disable-next-line prefer-const
   let { data: conversationsData, error: conversationsError } = await query;
 
-  if (conversationsError) throw conversationsError;
+  if (conversationsError) {
+    console.error('[getConversationsWithContact] conversations query failed:', {
+      message: conversationsError.message,
+      code: (conversationsError as any).code,
+      details: (conversationsError as any).details,
+      hint: (conversationsError as any).hint,
+      tenantId,
+    });
+    throw conversationsError;
+  }
   if (!conversationsData || conversationsData.length === 0) return [];
 
   // ===== Filtrar por categoria (se especificado) =====
@@ -229,7 +238,17 @@ export async function getConversationsWithContact(
     .in('conversation_id', conversationIds)
     .order('timestamp', { ascending: false });
 
-  if (messagesError) throw messagesError;
+  if (messagesError) {
+    console.error('[getConversationsWithContact] messages query failed:', {
+      message: messagesError.message,
+      code: (messagesError as any).code,
+      details: (messagesError as any).details,
+      hint: (messagesError as any).hint,
+      conversationCount: conversationIds.length,
+      tenantId,
+    });
+    throw messagesError;
+  }
 
   // ===== PASSO 3: Agrupar mensagens por conversation_id =====
   const lastMessageMap = new Map<string, any>();
