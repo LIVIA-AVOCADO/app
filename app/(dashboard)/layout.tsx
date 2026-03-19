@@ -46,11 +46,15 @@ export default async function DashboardLayout({
 
   // Busca dados do usuário e tenant (inclui role e modules para RBAC)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: userData } = await (supabase as any)
+  const { data: userData, error: userDataError } = await (supabase as any)
     .from('users')
     .select('tenant_id, full_name, email, avatar_url, role, modules, tenants(name)')
     .eq('id', authData!.user!.id)
     .single();
+
+  if (userDataError) {
+    console.error('[layout] users query failed:', JSON.stringify(userDataError));
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const user = userData as any;

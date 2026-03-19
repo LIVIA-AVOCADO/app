@@ -58,10 +58,22 @@ export default async function LivechatPage({
   }
 
   // Paraleliza as duas queries independentes (ganho ~200-400ms no load inicial)
-  const [conversations, allTags] = await Promise.all([
+  const [conversationsResult, allTagsResult] = await Promise.allSettled([
     getConversationsWithContact(tenantId, { includeClosedConversations: true }),
     getAllTags(neurocoreId),
   ]);
+
+  if (conversationsResult.status === 'rejected') {
+    console.error('[livechat] getConversationsWithContact failed:', JSON.stringify(conversationsResult.reason));
+    throw conversationsResult.reason;
+  }
+  if (allTagsResult.status === 'rejected') {
+    console.error('[livechat] getAllTags failed:', JSON.stringify(allTagsResult.reason));
+    throw allTagsResult.reason;
+  }
+
+  const conversations = conversationsResult.value;
+  const allTags = allTagsResult.value;
 
   const resolvedParams = await searchParams;
   const selectedConversationId = resolvedParams.conversation;
