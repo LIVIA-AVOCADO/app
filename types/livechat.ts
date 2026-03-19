@@ -60,10 +60,32 @@ export interface ConversationWithContact extends Conversation {
 }
 
 /**
+ * Attachment de mensagem (áudio, imagem, arquivo)
+ */
+export interface MessageAttachment {
+  id: string;
+  tenant_id: string;
+  conversation_id: string;
+  message_id: string;
+  attachment_type: 'audio' | 'image' | 'file' | 'video';
+  storage_bucket: string;
+  storage_path: string;
+  file_name: string | null;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  duration_ms: number | null;
+  provider_media_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
  * Mensagem com informações do remetente
  */
 export interface MessageWithSender extends Message {
   senderUser?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null;
+  attachment?: MessageAttachment | null;
 }
 
 /**

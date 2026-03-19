@@ -276,7 +276,8 @@ export async function getMessages(
 ): Promise<MessageWithSender[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
     .from('messages')
     .select(`
       *,
@@ -284,6 +285,16 @@ export async function getMessages(
         id,
         full_name,
         avatar_url
+      ),
+      message_attachments(
+        id,
+        attachment_type,
+        storage_bucket,
+        storage_path,
+        file_name,
+        mime_type,
+        file_size_bytes,
+        duration_ms
       )
     `)
     .eq('conversation_id', conversationId)
@@ -292,7 +303,13 @@ export async function getMessages(
 
   if (error) throw error;
 
-  return (data || []).reverse() as MessageWithSender[];
+  const messages = (data || []).reverse().map((msg: any) => ({
+    ...msg,
+    attachment: msg.message_attachments?.[0] ?? null,
+    message_attachments: undefined,
+  }));
+
+  return messages as MessageWithSender[];
 }
 
 /**

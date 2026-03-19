@@ -1,11 +1,14 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { MessageFeedbackButtons } from './message-feedback-buttons';
 import { Check, Clock, AlertCircle, CheckCheck } from 'lucide-react';
-import type { MessageWithSender, MessageStatus } from '@/types/livechat';
+import type { MessageWithSender, MessageStatus, MessageAttachment } from '@/types/livechat';
+import { AudioPlayer } from './audio-player';
+import { createClient } from '@/lib/supabase/client';
 
 interface MessageItemProps {
   message: MessageWithSender;
@@ -75,9 +78,7 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
 
           {/* Conteúdo com horário inline (estilo WhatsApp) */}
           <div className="flex items-end gap-2">
-            <p className="text-sm whitespace-pre-wrap flex-1 pr-1">
-              {message.content}
-            </p>
+            <MessageContent message={message} />
 
             {/* Footer: Horário e status inline (não mostrar para IA) */}
             {!isIA && (
@@ -124,6 +125,73 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Componente auxiliar para renderizar conteúdo da mensagem
+ * SRP: Responsabilidade única de renderizar o corpo da mensagem por tipo
+ *
+ * Para mensagens de áudio recebidas via Realtime (sem attachment no payload),
+ * faz fetch do attachment automaticamente pelo message_id.
+ */
+function MessageContent({ message }: { message: MessageWithSender }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const messageType = (message as any).message_type ?? 'text';
+
+  const [attachment, setAttachment] = useState<MessageAttachment | null>(
+    message.attachment ?? null
+  );
+  const [loadingAttachment, setLoadingAttachment] = useState(false);
+
+  useEffect(() => {
+    // Só busca se for áudio, sem attachment, e não for mensagem temporária
+    if (
+      messageType !== 'audio' ||
+      attachment !== null ||
+      !message.id ||
+      message.id.startsWith('temp-')
+    ) return;
+
+    setLoadingAttachment(true);
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from('message_attachments')
+      .select('id, attachment_type, storage_bucket, storage_path, file_name, mime_type, file_size_bytes, duration_ms')
+      .eq('message_id', message.id)
+      .single()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }: { data: MessageAttachment | null }) => {
+        setAttachment(data);
+        setLoadingAttachment(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message.id, messageType]);
+
+  if (messageType === 'audio') {
+    if (loadingAttachment) {
+      return (
+        <p className="text-sm text-muted-foreground italic flex-1 pr-1">
+          Carregando áudio...
+        </p>
+      );
+    }
+    if (attachment?.storage_path) {
+      const src = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${attachment.storage_bucket}/${attachment.storage_path}`;
+      return <AudioPlayer key={attachment.id} src={src} durationMs={attachment.duration_ms} className="flex-1" />;
+    }
+    return (
+      <p className="text-sm text-muted-foreground italic flex-1 pr-1">
+        Áudio indisponível
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-sm whitespace-pre-wrap flex-1 pr-1">
+      {message.content}
+    </p>
   );
 }
 
