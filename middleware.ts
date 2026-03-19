@@ -66,6 +66,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  try {
+    return await handleDashboardMiddleware(request, pathname);
+  } catch {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+}
+
+async function handleDashboardMiddleware(request: NextRequest, pathname: string) {
+
   let response = NextResponse.next();
 
   const supabase = createServerClient(

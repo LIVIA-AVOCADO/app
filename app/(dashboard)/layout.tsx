@@ -26,11 +26,19 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+  let supabase;
+  let authData;
 
-  // Redireciona para login se não autenticado ou se o token está corrompido
-  if (authError || !authData.user) {
+  try {
+    supabase = await createClient();
+    const result = await supabase.auth.getUser();
+    authData = result.data;
+
+    // Redireciona para login se não autenticado ou se o token está corrompido
+    if (result.error || !authData.user) {
+      redirect('/login');
+    }
+  } catch {
     redirect('/login');
   }
 
@@ -39,7 +47,7 @@ export default async function DashboardLayout({
   const { data: userData } = await (supabase as any)
     .from('users')
     .select('tenant_id, full_name, email, avatar_url, role, modules, tenants(name)')
-    .eq('id', authData.user.id)
+    .eq('id', authData!.user!.id)
     .single();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
