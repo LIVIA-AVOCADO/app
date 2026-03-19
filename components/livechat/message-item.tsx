@@ -143,6 +143,14 @@ function MessageContent({ message }: { message: MessageWithSender }) {
     message.attachment ?? null
   );
   const [loadingAttachment, setLoadingAttachment] = useState(false);
+  const [showTranscription, setShowTranscription] = useState(false);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const transcriptionStatus = (message as any).transcription_status ?? 'completed';
+  const hasTranscription =
+    transcriptionStatus === 'completed' &&
+    message.content &&
+    !message.content.startsWith('[');
 
   useEffect(() => {
     // Só busca se for áudio, sem attachment, e não for mensagem temporária
@@ -178,7 +186,26 @@ function MessageContent({ message }: { message: MessageWithSender }) {
     }
     if (attachment?.storage_path) {
       const src = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${attachment.storage_bucket}/${attachment.storage_path}`;
-      return <AudioPlayer key={attachment.id} src={src} durationMs={attachment.duration_ms} className="flex-1" />;
+      return (
+        <div className="flex flex-col gap-1.5 flex-1">
+          <AudioPlayer key={attachment.id} src={src} durationMs={attachment.duration_ms} />
+          {hasTranscription && (
+            <>
+              <button
+                onClick={() => setShowTranscription((v) => !v)}
+                className="text-[11px] text-muted-foreground hover:text-foreground transition-colors text-left underline underline-offset-2 decoration-dotted"
+              >
+                {showTranscription ? 'Ocultar transcrição' : 'Ver transcrição'}
+              </button>
+              {showTranscription && (
+                <p className="text-xs text-muted-foreground leading-relaxed border-t border-border/50 pt-1.5">
+                  {message.content}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      );
     }
     return (
       <p className="text-sm text-muted-foreground italic flex-1 pr-1">
