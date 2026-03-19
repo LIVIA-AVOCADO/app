@@ -196,12 +196,19 @@ export async function getConversationsWithContact(
     query = query.eq('status', filters.status);
   }
 
+  // Ordenar por última mensagem mais recente (necessário para o limit fazer sentido)
+  query = query.order('last_message_at', { ascending: false, nullsFirst: false });
+
   if (filters?.limit) {
     query = query.limit(filters.limit);
+  } else {
+    // Limite padrão para evitar URL too long no .in() da query de mensagens
+    // 675 UUIDs × 36 chars = ~24.9 KB >> limite do PostgREST (~8 KB)
+    query = query.limit(150);
   }
 
   if (filters?.offset) {
-    query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
+    query = query.range(filters.offset, filters.offset + (filters.limit || 150) - 1);
   }
 
   // eslint-disable-next-line prefer-const
