@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
@@ -38,7 +39,8 @@ export default async function DashboardLayout({
     if (result.error || !authData.user) {
       redirect('/login');
     }
-  } catch {
+  } catch (e) {
+    if (isRedirectError(e)) throw e;
     redirect('/login');
   }
 
