@@ -151,7 +151,9 @@ export async function getConversationsWithContact(
 ): Promise<ConversationWithContact[]> {
   const supabase = await createClient();
 
-  // ===== PASSO 1: Buscar conversas com JOIN para contatos e tags =====
+  // ===== PASSO 1: Buscar conversas com JOIN para contatos, tags e última mensagem =====
+  // A última mensagem é embutida diretamente (limit 1 por conversa, ordenada DESC)
+  // Isso elimina a query separada com .in([N UUIDs]) que estourava o limite de URL do PostgREST
   let query = supabase
     .from('conversations')
     .select(`
@@ -175,9 +177,19 @@ export async function getConversationsWithContact(
           order_index,
           id_neurocore
         )
+      ),
+      messages(
+        id,
+        conversation_id,
+        content,
+        timestamp,
+        sender_type,
+        sender_user_id
       )
     `)
-    .eq('tenant_id', tenantId);
+    .eq('tenant_id', tenantId)
+    .order('timestamp', { referencedTable: 'messages', ascending: false })
+    .limit(1, { referencedTable: 'messages' });
 
   // Filtrar conversas encerradas apenas se includeClosedConversations for false/undefined
   if (!filters?.includeClosedConversations) {
@@ -196,19 +208,15 @@ export async function getConversationsWithContact(
     query = query.eq('status', filters.status);
   }
 
-  // Ordenar por última mensagem mais recente (necessário para o limit fazer sentido)
+  // Ordenar conversas pela última mensagem mais recente
   query = query.order('last_message_at', { ascending: false, nullsFirst: false });
 
   if (filters?.limit) {
     query = query.limit(filters.limit);
-  } else {
-    // Limite padrão para evitar URL too long no .in() da query de mensagens
-    // 675 UUIDs × 36 chars = ~24.9 KB >> limite do PostgREST (~8 KB)
-    query = query.limit(150);
   }
 
   if (filters?.offset) {
-    query = query.range(filters.offset, filters.offset + (filters.limit || 150) - 1);
+    query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
   }
 
   // eslint-disable-next-line prefer-const
@@ -236,37 +244,8 @@ export async function getConversationsWithContact(
     });
   }
 
-  // ===== PASSO 2: Buscar última mensagem de cada conversa =====
-  const conversationIds = conversationsData.map((conv: { id: string }) => conv.id);
-
-  const { data: messagesData, error: messagesError } = await supabase
-    .from('messages')
-    .select('id, conversation_id, content, timestamp, sender_type, sender_user_id')
-    .in('conversation_id', conversationIds)
-    .order('timestamp', { ascending: false });
-
-  if (messagesError) {
-    console.error('[getConversationsWithContact] messages query failed:', {
-      message: messagesError.message,
-      code: (messagesError as any).code,
-      details: (messagesError as any).details,
-      hint: (messagesError as any).hint,
-      conversationCount: conversationIds.length,
-      tenantId,
-    });
-    throw messagesError;
-  }
-
-  // ===== PASSO 3: Agrupar mensagens por conversation_id =====
-  const lastMessageMap = new Map<string, any>();
-
-  messagesData?.forEach((msg) => {
-    if (!lastMessageMap.has(msg.conversation_id)) {
-      lastMessageMap.set(msg.conversation_id, msg);
-    }
-  });
-
-  // ===== PASSO 4: Montar estrutura final =====
+  // ===== PASSO 2: Montar estrutura final =====
+  // messages[] é um array de 1 item (limit 1 por conversa) — pegamos o [0]
   const result = conversationsData.map((conv: any) => {
     // Extrair categoria (primeira tag com is_category=true)
     const category = conv.conversation_tags
@@ -277,7 +256,7 @@ export async function getConversationsWithContact(
     return {
       ...conv,
       contact: conv.contacts, // Dados do contato (JOIN)
-      lastMessage: lastMessageMap.get(conv.id) || null,
+      lastMessage: conv.messages?.[0] || null,
       conversation_tags: conv.conversation_tags || [],
       category,
     };
