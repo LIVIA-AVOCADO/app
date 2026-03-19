@@ -161,7 +161,6 @@ function MessageContent({ message }: { message: MessageWithSender }) {
       .select('id, attachment_type, storage_bucket, storage_path, file_name, mime_type, file_size_bytes, duration_ms')
       .eq('message_id', message.id)
       .single()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(({ data }: { data: MessageAttachment | null }) => {
         setAttachment(data);
         setLoadingAttachment(false);

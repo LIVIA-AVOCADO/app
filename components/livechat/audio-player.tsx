@@ -20,34 +20,26 @@ export function AudioPlayer({ src, durationMs, className }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(durationMs ? durationMs / 1000 : 0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasError, setHasError] = useState(false);
+  const [playerState, setPlayerState] = useState({
+    isPlaying: false,
+    currentTime: 0,
+    duration: durationMs ? durationMs / 1000 : 0,
+    isLoading: false,
+    hasError: false,
+  });
 
-  // Reseta estado quando o src muda (novo áudio)
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setHasError(false);
-    setIsLoading(false);
-    setDuration(durationMs ? durationMs / 1000 : 0);
-    audio.load();
-  }, [src, durationMs]);
+  const { isPlaying, currentTime, duration, isLoading, hasError } = playerState;
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const onLoadedMetadata = () => setDuration(audio.duration);
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onEnded = () => { setIsPlaying(false); setCurrentTime(0); };
-    const onWaiting = () => setIsLoading(true);
-    const onCanPlay = () => setIsLoading(false);
-    const onError = () => { setHasError(true); setIsLoading(false); };
+    const onLoadedMetadata = () => setPlayerState((s) => ({ ...s, duration: audio.duration }));
+    const onTimeUpdate = () => setPlayerState((s) => ({ ...s, currentTime: audio.currentTime }));
+    const onEnded = () => setPlayerState((s) => ({ ...s, isPlaying: false, currentTime: 0 }));
+    const onWaiting = () => setPlayerState((s) => ({ ...s, isLoading: true }));
+    const onCanPlay = () => setPlayerState((s) => ({ ...s, isLoading: false }));
+    const onError = () => setPlayerState((s) => ({ ...s, hasError: true, isLoading: false }));
 
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
     audio.addEventListener('timeupdate', onTimeUpdate);
@@ -72,12 +64,12 @@ export function AudioPlayer({ src, durationMs, className }: AudioPlayerProps) {
 
     if (isPlaying) {
       audio.pause();
-      setIsPlaying(false);
+      setPlayerState((s) => ({ ...s, isPlaying: false }));
     } else {
-      setIsLoading(true);
+      setPlayerState((s) => ({ ...s, isLoading: true }));
       audio.play()
-        .then(() => { setIsPlaying(true); setIsLoading(false); })
-        .catch(() => { setHasError(true); setIsLoading(false); });
+        .then(() => setPlayerState((s) => ({ ...s, isPlaying: true, isLoading: false })))
+        .catch(() => setPlayerState((s) => ({ ...s, hasError: true, isLoading: false })));
     }
   }, [isPlaying, hasError]);
 
@@ -90,7 +82,7 @@ export function AudioPlayer({ src, durationMs, className }: AudioPlayerProps) {
     const ratio = (e.clientX - rect.left) / rect.width;
     const newTime = Math.max(0, Math.min(ratio * duration, duration));
     audio.currentTime = newTime;
-    setCurrentTime(newTime);
+    setPlayerState((s) => ({ ...s, currentTime: newTime }));
   }, [duration]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;

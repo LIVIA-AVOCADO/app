@@ -276,7 +276,7 @@ export async function getMessages(
 ): Promise<MessageWithSender[]> {
   const supabase = await createClient();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const { data, error } = await (supabase as any)
     .from('messages')
     .select(`
