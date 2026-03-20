@@ -49,10 +49,10 @@ export function AgentsList({ agents }: AgentsListProps) {
   }
 
   return (
-    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
-      {/* Scroll Horizontal de Cards */}
+    <div className="space-y-6 w-full min-w-0 max-w-full">
+      {/* Scroll horizontal: min-w-0 evita estourar o flex pai; py-1 dá espaço p/ ring/focus */}
       <div
-        className="flex gap-4 overflow-x-auto pb-4 w-full"
+        className="flex gap-4 overflow-x-auto py-1 pb-4 w-full min-w-0"
         style={{
           scrollbarWidth: 'thin',
           WebkitOverflowScrolling: 'touch',

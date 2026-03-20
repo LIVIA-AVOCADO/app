@@ -35,7 +35,7 @@ export default async function MeusAgentesPage() {
 
   if (userError || !userData?.tenant_id) {
     return (
-      <div className="container mx-auto py-6">
+      <div className="container mx-auto px-4 md:px-6 py-6">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Erro</AlertTitle>
@@ -61,7 +61,7 @@ export default async function MeusAgentesPage() {
   } catch (error) {
     console.error('[MeusAgentesPage] Error loading agents:', error);
     return (
-      <div className="container mx-auto py-6">
+      <div className="container mx-auto px-4 md:px-6 py-6">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Erro ao carregar agentes</AlertTitle>
@@ -74,7 +74,7 @@ export default async function MeusAgentesPage() {
   }
   
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto px-4 md:px-6 py-6 space-y-6">
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Meus Agentes IA</h1>

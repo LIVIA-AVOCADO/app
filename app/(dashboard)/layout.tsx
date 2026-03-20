@@ -20,7 +20,7 @@ import { SubscriptionWarningBanner } from '@/components/layout/subscription-warn
  * - Sidebar com auto-collapse no livechat
  * - Toggle integrado no header do sidebar (sempre acessível)
  * - Footer do sidebar com perfil clicável
- * - SidebarInset para conteúdo principal
+ * - SidebarInset para conteúdo principal (sem padding lateral global — cada página define o seu)
  */
 export default async function DashboardLayout({
   children,
@@ -85,13 +85,14 @@ export default async function DashboardLayout({
           userRole={user?.role ?? 'user'}
           userModules={user?.modules ?? []}
         />
-        <SidebarInset className="flex flex-col w-full h-screen overflow-x-hidden pl-4 md:pl-6">
+        <SidebarInset className="flex min-h-0 flex-col w-full h-screen overflow-hidden">
           <SubscriptionWarningBanner
             subscriptionStatus={subscriptionStatus}
             periodEnd={subscriptionPeriodEnd}
           />
           <SidebarAutoCollapseWrapper>
-            <div className="flex-1 overflow-y-auto">
+            {/* min-h-0: permite o filho encolher no flex; sem isso o conteúdo alto cria scroll duplo (viewport + este div) */}
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
               {children}
             </div>
           </SidebarAutoCollapseWrapper>

@@ -17,8 +17,9 @@ export function AgentCard({ agent, isSelected, onSelect }: AgentCardProps) {
   return (
     <Card 
       className={cn(
-        "w-[200px] flex-shrink-0 hover:shadow-md transition-all cursor-pointer hover:bg-accent/50 flex flex-col justify-between",
-        isSelected && "ring-2 ring-primary border-primary bg-accent/50"
+        "w-[200px] min-h-[112px] flex-shrink-0 border border-transparent hover:shadow-md transition-all cursor-pointer hover:bg-accent/50 flex flex-col justify-between",
+        // ring-inset: anel dentro do card — evita corte pelo overflow-x do container pai
+        isSelected && "ring-2 ring-inset ring-primary bg-accent/50"
       )}
       onClick={() => onSelect(agent)}
     >
