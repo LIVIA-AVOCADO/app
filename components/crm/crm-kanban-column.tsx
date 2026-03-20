@@ -59,26 +59,26 @@ export function CRMKanbanColumn({
   const count = conversationsInThisColumn.length;
 
   return (
-    <div className="flex flex-col w-80 border rounded-lg bg-card flex-shrink-0">
+    <div className="flex flex-col w-80 border border-border rounded-lg bg-card flex-shrink-0 shadow-card">
       {/* Header da coluna */}
-      <div className="p-4 border-b">
+      <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-sm truncate" title={tag.tag_name}>
             {tag.tag_name}
           </h3>
           {!tag.active && (
-            <span className="text-xs text-muted-foreground ml-2">(Inativa)</span>
+            <span className="text-xs text-on-surface-variant ml-2">(Inativa)</span>
           )}
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-on-surface-variant mt-1">
           {count} {count === 1 ? 'conversa' : 'conversas'}
         </p>
       </div>
 
       {/* Body da coluna - Scrollable */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 scroll-smooth max-h-[calc(100vh-280px)]">
+      <div className="scrollbar-themed flex-1 overflow-y-auto p-3 space-y-3 scroll-smooth max-h-[calc(100vh-280px)]">
         {count === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="text-center py-8 text-on-surface-variant">
             <p className="text-sm">📭</p>
             <p className="text-xs mt-2">
               {tag.active ? 'Nenhuma conversa com esta tag' : 'Tag inativa'}

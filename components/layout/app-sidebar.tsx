@@ -151,7 +151,7 @@ export function AppSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden text-[10px] font-semibold tracking-widest uppercase text-sidebar-foreground/60 px-2">
+          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden text-[10px] font-semibold tracking-widest uppercase text-white/40 px-2">
             Menu Principal
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -172,8 +172,9 @@ export function AppSidebar({
                       isActive={isActive}
                       tooltip={item.title}
                       className={cn(
-                        isActive &&
-                          '!bg-sidebar-primary !text-sidebar-primary-foreground shadow-sm hover:!bg-sidebar-primary/90'
+                        isActive
+                          ? '!bg-sidebar-primary !text-sidebar-primary-foreground font-semibold'
+                          : 'hover:!bg-sidebar-accent hover:!text-sidebar-accent-foreground'
                       )}
                     >
                       <Link href={item.url}>
@@ -227,7 +228,7 @@ export function AppSidebar({
           avatarUrl={avatarUrl}
         />
         <div className="px-3 pb-1 group-data-[collapsible=icon]:hidden">
-          <span className="text-[10px] text-muted-foreground/50 select-none">
+          <span className="text-[10px] text-white/30 select-none">
             v{APP_VERSION}
           </span>
         </div>

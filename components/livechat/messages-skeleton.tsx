@@ -12,7 +12,7 @@ const rows = [
 
 export function MessagesSkeleton() {
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4">
+    <div className="scrollbar-themed h-full overflow-y-auto p-4 space-y-4">
       {rows.map((row, i) => (
         <div
           key={i}

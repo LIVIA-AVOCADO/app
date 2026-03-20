@@ -66,17 +66,17 @@ export function CRMKanbanBoard({
   }, [conversations]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-w-0 bg-background">
       {/* Header com título e filtros */}
-      <div className="p-4 border-b space-y-4 flex-shrink-0">
+      <div className="p-4 border-b border-border space-y-4 flex-shrink-0 bg-card">
         <div>
           <h1 className="text-2xl font-bold">
             CRM{' '}
-            <span className="text-sm font-normal text-muted-foreground">
+            <span className="text-sm font-normal text-on-surface-variant">
               BETA
             </span>
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-on-surface-variant mt-1">
             Gerencie conversas por tags
           </p>
         </div>
@@ -89,7 +89,7 @@ export function CRMKanbanBoard({
       </div>
 
       {/* Grid de colunas com scroll horizontal */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-4">
+      <div className="scrollbar-themed flex-1 overflow-x-auto overflow-y-hidden p-4">
         <div className="flex gap-4 min-w-max h-full">
           {tags.length === 0 ? (
             <div className="flex items-center justify-center w-full h-full">

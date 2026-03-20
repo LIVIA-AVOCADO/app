@@ -220,7 +220,7 @@ export function ContactListVirtualized({
         )}
       </div>
 
-      <div ref={parentRef} className="flex-1 overflow-y-auto p-4">
+      <div ref={parentRef} className="scrollbar-themed flex-1 overflow-y-auto p-4">
         {displayConversations.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             {searchQuery

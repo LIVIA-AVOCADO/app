@@ -122,7 +122,7 @@ export function ConversationView({
           <>
             <div
               ref={scrollRef}
-              className="h-full overflow-y-auto p-4 scroll-smooth bg-card"
+              className="scrollbar-themed h-full overflow-y-auto p-4 scroll-smooth bg-card"
             >
               {messages.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">

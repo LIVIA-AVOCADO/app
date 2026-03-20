@@ -47,12 +47,24 @@
   --color-heading-1: var(--heading-1);
   --color-heading-2: var(--heading-2);
   --color-heading-3: var(--heading-3);
-  /* Radius scale: XS=8px SM=12px MD=16px LG=20px XL=24px */
-  --radius-xs: 0.5rem;
-  --radius-sm: 0.75rem;
-  --radius-md: 1rem;
-  --radius-lg: 1.25rem;
-  --radius-xl: 1.5rem;
+  /* Superfícies e texto (Material / Stitch) — ver docs/design-tokens.md */
+  --color-surface: var(--surface);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-outline-variant: var(--outline-variant);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  /* Radius scale — alinhado com Stitch/referência */
+  --radius-xs: 0.5rem;   /* 8px  — badges, chips */
+  --radius-sm: 0.75rem;  /* 12px — botões pequenos */
+  --radius-md: 1rem;     /* 16px — inputs, botões */
+  --radius-lg: 1.5rem;   /* 24px — modais, dropdowns */
+  --radius-xl: 2rem;     /* 32px — cards, painéis */
   --radius: var(--radius-md);
 }
 
@@ -61,7 +73,7 @@
   --radius: 1rem;
 
   /* Base */
-  --background: #F2F5FA;
+  --background: #faf9ff;
   --foreground: #171C28;
 
   /* Card */
@@ -109,6 +121,20 @@
   --border: #E4EAF3;
   --input: #E4EAF3;
   --ring: #2135DF;
+  --outline-variant: #c5c5d9;
+
+  /* Superfícies (Material / Stitch) — inputs, filtros, hovers */
+  --surface: #faf9ff;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f1f3ff;
+  --surface-container: #e9edff;
+  --surface-container-high: #e4e8f9;
+  --surface-container-highest: #dee2f3;
+  --on-surface: #171c28;
+  --on-surface-variant: #454656;
+  /* Superfície preenchida com primário (chips, áreas de marca) */
+  --primary-container: #2135df;
+  --on-primary-container: #babfff;
 
   /* Charts — paleta da marca */
   --chart-1: #2135DF;
@@ -117,15 +143,15 @@
   --chart-4: #53C680;
   --chart-5: #B76A00;
 
-  /* Sidebar — clara, clean e sofisticada */
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #5E687C;
-  --sidebar-primary: #EDEFFC;
-  --sidebar-primary-foreground: #2135DF;
-  --sidebar-accent: #F7F9FC;
-  --sidebar-accent-foreground: #171C28;
-  --sidebar-border: #E4EAF3;
-  --sidebar-ring: #2135DF;
+  /* Sidebar — dark navy (padrão Stitch/referência) */
+  --sidebar: #0E165E;
+  --sidebar-foreground: rgba(255, 255, 255, 0.7);
+  --sidebar-primary: rgba(255, 255, 255, 0.1);
+  --sidebar-primary-foreground: #1AB356;
+  --sidebar-accent: rgba(255, 255, 255, 0.05);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #1AB356;
 }
 
 .dark {
@@ -147,6 +173,16 @@
   --border: rgba(255, 255, 255, 0.08);
   --input: rgba(255, 255, 255, 0.12);
   --ring: #5868E7;
+  --outline-variant: rgba(255, 255, 255, 0.14);
+  --surface: #121a2d;
+  --on-surface: #f8faff;
+  --on-surface-variant: #b4bdd0;
+  --surface-container-low: #182236;
+  --surface-container: #1c2740;
+  --surface-container-high: #24304a;
+  --surface-container-highest: #2c3a54;
+  --primary-container: #5868e7;
+  --on-primary-container: #dde1ff;
   --success: #53C680;
   --success-foreground: #0B1020;
   --warning: #F6D89B;
@@ -161,8 +197,8 @@
   --chart-3: #F6D89B;
   --chart-4: #1C8D7F;
   --chart-5: #F4B8B8;
-  /* Sidebar escura premium */
-  --sidebar: #121A2D;
+  /* Sidebar escura premium — alinhada a --surface */
+  --sidebar: var(--surface);
   --sidebar-foreground: rgba(255, 255, 255, 0.72);
   --sidebar-primary: rgba(255, 255, 255, 0.08);
   --sidebar-primary-foreground: #FFFFFF;
@@ -238,38 +274,73 @@
     -webkit-backdrop-filter: blur(12px);
   }
 
-  /* Gradientes de ícone */
+  /* Gradientes de ícone — cores da marca via tokens */
   .icon-gradient-brand {
-    background: linear-gradient(135deg, #2135DF 0%, #1AB356 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--success) 100%);
   }
 
   .icon-gradient-blue {
-    background: linear-gradient(135deg, #2135DF 0%, #5868E7 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--chart-3) 100%);
   }
 
   .icon-gradient-green {
-    background: linear-gradient(135deg, #1AB356 0%, #53C680 100%);
+    background: linear-gradient(135deg, var(--success) 0%, var(--chart-4) 100%);
   }
 
   .icon-gradient-amber {
-    background: linear-gradient(135deg, #B76A00 0%, #F6D89B 100%);
+    background: linear-gradient(
+      135deg,
+      var(--chart-5) 0%,
+      color-mix(in srgb, var(--chart-5) 40%, var(--background) 60%) 100%
+    );
   }
 
   /* Gradiente institucional principal */
   .gradient-brand {
-    background: linear-gradient(135deg, #2135DF 0%, #1F5BB6 38%, #1AB356 100%);
+    background: linear-gradient(
+      135deg,
+      var(--primary) 0%,
+      color-mix(in srgb, var(--primary) 70%, var(--success) 30%) 38%,
+      var(--success) 100%
+    );
   }
 
   /* Gradiente suave de fundo */
   .gradient-brand-soft {
-    background: linear-gradient(135deg, #EDEFFC 0%, #EDF9F1 100%);
+    background: linear-gradient(
+      135deg,
+      var(--sidebar-primary) 0%,
+      var(--accent) 100%
+    );
   }
 
   /* Texto com gradiente da marca */
   .text-gradient-brand {
-    background: linear-gradient(135deg, #2135DF 0%, #1F5BB6 50%, #1AB356 100%);
+    background: linear-gradient(
+      135deg,
+      var(--primary) 0%,
+      color-mix(in srgb, var(--primary) 60%, var(--success) 40%) 50%,
+      var(--success) 100%
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Scrollbar usando tokens (evita hex em estilo global) */
+  .scrollbar-themed {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .scrollbar-themed::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-themed::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-themed::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
   }
 }

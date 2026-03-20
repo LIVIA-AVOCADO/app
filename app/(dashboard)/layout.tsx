@@ -85,14 +85,14 @@ export default async function DashboardLayout({
           userRole={user?.role ?? 'user'}
           userModules={user?.modules ?? []}
         />
-        <SidebarInset className="flex min-h-0 flex-col w-full h-screen overflow-hidden">
+        <SidebarInset className="flex min-h-0 flex-col w-full h-screen overflow-hidden bg-surface">
           <SubscriptionWarningBanner
             subscriptionStatus={subscriptionStatus}
             periodEnd={subscriptionPeriodEnd}
           />
           <SidebarAutoCollapseWrapper>
             {/* min-h-0: permite o filho encolher no flex; sem isso o conteúdo alto cria scroll duplo (viewport + este div) */}
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
               {children}
             </div>
           </SidebarAutoCollapseWrapper>

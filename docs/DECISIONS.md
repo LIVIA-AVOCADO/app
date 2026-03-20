@@ -21,6 +21,7 @@
 18. [Profile Page com AI Global Pause Control](#decisão-018-profile-page-com-ai-global-pause-control)
 19. [Auto-Pause IA When Attendant Sends Message](#decisão-019-auto-pause-ia-when-attendant-sends-message)
 20. [Conversation Tags Management System](#decisão-020-conversation-tags-management-system)
+21. [Design tokens e cores (Stitch / Material 3)](#decisão-021-design-tokens-e-cores-stitch--material-3)
 
 ---
 
@@ -1968,3 +1969,28 @@ CREATE POLICY "Tenants can view their tags"
 2025-11-24 | Conversation Summary modal | Acesso rápido a dados do cliente sem poluir UI
 2025-11-26 | Comando "/" para quick replies | Atalho rápido (Slack/Discord pattern), não intrusivo
 2025-11-27 | Profile page com AI pause global | Controle system-wide, confirmação de segurança ("PAUSAR")
+2026-03-20 | Design tokens em CSS (surface-container-*, on-surface-variant) | Uma fonte em `globals.css`, sem hex em TSX; ver [design-tokens.md](./design-tokens.md)
+
+---
+
+## Decisão #021: Design tokens e cores (Stitch / Material 3)
+
+**Data:** 2026-03-20
+
+**Status:** Aceita
+
+### Contexto
+
+Referências visuais (Stitch) usam nomenclatura Material 3 e cores hex em HTML puro. O projeto usa Next.js, Tailwind v4 e shadcn — as cores devem permanecer centralizadas e sem valores hardcoded em componentes.
+
+### Decisão
+
+1. Estender `:root` / `.dark` em `app/globals.css` com tokens semânticos (`--surface`, `--surface-container-*`, `--on-surface-variant`, `--outline-variant`, `--primary-container`, `--on-primary-container`).
+2. Expor tokens ao Tailwind via `@theme inline` (`--color-*`).
+3. Manter tokens shadcn existentes (`primary`, `card`, `muted`, etc.) para compatibilidade.
+4. Documentar mapeamento e uso em [design-tokens.md](./design-tokens.md).
+
+### Consequências
+
+- Ajustes de marca: editar apenas variáveis CSS.
+- Novos componentes devem preferir classes baseadas em tokens (`bg-surface-container-low`, `text-on-surface-variant`) em vez de hex.

@@ -212,7 +212,7 @@ export function CustomerDataPanel({
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4">
+    <div className="scrollbar-themed h-full overflow-y-auto p-4 space-y-4">
       <div className="mb-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold">Dados do Cliente</h3>

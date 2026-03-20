@@ -23,6 +23,8 @@ const badgeVariants = cva(
           "border-transparent bg-warning/15 text-warning [a&]:hover:bg-warning/25",
         info:
           "border-transparent bg-info/15 text-info [a&]:hover:bg-info/25",
+        primaryContainer:
+          "border-transparent bg-primary-container text-on-primary-container [a&]:hover:bg-primary-container/90",
         danger:
           "border-transparent bg-destructive/15 text-destructive [a&]:hover:bg-destructive/25",
       },
