@@ -102,7 +102,7 @@ export function ConversationView({
   }, [isLoadingTransition, messages.length]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-card">
       <ConversationHeader
         contactName={contactName}
         contactPhone={contactPhone}
@@ -122,7 +122,7 @@ export function ConversationView({
           <>
             <div
               ref={scrollRef}
-              className="h-full overflow-y-auto p-4 scroll-smooth"
+              className="h-full overflow-y-auto p-4 scroll-smooth bg-card"
             >
               {messages.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">

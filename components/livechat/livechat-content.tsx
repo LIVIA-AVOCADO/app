@@ -140,7 +140,7 @@ export function LivechatContent({
   return (
     <div className="flex h-full overflow-hidden">
       {/* Coluna esquerda: lista de conversas */}
-      <aside className="w-96 border-r flex flex-col h-full">
+      <aside className="w-96 border-r flex flex-col h-full bg-card">
         <div className="p-4 border-b flex-shrink-0">
           <h2 className="text-lg font-semibold">Conversas</h2>
           <p className="text-sm text-muted-foreground">
@@ -161,7 +161,7 @@ export function LivechatContent({
       </aside>
 
       {/* Área principal: conversa */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden min-w-0 bg-card">
         {isLoadingMessages ? (
           <div className="flex flex-col h-full">
             <div className="p-4 border-b">
@@ -207,7 +207,7 @@ export function LivechatContent({
 
       {/* Coluna direita: painel fixado (modo pinned) */}
       {activeConversation && isPanelPinned && (
-        <aside className="w-80 border-l flex flex-col h-full overflow-hidden shrink-0">
+        <aside className="w-80 border-l flex flex-col h-full overflow-hidden shrink-0 bg-card">
           <CustomerDataPanel
             contactId={activeConversation.contact.id}
             tenantId={tenantId}

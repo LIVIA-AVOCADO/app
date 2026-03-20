@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
-import { Inter, Geist_Mono } from "next/font/google";
+import { Sora, Manrope, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const sora = Sora({
+  variable: "--font-sora",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -31,7 +37,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${geistMono.variable} antialiased`}
+        className={`${sora.variable} ${manrope.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
         {children}

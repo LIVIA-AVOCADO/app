@@ -6,7 +6,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-manrope);
+  --font-display: var(--font-sora);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -46,124 +47,129 @@
   --color-heading-1: var(--heading-1);
   --color-heading-2: var(--heading-2);
   --color-heading-3: var(--heading-3);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Radius scale: XS=8px SM=12px MD=16px LG=20px XL=24px */
+  --radius-xs: 0.5rem;
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
+  --radius: var(--radius-md);
 }
 
 :root {
-  --radius: 0.625rem;
+  /* Radius base (usado por shadcn via var(--radius)) */
+  --radius: 1rem;
 
   /* Base */
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #F2F5FA;
+  --foreground: #171C28;
 
   /* Card */
-  --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card: #FFFFFF;
+  --card-foreground: #171C28;
 
   /* Popover */
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  --popover: #FFFFFF;
+  --popover-foreground: #171C28;
 
-  /* Primary — brand green (cor dominante do logo "liv.ia") */
-  --primary: #16a34a;
-  --primary-foreground: #ffffff;
+  /* Primary — azul LIV.IA (ação, foco, navegação) */
+  --primary: #2135DF;
+  --primary-foreground: #FFFFFF;
 
   /* Secondary */
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
+  --secondary: #F7F9FC;
+  --secondary-foreground: #171C28;
 
-  /* Muted */
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  /* Muted — tom diferenciado do background para áreas secundárias */
+  --muted: #EDF1F7;
+  --muted-foreground: #5E687C;
 
-  /* Accent */
-  --accent: #f0fdf4;
-  --accent-foreground: #14532d;
+  /* Accent — verde LIV.IA suave */
+  --accent: #EDF9F1;
+  --accent-foreground: #148841;
 
   /* Destructive */
-  --destructive: #ef4444;
+  --destructive: #C23535;
 
   /* Semantic */
-  --success: #16a34a;
-  --success-foreground: #ffffff;
-  --warning: #d97706;
-  --warning-foreground: #ffffff;
-  /* Info — brand blue (cor do ícone robô no logo) */
-  --info: #3535d0;
-  --info-foreground: #ffffff;
+  --success: #1AB356;
+  --success-foreground: #FFFFFF;
+  --warning: #B76A00;
+  --warning-foreground: #FFFFFF;
+  /* Info — azul principal */
+  --info: #2135DF;
+  --info-foreground: #FFFFFF;
 
   /* Hierarquia de títulos */
-  --heading-1: #0d1426;
-  --heading-2: #1a22a0;
-  --heading-3: #1e2e52;
+  --heading-1: #171C28;
+  --heading-2: #2135DF;
+  --heading-3: #2D3A55;
 
   /* Border / Input / Ring */
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #16a34a;
+  --border: #E4EAF3;
+  --input: #E4EAF3;
+  --ring: #2135DF;
 
-  /* Charts — alinhados com a paleta da marca */
-  --chart-1: #16a34a;
-  --chart-2: #3535d0;
-  --chart-3: #d97706;
-  --chart-4: #0891b2;
-  --chart-5: #dc2626;
+  /* Charts — paleta da marca */
+  --chart-1: #2135DF;
+  --chart-2: #1AB356;
+  --chart-3: #5868E7;
+  --chart-4: #53C680;
+  --chart-5: #B76A00;
 
-  /* Sidebar — azul cobalto da marca (cor do ícone robô no logo) */
-  --sidebar: #1a22a0;
-  --sidebar-foreground: rgba(255, 255, 255, 0.85);
-  --sidebar-primary: #22c55e;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255, 255, 255, 0.12);
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.12);
-  --sidebar-ring: #22c55e;
+  /* Sidebar — clara, clean e sofisticada */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #5E687C;
+  --sidebar-primary: #EDEFFC;
+  --sidebar-primary-foreground: #2135DF;
+  --sidebar-accent: #F7F9FC;
+  --sidebar-accent-foreground: #171C28;
+  --sidebar-border: #E4EAF3;
+  --sidebar-ring: #2135DF;
 }
 
 .dark {
-  --background: #0f172a;
-  --foreground: #f8fafc;
-  --card: #1e293b;
-  --card-foreground: #f8fafc;
-  --popover: #1e293b;
-  --popover-foreground: #f8fafc;
-  --primary: #22c55e;
-  --primary-foreground: #0f172a;
-  --secondary: #334155;
-  --secondary-foreground: #f8fafc;
-  --muted: #334155;
-  --muted-foreground: #94a3b8;
-  --accent: #14532d;
-  --accent-foreground: #f0fdf4;
-  --destructive: #f87171;
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.15);
-  --ring: #22c55e;
-  --success: #22c55e;
-  --success-foreground: #0f172a;
-  --warning: #f59e0b;
-  --warning-foreground: #0f172a;
-  --info: #6366f1;
-  --info-foreground: #ffffff;
-  --heading-1: #f0fdf4;
-  --heading-2: #a5b4fc;
-  --heading-3: #cbd5e1;
-  --chart-1: #22c55e;
-  --chart-2: #6366f1;
-  --chart-3: #f59e0b;
-  --chart-4: #22d3ee;
-  --chart-5: #f87171;
-  --sidebar: #1a22a0;
-  --sidebar-foreground: rgba(255, 255, 255, 0.85);
-  --sidebar-primary: #22c55e;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255, 255, 255, 0.12);
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.12);
-  --sidebar-ring: #22c55e;
+  --background: #0B1020;
+  --foreground: #F8FAFF;
+  --card: #121A2D;
+  --card-foreground: #F8FAFF;
+  --popover: #182236;
+  --popover-foreground: #F8FAFF;
+  --primary: #5868E7;
+  --primary-foreground: #FFFFFF;
+  --secondary: #182236;
+  --secondary-foreground: #F8FAFF;
+  --muted: #182236;
+  --muted-foreground: #B4BDD0;
+  --accent: #0B4B24;
+  --accent-foreground: #EDF9F1;
+  --destructive: #F4B8B8;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #5868E7;
+  --success: #53C680;
+  --success-foreground: #0B1020;
+  --warning: #F6D89B;
+  --warning-foreground: #0B1020;
+  --info: #5868E7;
+  --info-foreground: #FFFFFF;
+  --heading-1: #F8FAFF;
+  --heading-2: #B8BEF5;
+  --heading-3: #B4BDD0;
+  --chart-1: #5868E7;
+  --chart-2: #53C680;
+  --chart-3: #F6D89B;
+  --chart-4: #1C8D7F;
+  --chart-5: #F4B8B8;
+  /* Sidebar escura premium */
+  --sidebar: #121A2D;
+  --sidebar-foreground: rgba(255, 255, 255, 0.72);
+  --sidebar-primary: rgba(255, 255, 255, 0.08);
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: rgba(255, 255, 255, 0.06);
+  --sidebar-accent-foreground: rgba(255, 255, 255, 0.9);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #5868E7;
 }
 
 @layer base {
@@ -173,16 +179,19 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-manrope), system-ui, sans-serif;
   }
 
-  /* Hierarquia visual de títulos — usa tokens, sem hardcode
-     body h1 tem especificidade 0,0,2 e garante que regras de herança
-     de utilitários pai não sobrescrevam os títulos */
+  /* Tipografia — Sora para títulos, Manrope para interface */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sora), system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
   body h1,
   body [data-slot="card-title"].text-2xl,
   body [data-slot="card-title"].text-3xl {
     color: var(--heading-1);
-    letter-spacing: -0.02em;
   }
 
   body h2,
@@ -196,18 +205,30 @@
 }
 
 @layer utilities {
+  /* Fonte display (Sora) para títulos de destaque */
+  .font-display {
+    font-family: var(--font-sora), system-ui, sans-serif;
+  }
+
   /* Card hover — lift effect para cards interativos */
   .card-hover {
-    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer;
+    @apply transition-all duration-200 hover:-translate-y-0.5 cursor-pointer;
+    &:hover {
+      box-shadow: 0 10px 30px rgba(16, 23, 40, 0.08);
+    }
   }
 
   /* Sombra refinada para cards */
   .shadow-card {
-    box-shadow: 0 1px 3px rgb(0 0 0 / 0.06), 0 4px 12px rgb(0 0 0 / 0.04);
+    box-shadow: 0 1px 2px rgba(16, 23, 40, 0.04);
+  }
+
+  .shadow-card-md {
+    box-shadow: 0 4px 12px rgba(16, 23, 40, 0.06);
   }
 
   .shadow-card-hover {
-    box-shadow: 0 4px 8px rgb(0 0 0 / 0.08), 0 12px 32px rgb(0 0 0 / 0.06);
+    box-shadow: 0 10px 30px rgba(16, 23, 40, 0.08);
   }
 
   /* Superfície glass */
@@ -217,31 +238,36 @@
     -webkit-backdrop-filter: blur(12px);
   }
 
-  /* Gradientes de ícone — referenciando tokens da marca */
+  /* Gradientes de ícone */
   .icon-gradient-brand {
-    background: linear-gradient(135deg, var(--primary), var(--sidebar-primary));
+    background: linear-gradient(135deg, #2135DF 0%, #1AB356 100%);
   }
 
   .icon-gradient-blue {
-    background: linear-gradient(135deg, var(--info), var(--heading-2));
+    background: linear-gradient(135deg, #2135DF 0%, #5868E7 100%);
   }
 
   .icon-gradient-green {
-    background: linear-gradient(135deg, var(--primary), var(--success));
+    background: linear-gradient(135deg, #1AB356 0%, #53C680 100%);
   }
 
   .icon-gradient-amber {
-    background: linear-gradient(135deg, var(--warning), #fbbf24);
+    background: linear-gradient(135deg, #B76A00 0%, #F6D89B 100%);
   }
 
-  /* Gradiente completo da marca (verde → azul) */
+  /* Gradiente institucional principal */
   .gradient-brand {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--sidebar) 100%);
+    background: linear-gradient(135deg, #2135DF 0%, #1F5BB6 38%, #1AB356 100%);
   }
 
-  /* Texto com gradiente da marca — para títulos de destaque */
+  /* Gradiente suave de fundo */
+  .gradient-brand-soft {
+    background: linear-gradient(135deg, #EDEFFC 0%, #EDF9F1 100%);
+  }
+
+  /* Texto com gradiente da marca */
   .text-gradient-brand {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--sidebar) 100%);
+    background: linear-gradient(135deg, #2135DF 0%, #1F5BB6 50%, #1AB356 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

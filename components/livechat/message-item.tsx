@@ -42,7 +42,7 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
         'flex gap-3 mb-4',
         isCustomer ? 'flex-row' : 'flex-row-reverse',
         isNew && 'animate-in fade-in-0 slide-in-from-bottom-3 duration-200',
-        message.status === 'pending' && 'opacity-60 transition-opacity duration-300'
+        message.id.startsWith('temp-') && message.status === 'pending' && 'opacity-60 transition-opacity duration-300'
       )}
     >
       {/* Avatar */}

@@ -151,7 +151,7 @@ export function AppSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden text-[10px] font-semibold tracking-widest uppercase text-white/40 px-2">
+          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden text-[10px] font-semibold tracking-widest uppercase text-sidebar-foreground/60 px-2">
             Menu Principal
           </SidebarGroupLabel>
           <SidebarGroupContent>
