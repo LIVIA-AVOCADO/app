@@ -91,7 +91,7 @@ export default async function KnowledgeBasePage() {
   }
 
   return (
-    <div className="flex h-full flex-col p-6 w-full overflow-x-hidden">
+    <div className="flex h-full min-w-0 flex-col p-6 w-full">
       <KnowledgeBasePageContent
         domains={domains}
         basesByDomain={basesByDomain}

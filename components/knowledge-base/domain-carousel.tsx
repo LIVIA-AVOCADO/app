@@ -28,7 +28,7 @@ export function DomainCarousel({
   onOpenCreateDialog,
 }: DomainCarouselProps) {
   return (
-    <div className="space-y-4 w-full max-w-full overflow-x-hidden">
+    <div className="space-y-4 w-full min-w-0 max-w-full">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Base de Conhecimento</h2>
         <Button onClick={onOpenCreateDialog} size="sm">
@@ -48,7 +48,7 @@ export function DomainCarousel({
         </div>
       ) : (
         <div
-          className="flex gap-3 overflow-x-auto pb-4 w-full"
+          className="flex gap-3 overflow-x-auto py-1 pb-4 px-0.5 w-full min-w-0"
           style={{
             scrollbarWidth: 'thin',
             WebkitOverflowScrolling: 'touch',
@@ -63,13 +63,14 @@ export function DomainCarousel({
                 onClick={() => onSelectDomain(domain.id)}
                 className={cn(
                   'flex flex-col items-start justify-center',
-                  'min-w-[180px] h-[100px]',
+                  'min-w-[180px] min-h-[100px] h-[100px] shrink-0',
                   'rounded-lg border-2 p-4',
                   'transition-all duration-200',
                   'hover:border-primary/50 hover:bg-accent/50',
-                  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                  // ring-inset + sem ring-offset: anel não é cortado pelo overflow do carrossel
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                   isSelected
-                    ? 'border-primary bg-accent shadow-md'
+                    ? 'border-primary bg-accent shadow-md ring-2 ring-inset ring-primary/35'
                     : 'border-border bg-card'
                 )}
               >
