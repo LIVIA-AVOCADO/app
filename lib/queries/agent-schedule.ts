@@ -131,12 +131,30 @@ export async function upsertScheduleException(payload: {
   const supabase = await createClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const sb = supabase as any;
+
+  if (payload.id) {
+    // Atualização de registro existente
+    const { id, ...rest } = payload;
+    const { data, error } = await sb
+      .from('agent_schedule_exceptions')
+      .update({ ...rest, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('tenant_id', payload.tenant_id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[upsertScheduleException] Error:', error);
+      throw error;
+    }
+    return data as ScheduleException;
+  }
+
+  // Novo registro — insert simples
+  const { data, error } = await sb
     .from('agent_schedule_exceptions')
-    .upsert(
-      { ...payload, updated_at: new Date().toISOString() },
-      { onConflict: payload.id ? 'id' : 'tenant_id,exception_date,start_time' }
-    )
+    .insert({ ...payload, updated_at: new Date().toISOString() })
     .select()
     .single();
 
