@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * API Route: Mute / Unmute Contact
  *
@@ -7,7 +8,7 @@
  * Payload: { action: "mute" | "unmute", tenantId: string }
  *
  * Fluxo mute:
- * 1. Auth + validação de tenant
+ * 1. Auth + validação de tenant (igual todas as outras rotas)
  * 2. UPDATE contacts SET is_muted=true, muted_at=now(), muted_by=user.id
  * 3. UPDATE conversations SET ia_active=false para todas as conversas abertas do contato
  *
@@ -22,10 +23,12 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: contactId } = await params;
+    const params = await context.params;
+    const contactId = params.id;
+
     const body = await request.json();
     const { action, tenantId } = body;
 
@@ -43,7 +46,7 @@ export async function POST(
       );
     }
 
-    // Auth
+    // 1. Auth
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -51,27 +54,35 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Busca contato e valida tenant
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: contact, error: contactError } = await (supabase as any)
+    // 2. Valida que o usuário pertence ao tenant (padrão de todas as rotas)
+    const { data: userData } = await supabase
+      .from('users')
+      .select('tenant_id')
+      .eq('id', user.id)
+      .single();
+
+    const userTenantId = (userData as { tenant_id?: string })?.tenant_id;
+
+    if (!userTenantId || userTenantId !== tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // 3. Busca contato e valida que pertence ao tenant
+    const { data: contact, error: contactError } = await supabase
       .from('contacts')
-      .select('id, tenant_id, is_muted')
+      .select('id, tenant_id')
       .eq('id', contactId)
       .eq('tenant_id', tenantId)
       .single();
 
     if (contactError || !contact) {
+      console.error('[mute-contact] Contato não encontrado:', contactError);
       return NextResponse.json({ error: 'Contato não encontrado' }, { status: 404 });
     }
 
     if (action === 'mute') {
-      if (contact.is_muted) {
-        return NextResponse.json({ error: 'Contato já está silenciado' }, { status: 400 });
-      }
-
-      // Silenciar contato
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: updatedContact, error: muteError } = await (supabase as any)
+      // 4a. Silenciar contato
+      const { error: muteError } = await (supabase as any)
         .from('contacts')
         .update({
           is_muted: true,
@@ -79,13 +90,17 @@ export async function POST(
           muted_by: user.id,
         })
         .eq('id', contactId)
-        .select()
-        .single();
+        .eq('tenant_id', tenantId);
 
-      if (muteError) throw muteError;
+      if (muteError) {
+        console.error('[mute-contact] Erro ao silenciar:', muteError);
+        return NextResponse.json(
+          { error: 'Erro ao silenciar contato', details: muteError.message },
+          { status: 500 }
+        );
+      }
 
-      // Pausar IA em todas as conversas abertas do contato
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // 5a. Pausar IA em todas as conversas abertas do contato
       const { data: updatedConversations, error: convError } = await (supabase as any)
         .from('conversations')
         .update({
@@ -100,23 +115,17 @@ export async function POST(
 
       if (convError) {
         console.error('[mute-contact] Erro ao pausar IA nas conversas:', convError);
-        // Não falha o request — o mute do contato já foi feito
+        // Não falha — o mute já foi feito com sucesso
       }
 
       return NextResponse.json({
         success: true,
-        contact: updatedContact,
         affected_conversations_count: updatedConversations?.length ?? 0,
       });
     }
 
     // action === 'unmute'
-    if (!contact.is_muted) {
-      return NextResponse.json({ error: 'Contato não está silenciado' }, { status: 400 });
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: updatedContact, error: unmuteError } = await (supabase as any)
+    const { error: unmuteError } = await (supabase as any)
       .from('contacts')
       .update({
         is_muted: false,
@@ -124,18 +133,20 @@ export async function POST(
         muted_by: null,
       })
       .eq('id', contactId)
-      .select()
-      .single();
+      .eq('tenant_id', tenantId);
 
-    if (unmuteError) throw unmuteError;
+    if (unmuteError) {
+      console.error('[mute-contact] Erro ao remover silêncio:', unmuteError);
+      return NextResponse.json(
+        { error: 'Erro ao remover silêncio', details: unmuteError.message },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({
-      success: true,
-      contact: updatedContact,
-    });
+    return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error('[mute-contact] ❌ Error:', error);
+    console.error('[mute-contact] ❌ Unhandled error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -192,9 +192,6 @@ export async function getConversationsWithContact(
     .order('timestamp', { referencedTable: 'messages', ascending: false })
     .limit(1, { referencedTable: 'messages' });
 
-  // Sempre excluir contatos silenciados da lista principal
-  query = (query as any).eq('contacts.is_muted', false);
-
   // Filtrar conversas encerradas apenas se includeClosedConversations for false/undefined
   if (!filters?.includeClosedConversations) {
     query = query.neq('status', 'closed');
@@ -237,6 +234,12 @@ export async function getConversationsWithContact(
     throw conversationsError;
   }
   if (!conversationsData || conversationsData.length === 0) return [];
+
+  // ===== Excluir contatos silenciados da lista principal =====
+  // Filtro em JS pois PostgREST não suporta filtros em colunas novas de relacionamentos facilmente
+  conversationsData = conversationsData.filter(
+    (conv: any) => !conv.contacts?.is_muted
+  );
 
   // ===== Filtrar por categoria (se especificado) =====
   // Nota: Filtro aplicado aqui porque Supabase não suporta filtros em relacionamentos aninhados facilmente
