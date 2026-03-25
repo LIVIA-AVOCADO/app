@@ -27,6 +27,8 @@ interface ConversationViewProps {
   allTags: Tag[]; // Todas as tags do tenant
   conversationTags?: Array<{ tag: Tag }>; // Tags atuais da conversa
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
+  onContactMuted?: () => void;
+  onContactUnmuted?: () => void;
   onTogglePanel?: () => void;
   isPanelActive?: boolean;
 }
@@ -42,6 +44,8 @@ export function ConversationView({
   allTags,
   conversationTags,
   onConversationUpdate,
+  onContactMuted,
+  onContactUnmuted,
   onTogglePanel,
   isPanelActive,
 }: ConversationViewProps) {
@@ -117,6 +121,8 @@ export function ConversationView({
         allTags={allTags}
         conversationTags={conversationTags}
         onConversationUpdate={onConversationUpdate}
+        onContactMuted={onContactMuted}
+        onContactUnmuted={onContactUnmuted}
         onTogglePanel={onTogglePanel}
         isPanelActive={isPanelActive}
       />

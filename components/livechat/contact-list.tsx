@@ -117,6 +117,9 @@ export function ContactList({
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
 
+    // Contatos silenciados nunca aparecem nas abas normais
+    if (conversation.contact.is_muted) return false;
+
     // Lógica de filtro baseada em ia_active
     let matchesStatus = false;
     if (statusFilter === 'ia') {
@@ -149,13 +152,11 @@ export function ContactList({
     return matchesSearch && matchesStatus && matchesTags && matchesUnread;
   });
 
-  // Contadores de status (consolidados)
+  // Contadores de status (consolidados) — excluem silenciados
   const statusCounts = {
-    ia: conversations.filter((c) => c.ia_active && c.status !== 'closed')
-      .length,
-    manual: conversations.filter((c) => !c.ia_active && c.status !== 'closed')
-      .length,
-    closed: conversations.filter((c) => c.status === 'closed').length,
+    ia: conversations.filter((c) => c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
+    manual: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
+    closed: conversations.filter((c) => c.status === 'closed' && !c.contact.is_muted).length,
   };
 
   // Contador de não lidas no modo manual

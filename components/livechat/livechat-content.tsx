@@ -86,6 +86,28 @@ export function LivechatContent({
     [selectedConvId, updateConversation]
   );
 
+  // Ao silenciar: atualiza is_muted no contato do estado local e deseleciona
+  const handleContactMuted = useCallback(() => {
+    if (!selectedConvId || !activeConversation) return;
+    updateConversation(selectedConvId, {
+      ia_active: false,
+      contact: { ...activeConversation.contact, is_muted: true },
+    });
+    setTimeout(() => {
+      setSelectedConvId(undefined);
+      setCurrentMessages(null);
+      window.history.pushState(null, '', '/livechat');
+    }, 800);
+  }, [selectedConvId, activeConversation, updateConversation]);
+
+  // Ao remover silêncio: atualiza is_muted no contato do estado local
+  const handleContactUnmuted = useCallback(() => {
+    if (!selectedConvId || !activeConversation) return;
+    updateConversation(selectedConvId, {
+      contact: { ...activeConversation.contact, is_muted: false },
+    });
+  }, [selectedConvId, activeConversation, updateConversation]);
+
   const handleConversationClick = useCallback(
     async (conversationId: string) => {
       if (conversationId === selectedConvId) return;
@@ -181,6 +203,8 @@ export function LivechatContent({
             allTags={allTags}
             conversationTags={activeConversation.conversation_tags}
             onConversationUpdate={handleConversationUpdate}
+            onContactMuted={handleContactMuted}
+            onContactUnmuted={handleContactUnmuted}
             onTogglePanel={handleTogglePanel}
             isPanelActive={isPanelActive}
           />

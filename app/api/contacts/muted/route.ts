@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * API Route: List Muted Contacts
  *
@@ -5,6 +6,7 @@
  * GET /api/contacts/muted
  *
  * Retorna contatos com is_muted=true, incluindo quem silenciou e quando.
+ * Faz duas queries separadas para evitar join cross-schema (muted_by → auth.users).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -38,30 +40,44 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Busca contatos silenciados com nome de quem silenciou
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: contacts, error } = await (supabase as any)
+    // Query 1: contatos silenciados (sem join cross-schema)
+    const { data: contacts, error: contactsError } = await (supabase as any)
       .from('contacts')
-      .select(`
-        id,
-        name,
-        phone,
-        email,
-        is_muted,
-        muted_at,
-        muted_by,
-        mutedByUser:users!contacts_muted_by_fkey(
-          id,
-          full_name
-        )
-      `)
+      .select('id, name, phone, email, is_muted, muted_at, muted_by')
       .eq('tenant_id', tenantId)
       .eq('is_muted', true)
       .order('muted_at', { ascending: false });
 
-    if (error) throw error;
+    if (contactsError) throw contactsError;
+    if (!contacts || contacts.length === 0) {
+      return NextResponse.json({ contacts: [] });
+    }
 
-    return NextResponse.json({ contacts: contacts ?? [] });
+    // Query 2: nomes dos usuários que silenciaram (public.users, mesmos IDs do auth.users)
+    const mutedByIds = [...new Set(
+      contacts.map((c: any) => c.muted_by).filter(Boolean)
+    )] as string[];
+
+    let usersMap: Record<string, string | null> = {};
+    if (mutedByIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, full_name')
+        .in('id', mutedByIds);
+      usersMap = Object.fromEntries(
+        (users || []).map((u: any) => [u.id, u.full_name])
+      );
+    }
+
+    // Combina resultados
+    const result = contacts.map((c: any) => ({
+      ...c,
+      mutedByUser: c.muted_by
+        ? { id: c.muted_by, full_name: usersMap[c.muted_by] ?? null }
+        : null,
+    }));
+
+    return NextResponse.json({ contacts: result });
 
   } catch (error) {
     console.error('[contacts/muted] ❌ Error:', error);

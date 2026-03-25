@@ -46,6 +46,10 @@ interface ConversationHeaderProps {
   allTags: Tag[];
   conversationTags?: Array<{ tag: Tag }>;
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
+  /** Callback chamado após silenciar o contato com sucesso */
+  onContactMuted?: () => void;
+  /** Callback chamado após remover o silêncio do contato */
+  onContactUnmuted?: () => void;
   /** Callback para abrir/fechar o painel de dados do cliente */
   onTogglePanel?: () => void;
   /** Se o painel de dados está visível (sheet aberto ou coluna fixa) */
@@ -62,6 +66,8 @@ export function ConversationHeader({
   allTags,
   conversationTags = [],
   onConversationUpdate,
+  onContactMuted,
+  onContactUnmuted,
   onTogglePanel,
   isPanelActive = false,
 }: ConversationHeaderProps) {
@@ -118,8 +124,7 @@ export function ConversationHeader({
       if (!response.ok) throw new Error('Erro ao silenciar contato');
       setIsMuted(true);
       toast.success('Contato silenciado. As mensagens serão descartadas automaticamente.');
-      // Remove a conversa da lista principal via update de status — força re-render do parent
-      onConversationUpdate?.({ ia_active: false });
+      onContactMuted?.();
     } catch (error) {
       console.error('Erro ao silenciar contato:', error);
       toast.error('Erro ao silenciar contato. Tente novamente.');
@@ -140,6 +145,7 @@ export function ConversationHeader({
       if (!response.ok) throw new Error('Erro ao remover silêncio');
       setIsMuted(false);
       toast.success('Silêncio removido. O contato voltará a receber mensagens.');
+      onContactUnmuted?.();
     } catch (error) {
       console.error('Erro ao remover silêncio:', error);
       toast.error('Erro ao remover silêncio. Tente novamente.');
