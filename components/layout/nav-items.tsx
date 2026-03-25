@@ -83,6 +83,7 @@ export const navItems: NavItem[] = [
       { title: 'Tags',              url: '/configuracoes/tags',       moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Controle da IA',           url: '/configuracoes/controle-ia',             moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Encerramento Automático',  url: '/configuracoes/encerramento-automatico', moduleKey: MODULE_KEYS.CONFIGURACOES },
+      { title: 'Horários do Agente',       url: '/configuracoes/horarios-agente',         moduleKey: MODULE_KEYS.HORARIOS_AGENTE },
       { title: 'Gerenciar Usuários', url: '/gerenciar-usuarios',     moduleKey: MODULE_KEYS.GERENCIAR_USUARIOS },
     ],
   },

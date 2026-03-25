@@ -28,6 +28,7 @@ export const MODULE_KEYS = {
   FINANCEIRO:         'financeiro',
   RELATORIOS:         'relatorios',
   GERENCIAR_USUARIOS: 'gerenciar-usuarios',
+  HORARIOS_AGENTE:    'horarios_agente',
 } as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS];
@@ -89,6 +90,11 @@ export const MODULES_CONFIG: ModuleConfig[] = [
     name:        'Gerenciar Usuários',
     description: 'Associação e controle de acesso dos usuários da equipe',
   },
+  {
+    key:         MODULE_KEYS.HORARIOS_AGENTE,
+    name:        'Horários do Agente',
+    description: 'Configuração dos horários de disponibilidade do agente de IA',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -114,7 +120,8 @@ const ROUTE_PERMISSIONS: Array<{ pattern: string; permission: RoutePermission }>
   { pattern: '/neurocore',          permission: { moduleKey: MODULE_KEYS.KNOWLEDGE_BASE } },
   { pattern: '/meus-agentes',       permission: { moduleKey: MODULE_KEYS.AGENTS } },
   { pattern: '/reativacao',         permission: { moduleKey: MODULE_KEYS.REATIVACAO } },
-  { pattern: '/configuracoes',      permission: { moduleKey: MODULE_KEYS.CONFIGURACOES } },
+  { pattern: '/configuracoes/horarios-agente', permission: { moduleKey: MODULE_KEYS.HORARIOS_AGENTE } },
+  { pattern: '/configuracoes',                permission: { moduleKey: MODULE_KEYS.CONFIGURACOES } },
 ];
 
 // ---------------------------------------------------------------------------
