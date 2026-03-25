@@ -20,8 +20,10 @@ interface ConversationViewProps {
   initialConversation: Conversation;
   initialMessages: MessageWithSender[];
   tenantId: string;
+  contactId: string;
   contactName: string;
   contactPhone?: string | null;
+  contactIsMuted?: boolean;
   allTags: Tag[]; // Todas as tags do tenant
   conversationTags?: Array<{ tag: Tag }>; // Tags atuais da conversa
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
@@ -33,8 +35,10 @@ export function ConversationView({
   initialConversation,
   initialMessages,
   tenantId,
+  contactId,
   contactName,
   contactPhone,
+  contactIsMuted,
   allTags,
   conversationTags,
   onConversationUpdate,
@@ -104,8 +108,10 @@ export function ConversationView({
   return (
     <div className="flex flex-col h-full bg-card">
       <ConversationHeader
+        contactId={contactId}
         contactName={contactName}
         contactPhone={contactPhone}
+        contactIsMuted={contactIsMuted}
         conversation={conversation}
         tenantId={tenantId}
         allTags={allTags}

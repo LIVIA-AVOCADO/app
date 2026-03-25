@@ -163,7 +163,8 @@ export async function getConversationsWithContact(
         name,
         phone,
         email,
-        status
+        status,
+        is_muted
       ),
       conversation_tags(
         id,
@@ -190,6 +191,9 @@ export async function getConversationsWithContact(
     .eq('tenant_id', tenantId)
     .order('timestamp', { referencedTable: 'messages', ascending: false })
     .limit(1, { referencedTable: 'messages' });
+
+  // Sempre excluir contatos silenciados da lista principal
+  query = (query as any).eq('contacts.is_muted', false);
 
   // Filtrar conversas encerradas apenas se includeClosedConversations for false/undefined
   if (!filters?.includeClosedConversations) {

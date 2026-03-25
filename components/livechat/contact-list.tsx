@@ -8,9 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ContactItem } from './contact-item';
 import { TagSelector } from '@/components/tags/tag-selector';
-import { Search, MessageCircle } from 'lucide-react';
+import { Search, MessageCircle, BellOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
+import { MutedContactsList } from './muted-contacts-list';
 import type { ConversationWithContact } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 
@@ -35,7 +36,7 @@ export function ContactList({
 }: ContactListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<
-    'ia' | 'manual' | 'closed'
+    'ia' | 'manual' | 'closed' | 'muted'
   >('ia');
 
   // Debounce de hover: só dispara prefetch após 150ms para evitar falsos positivos
@@ -170,7 +171,7 @@ export function ContactList({
   };
 
   // Handler para mudança de filtro de status
-  const handleStatusFilterChange = (newFilter: 'ia' | 'manual' | 'closed') => {
+  const handleStatusFilterChange = (newFilter: 'ia' | 'manual' | 'closed' | 'muted') => {
     if (newFilter !== statusFilter) {
       setStatusFilter(newFilter);
       // Reset toggle de não lidas e justReadConversationId quando sai do modo manual
@@ -256,6 +257,14 @@ export function ContactList({
           >
             Encerradas ({statusCounts.closed})
           </Badge>
+          <Badge
+            variant={statusFilter === 'muted' ? 'default' : 'outline'}
+            className="cursor-pointer gap-1"
+            onClick={() => handleStatusFilterChange('muted')}
+          >
+            <BellOff className="h-3 w-3" />
+            Silenciadas
+          </Badge>
         </div>
 
         {/* Toggle de não lidas - só aparece no modo manual */}
@@ -292,7 +301,14 @@ export function ContactList({
         )}
       </div>
 
-      <div className="scrollbar-themed flex-1 overflow-y-auto p-4 space-y-2 scroll-smooth">
+      {/* Aba Silenciadas: renderiza lista dedicada */}
+      {statusFilter === 'muted' && (
+        <div className="scrollbar-themed flex-1 overflow-y-auto scroll-smooth">
+          <MutedContactsList tenantId={tenantId} />
+        </div>
+      )}
+
+      <div className={`scrollbar-themed flex-1 overflow-y-auto p-4 space-y-2 scroll-smooth ${statusFilter === 'muted' ? 'hidden' : ''}`}>
         {filteredConversations.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground animate-in fade-in-0 duration-300">
             {searchQuery ? (

@@ -11,12 +11,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Pause, MessageSquare, FileText, Loader2, MoreVertical, User } from 'lucide-react';
+import { Pause, MessageSquare, FileText, Loader2, MoreVertical, User, BellOff, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Conversation, Tag } from '@/types/database-helpers';
 import type { ConversationWithContact } from '@/types/livechat';
@@ -27,8 +37,10 @@ import { TagSelector } from '@/components/tags/tag-selector';
 import { StatusSelect } from './status-select';
 
 interface ConversationHeaderProps {
+  contactId: string;
   contactName: string;
   contactPhone?: string | null;
+  contactIsMuted?: boolean;
   conversation: Conversation;
   tenantId: string;
   allTags: Tag[];
@@ -41,8 +53,10 @@ interface ConversationHeaderProps {
 }
 
 export function ConversationHeader({
+  contactId,
   contactName,
   contactPhone,
+  contactIsMuted = false,
   conversation,
   tenantId,
   allTags,
@@ -52,8 +66,13 @@ export function ConversationHeader({
   isPanelActive = false,
 }: ConversationHeaderProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isMuting, setIsMuting] = useState(false);
   const [showPauseIADialog, setShowPauseIADialog] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [showMuteDialog, setShowMuteDialog] = useState(false);
+
+  // Estado local do mute para refletir imediatamente após a ação
+  const [isMuted, setIsMuted] = useState(contactIsMuted);
 
   const displayName = getContactFirstName(contactName, contactPhone || null);
 
@@ -87,6 +106,48 @@ export function ConversationHeader({
     }
   };
 
+  const handleMuteConfirm = async () => {
+    if (isMuting) return;
+    setIsMuting(true);
+    try {
+      const response = await fetch(`/api/contacts/${contactId}/mute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'mute', tenantId }),
+      });
+      if (!response.ok) throw new Error('Erro ao silenciar contato');
+      setIsMuted(true);
+      toast.success('Contato silenciado. As mensagens serão descartadas automaticamente.');
+      // Remove a conversa da lista principal via update de status — força re-render do parent
+      onConversationUpdate?.({ ia_active: false });
+    } catch (error) {
+      console.error('Erro ao silenciar contato:', error);
+      toast.error('Erro ao silenciar contato. Tente novamente.');
+    } finally {
+      setIsMuting(false);
+    }
+  };
+
+  const handleUnmute = async () => {
+    if (isMuting) return;
+    setIsMuting(true);
+    try {
+      const response = await fetch(`/api/contacts/${contactId}/mute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unmute', tenantId }),
+      });
+      if (!response.ok) throw new Error('Erro ao remover silêncio');
+      setIsMuted(false);
+      toast.success('Silêncio removido. O contato voltará a receber mensagens.');
+    } catch (error) {
+      console.error('Erro ao remover silêncio:', error);
+      toast.error('Erro ao remover silêncio. Tente novamente.');
+    } finally {
+      setIsMuting(false);
+    }
+  };
+
   const iaDisabled = conversation.status === 'closed';
 
   return (
@@ -96,6 +157,16 @@ export function ConversationHeader({
         {/* Esquerda: nome + canal */}
         <div className="flex items-center gap-2 min-w-0">
           <h2 className="text-lg font-semibold truncate">{displayName}</h2>
+          {isMuted && (
+            <TooltipProvider delayDuration={400}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <BellOff className="h-4 w-4 text-muted-foreground shrink-0" />
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Contato silenciado</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           <div className="flex items-center gap-1 text-muted-foreground shrink-0">
             <MessageSquare className="h-3.5 w-3.5" />
             <span className="text-xs">WhatsApp</span>
@@ -169,6 +240,26 @@ export function ConversationHeader({
                 )}
                 {conversation.ia_active ? 'Pausar IA' : 'IA já pausada'}
               </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                onClick={isMuted ? handleUnmute : () => setShowMuteDialog(true)}
+                disabled={isMuting}
+                className={isMuted
+                  ? 'text-green-600 focus:text-green-600'
+                  : 'text-destructive focus:text-destructive'
+                }
+              >
+                {isMuting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : isMuted ? (
+                  <Bell className="h-4 w-4 mr-2" />
+                ) : (
+                  <BellOff className="h-4 w-4 mr-2" />
+                )}
+                {isMuted ? 'Remover silêncio' : 'Silenciar contato'}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -202,6 +293,29 @@ export function ConversationHeader({
         onConfirm={handlePauseIAConfirm}
         trigger="manual"
       />
+
+      {/* Dialog de confirmação para silenciar */}
+      <AlertDialog open={showMuteDialog} onOpenChange={setShowMuteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Silenciar {displayName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              As mensagens deste contato serão descartadas automaticamente. A IA também será pausada.
+              <br /><br />
+              Você pode desfazer essa ação na aba <strong>Silenciadas</strong> no painel de conversas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleMuteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Silenciar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

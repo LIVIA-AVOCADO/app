@@ -53,7 +53,9 @@ export interface ConversationTagWithTag {
  * Ver: docs/LIVECHAT_CONVERSATION_CARDS_REFACTOR.md
  */
 export interface ConversationWithContact extends Conversation {
-  contact: Pick<Contact, 'id' | 'name' | 'phone' | 'email' | 'status'>;
+  contact: Pick<Contact, 'id' | 'name' | 'phone' | 'email' | 'status'> & {
+    is_muted?: boolean;
+  };
   lastMessage: Message | null;
   conversation_tags?: ConversationTagWithTag[];
   category?: Tag | null; // Helper: primeira tag com is_category=true (se existir)

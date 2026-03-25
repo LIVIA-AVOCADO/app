@@ -174,8 +174,10 @@ export function LivechatContent({
             initialConversation={activeConversation}
             initialMessages={currentMessages}
             tenantId={tenantId}
+            contactId={activeConversation.contact.id}
             contactName={activeConversation.contact.name ?? ''}
             contactPhone={activeConversation.contact.phone}
+            contactIsMuted={activeConversation.contact.is_muted}
             allTags={allTags}
             conversationTags={activeConversation.conversation_tags}
             onConversationUpdate={handleConversationUpdate}
