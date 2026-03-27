@@ -85,18 +85,13 @@ Recebe webhook
 ## 2. Follow Up Automático
 
 ### Por que fazer
-A tabela `conversation_followups` armazena os follow-ups agendados. Sem um worker no N8N, os follow-ups ficam na tabela mas nunca são enviados. O N8N precisa verificar periodicamente quais follow-ups estão no prazo e disparar as mensagens.
-
-### Novo webhook necessário
-Sugestão de variável de ambiente: `N8N_FOLLOWUP_PROCESS_WEBHOOK`
-
-Ou, alternativamente, usar um **trigger de Schedule** no próprio N8N (sem webhook externo).
+A tabela `conversation_followups` armazena os follow-ups agendados. Sem um worker no N8N, os follow-ups ficam no banco mas nunca são enviados. O N8N precisa verificar periodicamente quais follow-ups estão no prazo e disparar as mensagens.
 
 ### Estratégia recomendada: Schedule Trigger
 
 Criar um workflow com **Schedule Trigger** rodando a cada **5 minutos** que:
 
-1. Busca follow-ups pendentes via Supabase
+1. Busca follow-ups pendentes via Supabase REST API
 2. Para cada um, executa a lógica de envio
 3. Marca como concluído
 
@@ -105,49 +100,67 @@ Criar um workflow com **Schedule Trigger** rodando a cada **5 minutos** que:
 **Nó 1 — Schedule Trigger**
 - Intervalo: a cada 5 minutos
 
-**Nó 2 — Supabase: buscar follow-ups pendentes**
-```sql
-SELECT
-  f.*,
-  c.contact_id,
-  c.channel_id,
-  c.status AS conversation_status,
-  co.phone AS contact_phone
-FROM conversation_followups f
-JOIN conversations c ON c.id = f.conversation_id
-JOIN contacts co ON co.id = c.contact_id
-WHERE f.is_done = false
-  AND f.scheduled_at <= now()
-```
+---
 
-**Nó 3 — Loop por cada follow-up**
+**Nó 2 — HTTP Request: buscar follow-ups pendentes**
 
-Para cada follow-up, executar:
+Usar o nó **HTTP Request** (ou nó Supabase) para chamar a REST API do Supabase:
 
-**Nó 4 — Verificar `cancel_on_reply`**
+- **Method:** `GET`
+- **URL:** `{{ $env.SUPABASE_URL }}/rest/v1/conversation_followups`
+- **Query params:**
+  ```
+  is_done=eq.false
+  scheduled_at=lte.{{ new Date().toISOString() }}
+  select=*,conversation:conversations(contact_id,channel_id,status,contacts(phone))
+  ```
+- **Headers:**
+  ```
+  apikey: {{ $env.SUPABASE_SERVICE_KEY }}
+  Authorization: Bearer {{ $env.SUPABASE_SERVICE_KEY }}
+  ```
 
-Se `cancel_on_reply = true`, verificar se o cliente respondeu após a criação do follow-up:
+Retorna array com os follow-ups no prazo, já com dados da conversa e do contato via join.
 
-```sql
-SELECT COUNT(*) as replies
-FROM messages
-WHERE conversation_id = '{{ $json.conversation_id }}'
-  AND sender_type = 'customer'
-  AND created_at > '{{ $json.created_at }}'
-```
+---
 
-- Se `replies > 0` → **cancelar** (marcar `is_done = true`, não enviar)
-- Se `replies = 0` → **continuar**
+**Nó 3 — Split In Batches (loop por cada follow-up)**
 
-**Nó 5 — Verificar `conversation_status`**
+---
 
-- Se `conversation_status = 'closed'` → **cancelar** (não faz sentido enviar para conversa encerrada)
+**Nó 4 — IF: verificar `cancel_on_reply`**
 
-**Nó 6 — Gerar mensagem (se `ai_generate = true`)**
+Se `{{ $json.cancel_on_reply }}` for `true`, checar se o cliente respondeu depois que o follow-up foi criado:
 
-Se `ai_generate = true`, chamar o webhook da IA com o contexto da conversa para gerar a mensagem de follow-up:
+- **Method:** `GET`
+- **URL:** `{{ $env.SUPABASE_URL }}/rest/v1/messages`
+- **Query params:**
+  ```
+  conversation_id=eq.{{ $json.conversation_id }}
+  sender_type=eq.customer
+  created_at=gt.{{ $json.created_at }}
+  limit=1
+  select=id
+  ```
 
-Payload para a IA:
+- Se retornar 1 ou mais registros → **cancelar** (ir para Nó 8 marcando `is_done=true`)
+- Se retornar vazio → continuar
+
+---
+
+**Nó 5 — IF: verificar status da conversa**
+
+Usar o campo `conversation.status` já retornado no Nó 2.
+
+- Se `closed` → **cancelar** (ir para Nó 8 marcando `is_done=true`)
+- Se `open` → continuar
+
+---
+
+**Nó 6 — IF: `ai_generate`**
+
+Se `{{ $json.ai_generate }}` for `true`, chamar o webhook da IA com o contexto da conversa para gerar a mensagem de follow-up:
+
 ```json
 {
   "conversationId": "{{ $json.conversation_id }}",
@@ -156,21 +169,50 @@ Payload para a IA:
 }
 ```
 
-Se `ai_generate = false`, usar o campo `message` diretamente.
+Se `ai_generate = false`, usar `{{ $json.message }}` diretamente.
+
+---
 
 **Nó 7 — Enviar mensagem**
 
 Usar o mesmo fluxo de envio existente (Evolution ou Cloud API conforme o canal), com a mensagem gerada ou manual.
 
-**Nó 8 — Marcar follow-up como concluído**
+Após enviar, registrar a mensagem na tabela `messages` via REST API:
 
-```sql
-UPDATE conversation_followups
-SET is_done = true, done_at = now()
-WHERE id = '{{ $json.followup_id }}'
-```
+- **Method:** `POST`
+- **URL:** `{{ $env.SUPABASE_URL }}/rest/v1/messages`
+- **Body:**
+  ```json
+  {
+    "conversation_id": "{{ $json.conversation_id }}",
+    "content": "{{ $json.mensagemEnviada }}",
+    "sender_type": "attendant",
+    "status": "sent",
+    "timestamp": "{{ new Date().toISOString() }}"
+  }
+  ```
 
-Também salvar a mensagem enviada na tabela `messages` com `sender_type = 'attendant'` (ou `'ai'` se foi gerada pela IA).
+---
+
+**Nó 8 — HTTP Request: marcar follow-up como concluído**
+
+- **Method:** `PATCH`
+- **URL:** `{{ $env.SUPABASE_URL }}/rest/v1/conversation_followups?id=eq.{{ $json.id }}`
+- **Headers:**
+  ```
+  apikey: {{ $env.SUPABASE_SERVICE_KEY }}
+  Authorization: Bearer {{ $env.SUPABASE_SERVICE_KEY }}
+  Prefer: return=minimal
+  ```
+- **Body:**
+  ```json
+  {
+    "is_done": true,
+    "done_at": "{{ new Date().toISOString() }}"
+  }
+  ```
+
+---
 
 ### Diagrama do fluxo
 
@@ -178,41 +220,35 @@ Também salvar a mensagem enviada na tabela `messages` com `sender_type = 'atten
 Schedule (5min)
     │
     ▼
-Busca follow-ups com scheduled_at <= now() AND is_done = false
+GET /rest/v1/conversation_followups
+  ?is_done=eq.false&scheduled_at=lte.NOW
     │
     ▼
 Para cada follow-up:
     │
     ├─ cancel_on_reply = true?
-    │       └─ cliente respondeu depois de created_at?
-    │               ├─ SIM → marcar is_done=true (cancelado) → próximo
-    │               └─ NÃO → continuar
+    │       └─ GET /messages com sender_type=customer após created_at
+    │               ├─ tem resposta → PATCH is_done=true → próximo
+    │               └─ sem resposta → continuar
     │
-    ├─ conversa está fechada?
-    │       ├─ SIM → marcar is_done=true (cancelado) → próximo
+    ├─ conversa.status = 'closed'?
+    │       ├─ SIM → PATCH is_done=true → próximo
     │       └─ NÃO → continuar
     │
     ├─ ai_generate = true?
-    │       ├─ SIM → chamar IA → obter mensagem gerada
-    │       └─ NÃO → usar campo "message" da tabela
+    │       ├─ SIM → chamar webhook IA → obter mensagem
+    │       └─ NÃO → usar campo "message" do registro
     │
     ▼
-Enviar mensagem via Evolution/Cloud API
+Enviar via Evolution / Cloud API
     │
     ▼
-INSERT em messages (registrar mensagem enviada)
+POST /rest/v1/messages (registrar mensagem enviada)
     │
     ▼
-UPDATE conversation_followups SET is_done=true, done_at=now()
+PATCH /rest/v1/conversation_followups
+  SET is_done=true, done_at=now()
 ```
-
----
-
-## Variáveis de ambiente a adicionar
-
-| Variável | Descrição |
-|---|---|
-| `N8N_FOLLOWUP_PROCESS_WEBHOOK` | Webhook para processar follow-ups (opcional se usar Schedule Trigger interno) |
 
 ---
 
