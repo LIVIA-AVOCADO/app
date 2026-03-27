@@ -35,15 +35,17 @@ export function ReactivationPage({ initialData }: ReactivationPageProps) {
   const [activeTab, setActiveTab] = useState('steps');
 
   // Converter steps do DB para form data
-  const initialSteps = initialData.steps.map((step) => ({
-    wait_time_minutes: step.wait_time_minutes,
-    // Se action_type e send_audio (escondido), converter para send_message
-    action_type: step.action_type === 'send_audio' ? 'send_message' as const : step.action_type as Exclude<typeof step.action_type, 'send_audio'>,
-    action_parameter: step.action_parameter || '',
-    start_time: step.start_time || '',
-    end_time: step.end_time || '',
-    tag_ids: step.tags.map((t) => t.id),
-  }));
+  const initialSteps = initialData.steps.map((step) => {
+    return {
+      wait_time_minutes: step.wait_time_minutes,
+      // Se action_type e send_audio (escondido), converter para send_message
+      action_type: step.action_type === 'send_audio' ? 'send_message' as const : step.action_type as Exclude<typeof step.action_type, 'send_audio'>,
+      action_parameter: step.action_parameter || '',
+      start_time: step.start_time ? step.start_time.slice(0, 5) : '',
+      end_time: step.end_time ? step.end_time.slice(0, 5) : '',
+      tag_ids: step.tags.map((t) => t.id),
+    };
+  });
 
   const form = useForm<ReactivationFormDataValidated>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
