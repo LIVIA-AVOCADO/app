@@ -54,6 +54,15 @@ export function ConversationView({
   const { conversation } = useRealtimeConversation(initialConversation);
   const { isRemoteTyping, broadcastTyping } = useTypingPresence(initialConversation.id);
 
+  // Estado de reply
+  const [replyToMessage, setReplyToMessage] = useState<MessageWithSender | null>(null);
+
+  // Mapa de mensagens por ID para resolução rápida do quotedMessage
+  const messagesById = useMemo(
+    () => new Map(messages.map((m) => [m.id, m])),
+    [messages]
+  );
+
   // Retry: remove a mensagem falha e reenvia
   const { sendMessage: retrySend } = useSendMessage({
     conversation,
@@ -141,16 +150,26 @@ export function ConversationView({
                   Nenhuma mensagem ainda
                 </div>
               ) : (
-                messages.map((message) => (
-                  <MessageItem
-                    key={message.id}
-                    message={message}
-                    conversationId={conversation.id}
-                    tenantId={tenantId}
-                    isNew={!initialMessageIds.has(message.id)}
-                    onRetry={handleRetry}
-                  />
-                ))
+                messages.map((message) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const quotedId = (message as any).quoted_message_id as string | null | undefined;
+                  const quotedMsg = quotedId ? messagesById.get(quotedId) : null;
+                  const messageWithQuote: MessageWithSender = quotedMsg
+                    ? { ...message, quotedMessage: { id: quotedMsg.id, content: quotedMsg.content, sender_type: quotedMsg.sender_type, senderUser: quotedMsg.senderUser } }
+                    : message;
+
+                  return (
+                    <MessageItem
+                      key={message.id}
+                      message={messageWithQuote}
+                      conversationId={conversation.id}
+                      tenantId={tenantId}
+                      isNew={!initialMessageIds.has(message.id)}
+                      onRetry={handleRetry}
+                      onReply={conversation.status !== 'closed' ? setReplyToMessage : undefined}
+                    />
+                  );
+                })
               )}
               <TypingIndicator isVisible={isRemoteTyping} />
             </div>
@@ -175,6 +194,8 @@ export function ConversationView({
         onTempConfirmed={replaceTempMessage}
         onTempFailed={(tempId) => updateMessageStatus(tempId, 'failed')}
         onTyping={broadcastTyping}
+        replyToMessage={replyToMessage}
+        onClearReply={() => setReplyToMessage(null)}
       />
     </div>
   );

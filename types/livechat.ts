@@ -83,11 +83,23 @@ export interface MessageAttachment {
 }
 
 /**
+ * Preview da mensagem citada (para exibição no bubble de reply)
+ */
+export interface QuotedMessagePreview {
+  id: string;
+  content: string;
+  sender_type: string;
+  senderUser?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null;
+}
+
+/**
  * Mensagem com informações do remetente
  */
 export interface MessageWithSender extends Message {
   senderUser?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null;
   attachment?: MessageAttachment | null;
+  /** Mensagem citada (resolvida em runtime a partir de quoted_message_id) */
+  quotedMessage?: QuotedMessagePreview | null;
 }
 
 /**
@@ -109,6 +121,7 @@ export interface SendMessagePayload {
   conversationId: string;
   content: string;
   tenantId: string;
+  quotedMessageId?: string;
 }
 
 /**

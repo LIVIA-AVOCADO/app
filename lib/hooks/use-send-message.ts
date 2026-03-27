@@ -25,7 +25,7 @@ export function useSendMessage({
   const inFlightRef = useRef(new Set<string>());
 
   const sendMessage = useCallback(
-    async (messageContent: string) => {
+    async (messageContent: string, replyTo?: MessageWithSender | null) => {
       const trimmed = messageContent.trim();
       if (!trimmed) return;
 
@@ -50,6 +50,11 @@ export function useSendMessage({
         feedback_text: null,
         feedback_type: null,
         senderUser: null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(replyTo ? { quoted_message_id: replyTo.id } as any : {}),
+        quotedMessage: replyTo
+          ? { id: replyTo.id, content: replyTo.content, sender_type: replyTo.sender_type, senderUser: replyTo.senderUser }
+          : null,
       };
 
       onOptimisticAdd(optimisticMessage);
@@ -65,6 +70,7 @@ export function useSendMessage({
             conversationId: conversation.id,
             tenantId,
             content: trimmed,
+            ...(replyTo ? { quotedMessageId: replyTo.id } : {}),
           }),
         });
 

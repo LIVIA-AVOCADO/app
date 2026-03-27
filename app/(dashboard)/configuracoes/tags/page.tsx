@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { getTagsForManagement } from '@/lib/queries/tags-crud';
 import { TagsManager } from '@/components/configuracoes/tags/tags-manager';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Tags | LIVIA',
   description: 'Gerencie as tags do seu tenant',

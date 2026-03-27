@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Parse payload primeiro (validação rápida)
     const body = await request.json();
-    const { conversationId, content, tenantId } = body;
+    const { conversationId, content, tenantId, quotedMessageId } = body;
 
     if (!conversationId || !content || !tenantId) {
       return NextResponse.json(
@@ -67,7 +67,27 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const iaActive = (conversation as any).ia_active;
 
-    // 4. Inserir mensagem no banco ANTES de chamar n8n
+    // 4. Buscar dados da mensagem citada (se houver reply)
+    let quotedData: { externalId: string | null; content: string; fromMe: boolean } | null = null;
+
+    if (quotedMessageId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: quotedMsg } = await (supabase as any)
+        .from('messages')
+        .select('external_message_id, content, sender_type')
+        .eq('id', quotedMessageId)
+        .single();
+
+      if (quotedMsg) {
+        quotedData = {
+          externalId: quotedMsg.external_message_id ?? null,
+          content: quotedMsg.content ?? '',
+          fromMe: quotedMsg.sender_type !== 'customer',
+        };
+      }
+    }
+
+    // 5. Inserir mensagem no banco ANTES de chamar n8n
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messageData: any = {
       conversation_id: conversationId,
@@ -76,6 +96,7 @@ export async function POST(request: NextRequest) {
       sender_user_id: user.id,
       status: 'pending', // N8N vai atualizar para sent/failed/read
       timestamp: new Date().toISOString(),
+      ...(quotedMessageId ? { quoted_message_id: quotedMessageId } : {}),
     };
 
     const { data: message, error: insertError } = await supabase
@@ -109,7 +130,8 @@ export async function POST(request: NextRequest) {
       tenantId,
       user.id,
       contactId,
-      channelId
+      channelId,
+      quotedData
     );
 
     // 6. Pausar IA automaticamente quando atendente envia mensagem
@@ -154,7 +176,8 @@ async function sendToN8nAsync(
   tenantId: string,
   userId: string,
   contactId: string,
-  channelId: string
+  channelId: string,
+  quotedData?: { externalId: string | null; content: string; fromMe: boolean } | null
 ) {
   const n8nStartTime = Date.now();
   const msgId = messageId.slice(0, 8);
@@ -174,6 +197,13 @@ async function sendToN8nAsync(
         content,
         tenantId,
         userId,
+        // Dados da mensagem citada (reply) — usados pelo N8N para montar
+        // quoted.key (Evolution API) ou context.message_id (WhatsApp Cloud API)
+        ...(quotedData ? {
+          quotedExternalId: quotedData.externalId,
+          quotedContent: quotedData.content,
+          quotedFromMe: quotedData.fromMe,
+        } : {}),
       },
       { timeout: 5000 } // 5 segundos máximo
     );

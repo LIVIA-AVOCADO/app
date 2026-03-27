@@ -5,8 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { MessageFeedbackButtons } from './message-feedback-buttons';
-import { Check, Clock, AlertCircle, CheckCheck } from 'lucide-react';
-import type { MessageWithSender, MessageStatus, MessageAttachment } from '@/types/livechat';
+import { Check, Clock, AlertCircle, CheckCheck, Reply } from 'lucide-react';
+import type { MessageWithSender, MessageStatus, MessageAttachment, QuotedMessagePreview } from '@/types/livechat';
 import { AudioPlayer } from './audio-player';
 import { createClient } from '@/lib/supabase/client';
 
@@ -16,12 +16,14 @@ interface MessageItemProps {
   tenantId?: string;
   isNew?: boolean;
   onRetry?: (messageId: string, content: string) => void;
+  onReply?: (message: MessageWithSender) => void;
 }
 
-export function MessageItem({ message, conversationId, tenantId, isNew = false, onRetry }: MessageItemProps) {
+export function MessageItem({ message, conversationId, tenantId, isNew = false, onRetry, onReply }: MessageItemProps) {
   const isCustomer = message.sender_type === 'customer';
   const isAttendant = message.sender_type === 'attendant';
   const isIA = message.sender_type === 'ai';
+  const [isHovered, setIsHovered] = useState(false);
 
   const senderName = isCustomer
     ? 'Cliente'
@@ -36,14 +38,18 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
     .toUpperCase()
     .slice(0, 2);
 
+  const canReply = !message.id.startsWith('temp-');
+
   return (
     <div
       className={cn(
-        'flex gap-3 mb-4',
+        'flex gap-3 mb-4 group',
         isCustomer ? 'flex-row' : 'flex-row-reverse',
         isNew && 'animate-in fade-in-0 slide-in-from-bottom-3 duration-200',
         message.id.startsWith('temp-') && message.status === 'pending' && 'opacity-60 transition-opacity duration-300'
       )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Avatar */}
       <Avatar className="h-8 w-8 mt-1">
@@ -66,6 +72,25 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
               : 'bg-muted text-foreground border border-border'
           )}
         >
+          {/* Botão reply — centralizado verticalmente, fora do balão */}
+          {canReply && onReply && (
+            <button
+              onClick={() => onReply(message)}
+              className={cn(
+                'absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-background border border-border shadow-sm transition-opacity duration-150 text-muted-foreground hover:text-foreground',
+                isCustomer ? 'right-2' : 'left-2',
+                isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              )}
+              title="Responder mensagem"
+            >
+              <Reply className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {/* Bubble da mensagem citada (reply) */}
+          {message.quotedMessage && (
+            <QuotedBubble quoted={message.quotedMessage} isCustomer={isCustomer} />
+          )}
+
           {/* Header: Nome do remetente (não mostrar para IA) */}
           {!isIA && (
             <MessageHeader
@@ -124,6 +149,40 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Bubble da mensagem citada (reply context)
+ */
+interface QuotedBubbleProps {
+  quoted: QuotedMessagePreview;
+  isCustomer: boolean;
+}
+
+function QuotedBubble({ quoted, isCustomer }: QuotedBubbleProps) {
+  const senderLabel =
+    quoted.sender_type === 'customer'
+      ? 'Cliente'
+      : quoted.sender_type === 'ai'
+        ? 'IA'
+        : quoted.senderUser?.full_name || 'Atendente';
+
+  return (
+    <div className={cn(
+      'mb-1.5 rounded-md px-2.5 py-1.5 border-l-2 bg-black/5 dark:bg-white/5 cursor-default',
+      isCustomer ? 'border-blue-400' : 'border-muted-foreground/50'
+    )}>
+      <p className={cn(
+        'text-[11px] font-semibold mb-0.5',
+        isCustomer ? 'text-blue-600' : 'text-muted-foreground'
+      )}>
+        {senderLabel}
+      </p>
+      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+        {quoted.content || '—'}
+      </p>
     </div>
   );
 }

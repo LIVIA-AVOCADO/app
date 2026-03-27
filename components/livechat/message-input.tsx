@@ -3,11 +3,12 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send } from 'lucide-react';
+import { Send, X } from 'lucide-react';
 import { QuickRepliesPanel } from './quick-replies-panel';
 import { QuickReplyCommand } from './quick-reply-command';
 import { useQuickReplyCommand } from '@/hooks/use-quick-reply-command';
 import { usePrefetchQuickReplies } from '@/hooks/use-quick-replies-cache';
+import { cn } from '@/lib/utils';
 import type { Conversation } from '@/types/database-helpers';
 import type { MessageWithSender } from '@/types/livechat';
 import { PauseIAConfirmDialog } from './pause-ia-confirm-dialog';
@@ -23,6 +24,8 @@ interface MessageInputProps {
   onTempFailed: (tempId: string) => void;
   onTyping?: () => void;
   disabled?: boolean;
+  replyToMessage?: MessageWithSender | null;
+  onClearReply?: () => void;
 }
 
 export function MessageInput({
@@ -35,6 +38,8 @@ export function MessageInput({
   onTempFailed,
   onTyping,
   disabled = false,
+  replyToMessage,
+  onClearReply,
 }: MessageInputProps) {
   const [content, setContent] = useState('');
   const [showPauseIADialog, setShowPauseIADialog] = useState(false);
@@ -84,12 +89,14 @@ export function MessageInput({
       return;
     }
 
-    sendMessage(content.trim());
+    sendMessage(content.trim(), replyToMessage);
+    onClearReply?.();
   };
 
   const handleConfirmSendAndPauseIA = () => {
-    sendMessage(pendingMessage);
+    sendMessage(pendingMessage, replyToMessage);
     setPendingMessage('');
+    onClearReply?.();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -137,8 +144,32 @@ export function MessageInput({
     if (newValue.trim()) onTyping?.();
   };
 
+  const replyLabel =
+    replyToMessage?.sender_type === 'customer'
+      ? 'Cliente'
+      : replyToMessage?.sender_type === 'ai'
+        ? 'IA'
+        : replyToMessage?.senderUser?.full_name || 'Atendente';
+
   return (
-    <div className="flex gap-2 p-4 border-t">
+    <div className="flex flex-col border-t">
+      {/* Preview da mensagem sendo respondida */}
+      {replyToMessage && (
+        <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+          <div className="flex-1 border-l-2 border-blue-400 pl-2.5 bg-muted/50 rounded-r-md py-1 pr-2 min-w-0">
+            <p className="text-[11px] font-semibold text-blue-600 mb-0.5">{replyLabel}</p>
+            <p className="text-xs text-muted-foreground truncate">{replyToMessage.content}</p>
+          </div>
+          <button
+            onClick={onClearReply}
+            className="flex-shrink-0 p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            title="Cancelar resposta"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      <div className={cn('flex gap-2 p-4', replyToMessage && 'pt-2')}>
       <QuickRepliesPanel
         conversationId={conversation.id}
         tenantId={tenantId}
@@ -180,6 +211,7 @@ export function MessageInput({
         conversationId={conversation.id}
         onSelect={handleQuickReplyCommandSelect}
       />
+      </div>
     </div>
   );
 }
