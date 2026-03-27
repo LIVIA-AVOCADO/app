@@ -337,6 +337,33 @@ export interface ContactBulkUpdatePayload {
 }
 
 // ============================================================================
+// FOLLOW UP
+// ============================================================================
+
+export interface ConversationFollowup {
+  id: string;
+  conversation_id: string;
+  tenant_id: string;
+  scheduled_at: string;
+  message: string | null;
+  ai_generate: boolean;
+  cancel_on_reply: boolean;
+  is_done: boolean;
+  done_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface CreateFollowupPayload {
+  conversationId: string;
+  tenantId: string;
+  scheduledAt: string;       // ISO string
+  message?: string | null;
+  aiGenerate: boolean;
+  cancelOnReply: boolean;
+}
+
+// ============================================================================
 // CATEGORIES / TAGS
 // ============================================================================
 

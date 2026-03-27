@@ -26,13 +26,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Pause, MessageSquare, FileText, Loader2, MoreVertical, User, BellOff, Bell } from 'lucide-react';
+import { Pause, MessageSquare, FileText, Loader2, MoreVertical, User, BellOff, Bell, AlarmClock, AlarmClockOff } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Conversation, Tag } from '@/types/database-helpers';
-import type { ConversationWithContact } from '@/types/livechat';
+import type { ConversationFollowup, ConversationWithContact } from '@/types/livechat';
 import { getContactFirstName } from '@/lib/utils/contact-helpers';
 import { ConversationSummaryModal } from './conversation-summary-modal';
 import { PauseIAConfirmDialog } from './pause-ia-confirm-dialog';
+import { FollowUpDialog } from './follow-up-dialog';
 import { TagSelector } from '@/components/tags/tag-selector';
 import { StatusSelect } from './status-select';
 
@@ -45,6 +46,7 @@ interface ConversationHeaderProps {
   tenantId: string;
   allTags: Tag[];
   conversationTags?: Array<{ tag: Tag }>;
+  initialFollowup?: ConversationFollowup | null;
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
   /** Callback chamado após silenciar o contato com sucesso */
   onContactMuted?: () => void;
@@ -65,6 +67,7 @@ export function ConversationHeader({
   tenantId,
   allTags,
   conversationTags = [],
+  initialFollowup = null,
   onConversationUpdate,
   onContactMuted,
   onContactUnmuted,
@@ -76,6 +79,9 @@ export function ConversationHeader({
   const [showPauseIADialog, setShowPauseIADialog] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [showMuteDialog, setShowMuteDialog] = useState(false);
+  const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
+  const [activeFollowup, setActiveFollowup] = useState<ConversationFollowup | null>(initialFollowup);
+  const [isCancellingFollowup, setIsCancellingFollowup] = useState(false);
 
   // Estado local do mute para refletir imediatamente após a ação
   const [isMuted, setIsMuted] = useState(contactIsMuted);
@@ -154,6 +160,24 @@ export function ConversationHeader({
     }
   };
 
+  const handleCancelFollowup = async () => {
+    if (!activeFollowup || isCancellingFollowup) return;
+    setIsCancellingFollowup(true);
+    try {
+      const response = await fetch(`/api/conversations/followup/${activeFollowup.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Erro ao cancelar follow-up');
+      setActiveFollowup(null);
+      toast.success('Follow up cancelado');
+    } catch (error) {
+      console.error('Erro ao cancelar follow-up:', error);
+      toast.error('Erro ao cancelar follow-up. Tente novamente.');
+    } finally {
+      setIsCancellingFollowup(false);
+    }
+  };
+
   const iaDisabled = conversation.status === 'closed';
 
   return (
@@ -194,6 +218,24 @@ export function ConversationHeader({
             <Badge variant="outline" className="text-xs text-muted-foreground">Manual</Badge>
           )}
 
+          {activeFollowup && (
+            <TooltipProvider delayDuration={400}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-xs gap-1 text-orange-600 border-orange-300 bg-orange-50 dark:bg-orange-950/30 cursor-default">
+                    <AlarmClock className="h-3 w-3" />
+                    Follow Up
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Agendado para {new Date(activeFollowup.scheduled_at).toLocaleString('pt-BR', {
+                    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+                  })}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
           {/* Botão de dados do cliente */}
           <TooltipProvider delayDuration={400}>
             <Tooltip>
@@ -231,6 +273,31 @@ export function ConversationHeader({
                 <FileText className="h-4 w-4 mr-2" />
                 Resumo da conversa
               </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              {activeFollowup ? (
+                <DropdownMenuItem
+                  onClick={handleCancelFollowup}
+                  disabled={isCancellingFollowup || conversation.status === 'closed'}
+                  className="text-orange-600 focus:text-orange-600"
+                >
+                  {isCancellingFollowup ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <AlarmClockOff className="h-4 w-4 mr-2" />
+                  )}
+                  Cancelar Follow Up
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={() => setShowFollowUpDialog(true)}
+                  disabled={conversation.status === 'closed'}
+                >
+                  <AlarmClock className="h-4 w-4 mr-2" />
+                  Ativar Follow Up
+                </DropdownMenuItem>
+              )}
 
               <DropdownMenuSeparator />
 
@@ -298,6 +365,17 @@ export function ConversationHeader({
         onOpenChange={setShowPauseIADialog}
         onConfirm={handlePauseIAConfirm}
         trigger="manual"
+      />
+
+      <FollowUpDialog
+        open={showFollowUpDialog}
+        onOpenChange={setShowFollowUpDialog}
+        conversationId={conversation.id}
+        tenantId={tenantId}
+        onCreated={(followup) => {
+          setActiveFollowup(followup);
+          onConversationUpdate?.({ ia_active: false });
+        }}
       />
 
       {/* Dialog de confirmação para silenciar */}
