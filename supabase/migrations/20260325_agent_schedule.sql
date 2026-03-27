@@ -57,9 +57,11 @@ CREATE TABLE IF NOT EXISTS public.agent_schedule_exceptions (
   CONSTRAINT agent_schedule_exceptions_custom_range CHECK (
     type = 'blocked'
     OR end_time > start_time
-  ),
-  CONSTRAINT agent_schedule_exceptions_unique_slot  UNIQUE (tenant_id, exception_date, COALESCE(start_time, '00:00:00'))
+  )
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS agent_schedule_exceptions_unique_slot
+  ON public.agent_schedule_exceptions (tenant_id, exception_date, COALESCE(start_time, '00:00:00'::time));
 
 -- ---------------------------------------------------------------------------
 -- 2. ÍNDICES
@@ -296,14 +298,16 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 7. pg_cron — executa a cada 5 minutos
 -- ---------------------------------------------------------------------------
--- Requer extensão pg_cron habilitada no Supabase (Dashboard → Database → Extensions).
+-- PASSO MANUAL: habilitar extensão pg_cron no Supabase Dashboard →
+--   Database → Extensions → pg_cron → Enable
+-- Depois rodar separadamente:
+--
+--   SELECT cron.schedule(
+--     'agent-schedule-transitions',
+--     '*/5 * * * *',
+--     $$SELECT public.handle_agent_schedule_transitions()$$
+--   );
 -- ---------------------------------------------------------------------------
-
-SELECT cron.schedule(
-  'agent-schedule-transitions',   -- nome único do job
-  '*/5 * * * *',                  -- a cada 5 minutos
-  $$SELECT public.handle_agent_schedule_transitions()$$
-);
 
 -- ---------------------------------------------------------------------------
 -- 8. COMENTÁRIOS
