@@ -48,16 +48,20 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(payload),
     });
 
+    const rawText = await n8nRes.text();
+    console.log('[onboarding/chat] n8n status:', n8nRes.status, '| body:', rawText);
+
+    let data: Record<string, unknown> = {};
+    try { data = JSON.parse(rawText); } catch { /* resposta não-JSON */ }
+
     if (!n8nRes.ok) {
-      console.error('[onboarding/chat] n8n error:', n8nRes.status, await n8nRes.text());
       return NextResponse.json(
-        { error: 'Erro ao contatar o agente. Tente novamente.' },
+        { error: `n8n ${n8nRes.status}`, detail: rawText },
         { status: 502 }
       );
     }
 
-    const data = await n8nRes.json();
-    return NextResponse.json({ reply: data.reply ?? data.output ?? data.text ?? '' });
+    return NextResponse.json({ reply: data.reply ?? data.output ?? data.text ?? data.message ?? rawText });
   } catch (err) {
     console.error('[onboarding/chat] fetch error:', err);
     return NextResponse.json({ error: 'Erro de conexão.' }, { status: 500 });
