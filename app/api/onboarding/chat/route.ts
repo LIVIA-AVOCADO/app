@@ -2,9 +2,45 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 /**
+ * GET /api/onboarding/chat
+ * Diagnóstico: testa conexão com n8n sem precisar de auth do usuário.
+ */
+export async function GET() {
+  const n8nUrl = process.env.N8N_BASE_URL! + process.env.N8N_ONBOARDING_CHAT_WEBHOOK!;
+
+  try {
+    const res = await fetch(n8nUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: 'diagnostico',
+        message: 'ping',
+        user_id: 'diagnostico',
+        user_name: 'Diagnóstico',
+        user_email: 'diagnostico@teste.com',
+        company_name: 'Diagnóstico',
+        company_niche: 'tecnologia',
+        company_employees: '1',
+        company_website: '',
+      }),
+    });
+
+    const rawText = await res.text();
+
+    return NextResponse.json({
+      n8n_url:    n8nUrl,
+      env_ok:     !!process.env.N8N_BASE_URL && !!process.env.N8N_ONBOARDING_CHAT_WEBHOOK,
+      http_status: res.status,
+      body:        rawText || '(vazio)',
+    });
+  } catch (err) {
+    return NextResponse.json({ error: String(err), n8n_url: n8nUrl });
+  }
+}
+
+/**
  * POST /api/onboarding/chat
  * Proxy seguro para o agente de onboarding no n8n.
- * A chave da API fica apenas no servidor — nunca exposta ao browser.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -19,8 +55,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'message e sessionId são obrigatórios' }, { status: 400 });
   }
 
-  const n8nUrl    = process.env.N8N_BASE_URL! + process.env.N8N_ONBOARDING_CHAT_WEBHOOK!;
-  const apiKey    = process.env.N8N_ONBOARDING_CHAT_API_KEY!;
+  const n8nUrl = process.env.N8N_BASE_URL! + process.env.N8N_ONBOARDING_CHAT_WEBHOOK!;
 
   // Payload flat — mais fácil de acessar no n8n como {{ $json.campo }}
   const payload = {
