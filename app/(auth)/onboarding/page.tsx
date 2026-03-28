@@ -1,11 +1,10 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTemplates, getUserLatestSession } from '@/lib/queries/onboarding';
-import { TemplateSelector } from '@/components/onboarding/template-selector';
+import { OnboardingEntryForm } from '@/components/onboarding/entry-form';
 
 export const metadata = {
-  title: 'Onboarding | LIVIA',
-  description: 'Configure seu workspace de atendimento com IA',
+  title: 'Configurar Workspace | LIVIA',
 };
 
 export default async function OnboardingPage() {
@@ -16,14 +15,11 @@ export default async function OnboardingPage() {
 
   const { data: userData } = await supabase
     .from('users')
-    .select('tenant_id')
+    .select('tenant_id, full_name, email')
     .eq('id', user.id)
     .single();
 
-  // Usuário já tem tenant ativo — redireciona para o dashboard
-  if (userData?.tenant_id) {
-    redirect('/livechat');
-  }
+  if (userData?.tenant_id) redirect('/livechat');
 
   const [templatesByNiche, latestSession] = await Promise.all([
     getActiveTemplates(),
@@ -31,9 +27,11 @@ export default async function OnboardingPage() {
   ]);
 
   return (
-    <TemplateSelector
+    <OnboardingEntryForm
       templatesByNiche={templatesByNiche}
       latestSession={latestSession}
+      userName={userData?.full_name || user.user_metadata?.full_name || 'Usuário'}
+      userEmail={userData?.email || user.email || ''}
     />
   );
 }

@@ -74,6 +74,10 @@ export interface CompanyPayload {
   trade_name?: string;
   cnpj?: string;
   phone?: string;
+  employee_count?: string;
+  website?: string;
+  has_no_website?: boolean;
+  niche?: string;
   responsibles?: {
     technical?: { name?: string; whatsapp?: string; email?: string };
     financial?: { name?: string; whatsapp?: string; email?: string };
