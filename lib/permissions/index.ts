@@ -29,6 +29,7 @@ export const MODULE_KEYS = {
   RELATORIOS:         'relatorios',
   GERENCIAR_USUARIOS: 'gerenciar-usuarios',
   HORARIOS_AGENTE:    'horarios_agente',
+  AGENDAMENTOS:       'agendamentos',
 } as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS];
@@ -95,6 +96,11 @@ export const MODULES_CONFIG: ModuleConfig[] = [
     name:        'Horários do Agente',
     description: 'Configuração dos horários de disponibilidade do agente de IA',
   },
+  {
+    key:         MODULE_KEYS.AGENDAMENTOS,
+    name:        'Agendamentos',
+    description: 'Agendamento de clientes — multi-nicho (clínicas, ISP, laboratórios, etc.)',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -122,6 +128,7 @@ const ROUTE_PERMISSIONS: Array<{ pattern: string; permission: RoutePermission }>
   { pattern: '/reativacao',         permission: { moduleKey: MODULE_KEYS.REATIVACAO } },
   { pattern: '/configuracoes/horarios-agente', permission: { moduleKey: MODULE_KEYS.HORARIOS_AGENTE } },
   { pattern: '/configuracoes',                permission: { moduleKey: MODULE_KEYS.CONFIGURACOES } },
+  { pattern: '/agendamentos',                 permission: { moduleKey: MODULE_KEYS.AGENDAMENTOS } },
 ];
 
 // ---------------------------------------------------------------------------

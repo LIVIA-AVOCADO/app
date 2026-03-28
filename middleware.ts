@@ -47,7 +47,8 @@ function isDashboardRoute(pathname: string): boolean {
     pathname.startsWith('/relatorios') ||
     pathname.startsWith('/aguardando-acesso') ||
     pathname.startsWith('/gerenciar-usuarios') ||
-    pathname.startsWith('/onboarding')
+    pathname.startsWith('/onboarding') ||
+    pathname.startsWith('/agendamentos')
   );
 }
 

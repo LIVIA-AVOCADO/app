@@ -252,6 +252,170 @@ PATCH /rest/v1/conversation_followups
 
 ---
 
+---
+
+## 3. Módulo de Agendamentos
+
+### Por que fazer
+O módulo de agendamentos usa o N8N para: (a) expirar holds automaticamente via cron, (b) disparar automações de confirmação/cancelamento/reagendamento via WhatsApp, e (c) suportar sweeps de confirmação e reengajamento pós no-show.
+
+### Variáveis de ambiente necessárias
+
+Adicionar no `.env.local` e na Vercel:
+
+```bash
+# Secret para autenticar chamadas do N8N ao endpoint de cron
+SCHEDULING_CRON_SECRET=algum-secret-forte-aqui
+
+# Webhooks N8N (opcional — há fallback para os paths padrão abaixo)
+WEBHOOK_N8N_SCHEDULING_AUTOMATIONS=https://seu-n8n.com/webhook/livia/scheduling-automations
+WEBHOOK_N8N_SCHEDULING_EXPIRE_HOLDS=https://seu-n8n.com/webhook/livia/scheduling-expire-holds
+WEBHOOK_N8N_SCHEDULING_CONFIRMATION_SWEEP=https://seu-n8n.com/webhook/livia/scheduling-confirmation-sweep
+WEBHOOK_N8N_SCHEDULING_REENGAGE=https://seu-n8n.com/webhook/livia/scheduling-reengage
+```
+
+---
+
+### Workflow 1 — Cron: Expirar Holds (a cada 5 min)
+
+Holds são reservas temporárias criadas pela IA ou pelo formulário manual. Se não confirmados dentro do `hold_duration_minutes` configurado pelo tenant, devem ser liberados automaticamente.
+
+**Nó 1 — Schedule Trigger**
+- Intervalo: a cada 5 minutos
+
+**Nó 2 — HTTP Request: chamar endpoint expire-holds**
+
+- **Method:** `POST`
+- **URL:** `https://sua-app.com/api/agendamentos/expire-holds`
+- **Headers:**
+  ```
+  x-cron-secret: {{ $env.SCHEDULING_CRON_SECRET }}
+  Content-Type: application/json
+  ```
+- **Body:**
+  ```json
+  {}
+  ```
+
+Resposta esperada: `{ "success": true, "data": { "expired_count": N } }`
+
+> O endpoint usa a RPC `sched_expire_holds` no Supabase, que libera as alocações de recursos dos holds vencidos.
+
+---
+
+### Workflow 2 — Webhook: Automações de Agendamento
+
+Disparado pelo backend sempre que um agendamento é **confirmado**, **cancelado**, **reagendado**, **concluído** ou marcado como **no-show**.
+
+**Trigger:** Webhook `POST /webhook/livia/scheduling-automations`
+
+**Payload recebido:**
+
+```json
+{
+  "event": "scheduling.appointment.confirmed",
+  "tenant_id": "uuid",
+  "appointment_id": "uuid",
+  "contact": {
+    "id": "uuid",
+    "name": "João Silva",
+    "phone": "+5585999999999"
+  },
+  "appointment": {
+    "start_at": "2026-04-01T10:00:00Z",
+    "end_at": "2026-04-01T11:00:00Z",
+    "unit_id": "uuid | null",
+    "services": [{ "service_id": "uuid", "name": "Consulta" }],
+    "resources": [{ "resource_id": "uuid", "name": "Dr. Silva", "type": "staff" }]
+  },
+  "automation_config": {
+    "confirmation_message_template": "Seu agendamento foi confirmado para {{data}} às {{hora}}.",
+    "reminder_hours_before": 24,
+    "cancellation_notify_contact": true,
+    "auto_confirm_holds": false
+  }
+}
+```
+
+**Eventos e ações sugeridas:**
+
+| Evento | Ação no N8N |
+|---|---|
+| `scheduling.appointment.confirmed` | Enviar mensagem de confirmação ao contato via WhatsApp |
+| `scheduling.appointment.canceled` | Enviar aviso de cancelamento (se `cancellation_notify_contact = true`) |
+| `scheduling.appointment.rescheduled` | Enviar novo horário confirmado |
+| `scheduling.appointment.completed` | Opcional: pedir avaliação/feedback |
+| `scheduling.appointment.no_show` | Opcional: disparar reengajamento após X horas |
+
+**Lógica de roteamento sugerida:**
+
+```
+Recebe webhook
+    │
+    ├─ event = confirmed  → enviar mensagem de confirmação
+    ├─ event = canceled   → cancellation_notify_contact = true? → enviar aviso
+    ├─ event = rescheduled → enviar novo horário
+    ├─ event = completed  → (opcional) pedir feedback
+    └─ event = no_show    → (opcional) acionar workflow de reengajamento
+```
+
+**Exemplo de mensagem de confirmação (Evolution API):**
+
+```json
+{
+  "number": "{{ $json.contact.phone }}",
+  "text": "Olá {{ $json.contact.name }}, seu agendamento de *{{ $json.appointment.services[0].name }}* foi confirmado para *{{ formatDate($json.appointment.start_at, 'DD/MM/YYYY') }}* às *{{ formatDate($json.appointment.start_at, 'HH:mm') }}*. Até lá!"
+}
+```
+
+---
+
+### Workflow 3 — Cron: Lembretes de Agendamento *(opcional)*
+
+Envia lembretes X horas antes do agendamento, conforme `reminder_hours_before` do `automation_config`.
+
+**Nó 1 — Schedule Trigger**
+- Intervalo: a cada 30 minutos (ou 1 hora)
+
+**Nó 2 — HTTP Request: buscar agendamentos que vencem em breve**
+
+- **Method:** `GET`
+- **URL:** `{{ $env.SUPABASE_URL }}/rest/v1/sched_appointments`
+- **Query params:**
+  ```
+  status=eq.confirmed
+  start_at=gte.{{ now }}
+  start_at=lte.{{ now + reminder_hours }}
+  select=*,contact:contacts(id,name,phone)
+  ```
+- **Headers:**
+  ```
+  apikey: {{ $env.SUPABASE_SERVICE_KEY }}
+  Authorization: Bearer {{ $env.SUPABASE_SERVICE_KEY }}
+  ```
+
+**Nó 3 — Para cada agendamento:** enviar lembrete via WhatsApp e registrar que o lembrete foi enviado (campo `reminder_sent_at` — adicionar à tabela se necessário).
+
+---
+
+### Workflow 4 — Webhook: Reengajamento Pós No-Show *(opcional)*
+
+**Trigger:** Webhook `POST /webhook/livia/scheduling-reengage`
+
+**Payload recebido:**
+
+```json
+{
+  "tenant_id": "uuid",
+  "appointment_id": "uuid",
+  "contact_id": "uuid"
+}
+```
+
+**Ação:** Após X horas do no-show, enviar mensagem tentando remarcar o contato.
+
+---
+
 ## Resumo de prioridade
 
 | # | Configuração | Impacto | Prioridade |
@@ -260,3 +424,7 @@ PATCH /rest/v1/conversation_followups
 | 2 | Reply to Message — Cloud API | Reply aparece no WhatsApp do cliente | Alta |
 | 3 | Follow Up — Schedule Trigger + envio | Follow-ups nunca disparam sem isso | Alta |
 | 4 | Follow Up — geração via IA | Necessário para `ai_generate=true` | Média |
+| 5 | Agendamentos — Cron expire-holds | Holds ficam presos sem isso | Alta |
+| 6 | Agendamentos — Webhook automations (confirmed/canceled) | Cliente não recebe confirmação | Alta |
+| 7 | Agendamentos — Cron lembretes | Lembretes nunca são enviados | Média |
+| 8 | Agendamentos — Webhook reengajamento no-show | Contatos não são abordados após falta | Baixa |
