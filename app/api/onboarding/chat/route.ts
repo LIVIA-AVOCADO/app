@@ -22,21 +22,20 @@ export async function POST(request: NextRequest) {
   const n8nUrl    = process.env.N8N_BASE_URL! + process.env.N8N_ONBOARDING_CHAT_WEBHOOK!;
   const apiKey    = process.env.N8N_ONBOARDING_CHAT_API_KEY!;
 
+  // Payload flat — mais fácil de acessar no n8n como {{ $json.campo }}
   const payload = {
-    session_id: body.sessionId,
-    message:    body.message,
-    user: {
-      id:    user.id,
-      name:  body.userName  ?? '',
-      email: user.email     ?? '',
-    },
-    company: {
-      name:           body.company?.name           ?? '',
-      niche:          body.company?.niche          ?? '',
-      employee_count: body.company?.employee_count ?? '',
-      website:        body.company?.website        ?? '',
-    },
+    session_id:        body.sessionId,
+    message:           body.message,
+    user_id:           user.id,
+    user_name:         body.userName          ?? '',
+    user_email:        user.email             ?? '',
+    company_name:      body.company?.name     ?? '',
+    company_niche:     body.company?.niche    ?? '',
+    company_employees: body.company?.employee_count ?? '',
+    company_website:   body.company?.website  ?? '',
   };
+
+  console.log('[onboarding/chat] payload →', JSON.stringify(payload));
 
   try {
     const n8nRes = await fetch(n8nUrl, {
