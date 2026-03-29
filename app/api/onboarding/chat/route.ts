@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       method:  'POST',
       headers: {
         'Content-Type': 'application/json',
+        'apikey': process.env.N8N_ONBOARDING_CHAT_API_KEY!,
       },
       body: JSON.stringify(payload),
     });
