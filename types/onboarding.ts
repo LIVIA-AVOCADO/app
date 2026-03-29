@@ -30,7 +30,8 @@ export interface WizardStepConfig {
 export interface OnboardingTemplate {
   id: string;
   name: string;
-  niche: string;
+  niche: string;           // texto legível (mantido por compatibilidade)
+  niche_id: string | null; // FK para public.niches
   description: string | null;
   default_neurocore_id: string;
   wizard_schema: WizardStepConfig[];
