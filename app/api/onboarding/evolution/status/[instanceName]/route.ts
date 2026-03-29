@@ -47,7 +47,11 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       await (adminClient.rpc as any)('onboarding_save_step', {
         p_session_id:   sessionId,
         p_step_key:     'channel',
-        p_step_payload: { external_channel_id: instanceName, connection_status: 'connected' },
+        p_step_payload: {
+          provider_id:         '076b2291-d532-41b0-8b41-a2f721e22ea5',
+          external_channel_id: instanceName,
+          connection_status:   'connected',
+        },
         p_user_id:      user.id,
       });
     }

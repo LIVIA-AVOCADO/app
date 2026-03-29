@@ -45,13 +45,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
     }
 
-    // Salva instanceName no payload da sessão (step 'channel')
+    // Salva instanceName + provider_id no payload da sessão (step 'channel')
+    // provider_id = Evolution API 2.3.6 (channel_providers.id no banco)
     const adminClient = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (adminClient.rpc as any)('onboarding_save_step', {
       p_session_id:   sessionId,
       p_step_key:     'channel',
-      p_step_payload: { external_channel_id: instanceName, connection_status: 'pending' },
+      p_step_payload: {
+        provider_id:         '076b2291-d532-41b0-8b41-a2f721e22ea5',
+        external_channel_id: instanceName,
+        connection_status:   'pending',
+      },
       p_user_id:      user.id,
     });
 
