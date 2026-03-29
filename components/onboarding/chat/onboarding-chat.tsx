@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
-import { Send, Loader2, Bot } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Send, Loader2, Bot, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 
@@ -24,6 +25,7 @@ interface OnboardingChatProps {
 }
 
 export function OnboardingChat({ sessionId, userName, company }: OnboardingChatProps) {
+  const router = useRouter();
   const [messages,    setMessages]    = useState<Message[]>([]);
   const [input,       setInput]       = useState('');
   const [isPending,   startTransition] = useTransition();
@@ -97,7 +99,18 @@ export function OnboardingChat({ sessionId, userName, company }: OnboardingChatP
           <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Lívia</p>
           <p className="text-xs text-zinc-400">Assistente de configuração</p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          {hasStarted && messages.length >= 2 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs"
+              onClick={() => router.push(`/onboarding/${sessionId}/channel`)}
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+              Conectar WhatsApp
+            </Button>
+          )}
           <Image src="/logo.png" alt="LIVIA" width={80} height={22} className="object-contain opacity-60" />
         </div>
       </div>
