@@ -23,15 +23,19 @@ import { Loader2, Sparkles, PenLine } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ConversationFollowup } from '@/types/livechat';
 
-const HOUR_OPTIONS = [
-  { value: '1', label: '1 hora' },
-  { value: '2', label: '2 horas' },
-  { value: '4', label: '4 horas' },
-  { value: '6', label: '6 horas' },
-  { value: '12', label: '12 horas' },
-  { value: '24', label: '24 horas' },
-  { value: '48', label: '48 horas' },
-  { value: '72', label: '72 horas' },
+// valores em minutos
+const TIME_OPTIONS = [
+  { value: '5',    label: '5 minutos' },
+  { value: '15',   label: '15 minutos' },
+  { value: '30',   label: '30 minutos' },
+  { value: '60',   label: '1 hora' },
+  { value: '120',  label: '2 horas' },
+  { value: '240',  label: '4 horas' },
+  { value: '360',  label: '6 horas' },
+  { value: '720',  label: '12 horas' },
+  { value: '1440', label: '24 horas' },
+  { value: '2880', label: '48 horas' },
+  { value: '4320', label: '72 horas' },
 ];
 
 interface FollowUpDialogProps {
@@ -49,7 +53,7 @@ export function FollowUpDialog({
   tenantId,
   onCreated,
 }: FollowUpDialogProps) {
-  const [hours, setHours] = useState('24');
+  const [minutes, setMinutes] = useState('1440');
   const [aiGenerate, setAiGenerate] = useState(false);
   const [message, setMessage] = useState('');
   const [cancelOnReply, setCancelOnReply] = useState(true);
@@ -64,7 +68,7 @@ export function FollowUpDialog({
     setIsLoading(true);
     try {
       const scheduledAt = new Date(
-        Date.now() + parseInt(hours) * 60 * 60 * 1000
+        Date.now() + parseInt(minutes) * 60 * 1000
       ).toISOString();
 
       const response = await fetch('/api/conversations/followup', {
@@ -86,7 +90,8 @@ export function FollowUpDialog({
       }
 
       const { followup } = await response.json();
-      toast.success(`Follow up agendado para ${parseInt(hours)}h`);
+      const label = TIME_OPTIONS.find(o => o.value === minutes)?.label ?? `${minutes} min`;
+      toast.success(`Follow up agendado para ${label}`);
       onCreated(followup);
       onOpenChange(false);
       resetForm();
@@ -98,7 +103,7 @@ export function FollowUpDialog({
   };
 
   const resetForm = () => {
-    setHours('24');
+    setMinutes('1440');
     setAiGenerate(false);
     setMessage('');
     setCancelOnReply(true);
@@ -120,12 +125,12 @@ export function FollowUpDialog({
           {/* Tempo */}
           <div className="space-y-1.5">
             <Label>Enviar em</Label>
-            <Select value={hours} onValueChange={setHours}>
+            <Select value={minutes} onValueChange={setMinutes}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {HOUR_OPTIONS.map((opt) => (
+                {TIME_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </SelectItem>
