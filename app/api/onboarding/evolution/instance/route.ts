@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Sessão não encontrada' }, { status: 404 });
   }
 
-  const nicho = session.template as Record<string, unknown>;
+  const nicho = session.template as unknown as Record<string, unknown>;
   const nicheId = nicho.niche_id as string | null;
 
   const adminClient = createAdminClient();
