@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ContactItem } from './contact-item';
 import { TagSelector } from '@/components/tags/tag-selector';
-import { Search, MessageCircle, BellOff } from 'lucide-react';
+import { Search, MessageCircle, BellOff, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
 import { MutedContactsList } from './muted-contacts-list';
@@ -36,7 +36,7 @@ export function ContactList({
 }: ContactListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<
-    'ia' | 'manual' | 'closed' | 'muted'
+    'ia' | 'manual' | 'closed' | 'muted' | 'important'
   >('ia');
 
   // Debounce de hover: só dispara prefetch após 150ms para evitar falsos positivos
@@ -82,6 +82,20 @@ export function ContactList({
         toast.success('Conversa encerrada');
       })
       .catch(() => toast.error('Erro ao encerrar conversa'));
+  }, [tenantId, onConversationUpdate]);
+
+  const handleToggleImportant = useCallback((conversationId: string, current: boolean) => {
+    fetch('/api/conversations/toggle-important', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId, tenantId, isImportant: !current }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        onConversationUpdate?.(conversationId, { is_important: !current });
+        toast.success(!current ? 'Conversa marcada como importante' : 'Importância removida');
+      })
+      .catch(() => toast.error('Erro ao atualizar conversa'));
   }, [tenantId, onConversationUpdate]);
 
   const handleCardTagToggle = useCallback((conversationId: string, tagId: string, isRemoving: boolean) => {
@@ -131,6 +145,9 @@ export function ContactList({
     } else if (statusFilter === 'closed') {
       // Encerradas
       matchesStatus = conversation.status === 'closed';
+    } else if (statusFilter === 'important') {
+      // Importantes: conversas marcadas como importantes (qualquer status exceto encerradas)
+      matchesStatus = !!conversation.is_important && conversation.status !== 'closed';
     }
 
     // Filtro de tags: se nenhuma tag selecionada, mostra todas
@@ -157,6 +174,7 @@ export function ContactList({
     ia: conversations.filter((c) => c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
     manual: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
     closed: conversations.filter((c) => c.status === 'closed' && !c.contact.is_muted).length,
+    important: conversations.filter((c) => c.is_important && c.status !== 'closed' && !c.contact.is_muted).length,
   };
 
   // Contador de não lidas no modo manual
@@ -172,7 +190,7 @@ export function ContactList({
   };
 
   // Handler para mudança de filtro de status
-  const handleStatusFilterChange = (newFilter: 'ia' | 'manual' | 'closed' | 'muted') => {
+  const handleStatusFilterChange = (newFilter: 'ia' | 'manual' | 'closed' | 'muted' | 'important') => {
     if (newFilter !== statusFilter) {
       setStatusFilter(newFilter);
       // Reset toggle de não lidas e justReadConversationId quando sai do modo manual
@@ -266,6 +284,16 @@ export function ContactList({
             <BellOff className="h-3 w-3" />
             Silenciadas
           </Badge>
+          {statusCounts.important > 0 && (
+            <Badge
+              variant={statusFilter === 'important' ? 'default' : 'outline'}
+              className="cursor-pointer gap-1"
+              onClick={() => handleStatusFilterChange('important')}
+            >
+              <Star className="h-3 w-3" />
+              Importantes ({statusCounts.important})
+            </Badge>
+          )}
         </div>
 
         {/* Toggle de não lidas - só aparece no modo manual */}
@@ -342,6 +370,7 @@ export function ContactList({
                 onMarkUnread={handleMarkUnread}
                 onClose={handleCloseConversation}
                 onTagToggle={handleCardTagToggle}
+                onToggleImportant={handleToggleImportant}
                 allTags={allTags}
                 onClick={() => {
                   // No modo "apenas não lidas", mantém a conversa clicada visível até clicar em outra

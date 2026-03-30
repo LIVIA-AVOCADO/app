@@ -26,7 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Pause, MessageSquare, FileText, Loader2, MoreVertical, User, BellOff, Bell, AlarmClock, AlarmClockOff } from 'lucide-react';
+import { Pause, MessageSquare, FileText, Loader2, MoreVertical, User, BellOff, Bell, AlarmClock, AlarmClockOff, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Conversation, Tag } from '@/types/database-helpers';
 import type { ConversationFollowup, ConversationWithContact } from '@/types/livechat';
@@ -178,6 +178,23 @@ export function ConversationHeader({
     }
   };
 
+  const handleToggleImportant = async () => {
+    const current = !!conversation.is_important;
+    try {
+      const response = await fetch('/api/conversations/toggle-important', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: conversation.id, tenantId, isImportant: !current }),
+      });
+      if (!response.ok) throw new Error('Erro ao atualizar conversa');
+      onConversationUpdate?.({ is_important: !current });
+      toast.success(!current ? 'Conversa marcada como importante' : 'Importância removida');
+    } catch (error) {
+      console.error('Erro ao atualizar importância:', error);
+      toast.error('Erro ao atualizar conversa. Tente novamente.');
+    }
+  };
+
   const iaDisabled = conversation.status === 'closed';
 
   return (
@@ -272,6 +289,11 @@ export function ConversationHeader({
               <DropdownMenuItem onClick={() => setIsSummaryOpen(true)}>
                 <FileText className="h-4 w-4 mr-2" />
                 Resumo da conversa
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={handleToggleImportant}>
+                <Star className={`h-4 w-4 mr-2 ${conversation.is_important ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                {conversation.is_important ? 'Remover importância' : 'Marcar como importante'}
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />

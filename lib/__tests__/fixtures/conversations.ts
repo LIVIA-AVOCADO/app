@@ -136,6 +136,7 @@ export const mockConversation: ConversationWithContact = {
   total_reactivations: 0,
   has_unread: false,
   unread_count: 0,
+  is_important: false,
   contact: mockContact,
   lastMessage: mockMessage2,
 };
@@ -161,6 +162,7 @@ export const mockConversation2: ConversationWithContact = {
   total_reactivations: 0,
   has_unread: true,
   unread_count: 3,
+  is_important: false,
   contact: mockContact2,
   lastMessage: mockMessage3,
 };
@@ -186,6 +188,7 @@ export const mockConversation3: ConversationWithContact = {
   total_reactivations: 0,
   has_unread: false,
   unread_count: 0,
+  is_important: false,
   contact: mockContact,
   lastMessage: null,
 };

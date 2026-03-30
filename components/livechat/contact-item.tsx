@@ -25,7 +25,7 @@ import {
 import type { ConversationWithContact } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 import { TagBadge } from './tag-badge';
-import { MoreVertical, BellOff, XCircle, Tag as TagIcon, Check } from 'lucide-react';
+import { MoreVertical, BellOff, XCircle, Tag as TagIcon, Check, Star } from 'lucide-react';
 import {
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -39,6 +39,7 @@ interface ContactItemProps {
   onMarkUnread?: (conversationId: string) => void;
   onClose?: (conversationId: string) => void;
   onTagToggle?: (conversationId: string, tagId: string, isRemoving: boolean) => void;
+  onToggleImportant?: (conversationId: string, current: boolean) => void;
   allTags?: Tag[];
 }
 
@@ -49,6 +50,7 @@ function ContactItemComponent({
   onMarkUnread,
   onClose,
   onTagToggle,
+  onToggleImportant,
   allTags = [],
 }: ContactItemProps) {
   const { contact, lastMessage, status, ia_active, category, conversation_tags, has_unread, unread_count } = conversation;
@@ -96,6 +98,9 @@ function ContactItemComponent({
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-medium truncate">{displayName}</span>
+              {conversation.is_important && (
+                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 shrink-0" />
+              )}
               {/* Badge de mensagens não lidas */}
               {has_unread && unread_count > 0 && (
                 <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-green-500 rounded-full shrink-0">
@@ -110,7 +115,7 @@ function ContactItemComponent({
                 timestamp={lastTimestamp}
                 className="text-xs text-muted-foreground"
               />
-              {(onMarkUnread || onClose || onTagToggle) && (
+              {(onMarkUnread || onClose || onTagToggle || onToggleImportant) && (
                 <div
                   className={cn(
                     'transition-opacity duration-150',
@@ -160,6 +165,18 @@ function ContactItemComponent({
                           <BellOff className="h-4 w-4 mr-2" />
                           Marcar como não lida
                         </DropdownMenuItem>
+                      )}
+
+                      {onToggleImportant && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => onToggleImportant(conversation.id, !!conversation.is_important)}
+                          >
+                            <Star className={cn('h-4 w-4 mr-2', conversation.is_important && 'fill-yellow-400 text-yellow-400')} />
+                            {conversation.is_important ? 'Remover importância' : 'Marcar como importante'}
+                          </DropdownMenuItem>
+                        </>
                       )}
 
                       {onClose && !isClosed && (
@@ -215,6 +232,7 @@ function arePropsEqual(prevProps: ContactItemProps, nextProps: ContactItemProps)
   if (prevProps.onMarkUnread !== nextProps.onMarkUnread) return false;
   if (prevProps.onClose !== nextProps.onClose) return false;
   if (prevProps.onTagToggle !== nextProps.onTagToggle) return false;
+  if (prevProps.onToggleImportant !== nextProps.onToggleImportant) return false;
   if (prevProps.allTags !== nextProps.allTags) return false;
 
   const prevConv = prevProps.conversation;
@@ -227,6 +245,7 @@ function arePropsEqual(prevProps: ContactItemProps, nextProps: ContactItemProps)
     prevConv.ia_active === nextConv.ia_active &&
     prevConv.has_unread === nextConv.has_unread &&
     prevConv.unread_count === nextConv.unread_count &&
+    prevConv.is_important === nextConv.is_important &&
     prevConv.lastMessage?.content === nextConv.lastMessage?.content &&
     prevConv.category?.id === nextConv.category?.id &&
     (prevConv.conversation_tags?.map(ct => ct.tag?.id).join(',') || '') ===

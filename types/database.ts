@@ -910,6 +910,7 @@ export type Database = {
           has_unread: boolean
           ia_active: boolean
           id: string
+          is_important: boolean
           last_message_at: string
           overall_feedback_text: string | null
           overall_feedback_type:
@@ -934,6 +935,7 @@ export type Database = {
           has_unread?: boolean
           ia_active?: boolean
           id?: string
+          is_important?: boolean
           last_message_at?: string
           overall_feedback_text?: string | null
           overall_feedback_type?:
@@ -958,6 +960,7 @@ export type Database = {
           has_unread?: boolean
           ia_active?: boolean
           id?: string
+          is_important?: boolean
           last_message_at?: string
           overall_feedback_text?: string | null
           overall_feedback_type?:
