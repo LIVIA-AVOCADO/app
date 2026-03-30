@@ -13,8 +13,19 @@ import { useRealtimeConversation } from '@/lib/hooks/use-realtime-conversation';
 import { useChatScroll } from '@/lib/hooks/use-chat-scroll';
 import { useTypingPresence } from '@/lib/hooks/use-typing-presence';
 import { useSendMessage } from '@/lib/hooks/use-send-message';
+import { getMessageDayLabel } from '@/lib/utils/date-helpers';
 import type { Conversation, Tag } from '@/types/database-helpers';
 import type { ConversationWithContact, MessageWithSender } from '@/types/livechat';
+
+function DateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center my-4">
+      <span className="px-3 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground select-none">
+        {label}
+      </span>
+    </div>
+  );
+}
 
 interface ConversationViewProps {
   initialConversation: Conversation;
@@ -150,26 +161,42 @@ export function ConversationView({
                   Nenhuma mensagem ainda
                 </div>
               ) : (
-                messages.map((message) => {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const quotedId = (message as any).quoted_message_id as string | null | undefined;
-                  const quotedMsg = quotedId ? messagesById.get(quotedId) : null;
-                  const messageWithQuote: MessageWithSender = quotedMsg
-                    ? { ...message, quotedMessage: { id: quotedMsg.id, content: quotedMsg.content, sender_type: quotedMsg.sender_type, senderUser: quotedMsg.senderUser } }
-                    : message;
+                (() => {
+                  const firstOfDay = new Set<string>();
+                  let lastKey = '';
+                  for (const msg of messages) {
+                    const key = new Date(msg.timestamp).toDateString();
+                    if (key !== lastKey) {
+                      firstOfDay.add(msg.id);
+                      lastKey = key;
+                    }
+                  }
 
-                  return (
-                    <MessageItem
-                      key={message.id}
-                      message={messageWithQuote}
-                      conversationId={conversation.id}
-                      tenantId={tenantId}
-                      isNew={!initialMessageIds.has(message.id)}
-                      onRetry={handleRetry}
-                      onReply={conversation.status !== 'closed' ? setReplyToMessage : undefined}
-                    />
-                  );
-                })
+                  return messages.map((message) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const quotedId = (message as any).quoted_message_id as string | null | undefined;
+                    const quotedMsg = quotedId ? messagesById.get(quotedId) : null;
+                    const messageWithQuote: MessageWithSender = quotedMsg
+                      ? { ...message, quotedMessage: { id: quotedMsg.id, content: quotedMsg.content, sender_type: quotedMsg.sender_type, senderUser: quotedMsg.senderUser } }
+                      : message;
+
+                    return (
+                      <div key={message.id}>
+                        {firstOfDay.has(message.id) && (
+                          <DateSeparator label={getMessageDayLabel(message.timestamp)} />
+                        )}
+                        <MessageItem
+                          message={messageWithQuote}
+                          conversationId={conversation.id}
+                          tenantId={tenantId}
+                          isNew={!initialMessageIds.has(message.id)}
+                          onRetry={handleRetry}
+                          onReply={conversation.status !== 'closed' ? setReplyToMessage : undefined}
+                        />
+                      </div>
+                    );
+                  });
+                })()
               )}
               <TypingIndicator isVisible={isRemoteTyping} />
             </div>

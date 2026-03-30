@@ -8,6 +8,7 @@
  */
 
 import { startOfDay, endOfDay, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 /**
  * Normaliza uma data para o início do dia em UTC
@@ -110,6 +111,27 @@ export function getDaysDifference(startDate: Date, endDate: Date): number {
  * @param endDate - Data de fim
  * @returns Objeto com datas normalizadas em UTC
  */
+/**
+ * Retorna o label de data para separadores no chat, estilo WhatsApp.
+ * "Hoje", "Ontem", ou data por extenso em pt-BR (ex: "28 de março de 2026").
+ *
+ * @param timestamp - ISO string ou string de data da mensagem
+ */
+export function getMessageDayLabel(timestamp: string): string {
+  const date = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const toKey = (d: Date) =>
+    `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+  if (toKey(date) === toKey(today)) return 'Hoje';
+  if (toKey(date) === toKey(yesterday)) return 'Ontem';
+
+  return format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+}
+
 export function normalizeeDateRange(startDate: Date, endDate: Date): {
   start: Date;
   end: Date;
