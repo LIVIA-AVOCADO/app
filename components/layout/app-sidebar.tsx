@@ -18,9 +18,7 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from '@/components/ui/sidebar';
-import { navItems, type NavItem, type NavSubItem } from './nav-items';
-import { isSuperAdmin, hasModule } from '@/lib/permissions';
-import type { ModuleKey } from '@/lib/permissions';
+import { navItems, filterNavItems } from './nav-items';
 import { cn } from '@/lib/utils';
 import { SidebarFooter } from '@/components/ui/sidebar';
 import { SidebarUserProfile } from './sidebar-user-profile';
@@ -50,39 +48,6 @@ interface AppSidebarProps {
   userModules?: string[];
 }
 
-function isItemVisible(
-  adminOnly: boolean | undefined,
-  moduleKey: ModuleKey | undefined,
-  isAdmin: boolean,
-  modules: string[],
-): boolean {
-  if (adminOnly && !isAdmin) return false;
-  if (moduleKey && !isAdmin && !hasModule(modules, moduleKey)) return false;
-  return true;
-}
-
-function filterNavItems(
-  items: NavItem[],
-  isAdmin: boolean,
-  modules: string[],
-): NavItem[] {
-  return items.reduce<NavItem[]>((acc, item) => {
-    if (item.items) {
-      const visibleSubs = item.items.filter((sub: NavSubItem) =>
-        isItemVisible(sub.adminOnly, sub.moduleKey, isAdmin, modules)
-      );
-      if (visibleSubs.length === 0) return acc;
-
-      // Atualiza URL do pai para o primeiro subitem visível
-      acc.push({ ...item, items: visibleSubs, url: visibleSubs[0]?.url ?? item.url });
-      return acc;
-    }
-
-    if (!isItemVisible(item.adminOnly, item.moduleKey, isAdmin, modules)) return acc;
-    acc.push(item);
-    return acc;
-  }, []);
-}
 
 export function AppSidebar({
   userName = 'Usuário',
@@ -95,8 +60,6 @@ export function AppSidebar({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const isAdmin = isSuperAdmin(userRole);
-
   const visibleNavItems = (() => {
     // Sem tenant: mantém comportamento original (exibe tudo, middleware já controla o acesso)
     if (!hasTenant) return navItems;
@@ -105,7 +68,7 @@ export function AppSidebar({
       (item) => !item.url.startsWith('/onboarding')
     );
 
-    return filterNavItems(withoutOnboarding, isAdmin, userModules);
+    return filterNavItems(withoutOnboarding, userRole, userModules);
   })();
 
   return (

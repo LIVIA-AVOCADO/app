@@ -545,6 +545,7 @@ export type Database = {
         Row: {
           channel_provider_id: string
           config_json: Json | null
+          connection_status: string
           created_at: string
           external_api_url: string | null
           id: string
@@ -564,6 +565,7 @@ export type Database = {
         Insert: {
           channel_provider_id: string
           config_json?: Json | null
+          connection_status?: string
           created_at?: string
           external_api_url?: string | null
           id?: string
@@ -583,6 +585,7 @@ export type Database = {
         Update: {
           channel_provider_id?: string
           config_json?: Json | null
+          connection_status?: string
           created_at?: string
           external_api_url?: string | null
           id?: string

@@ -1,6 +1,6 @@
 import { MessageSquare, BookOpen, Bot, BarChart3, Wallet, Settings, Rocket, Calendar } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { MODULE_KEYS, type ModuleKey } from '@/lib/permissions';
+import { MODULE_KEYS, type ModuleKey, isSuperAdmin, hasModule } from '@/lib/permissions';
 // MODULE_KEYS é a fonte de verdade — não há necessidade de seed no banco para novos módulos.
 
 /**
@@ -13,6 +13,7 @@ export interface NavSubItem {
   title: string;
   url: string;
   moduleKey?: ModuleKey;
+  anyModuleKey?: ModuleKey[];
   adminOnly?: boolean;
 }
 
@@ -28,6 +29,7 @@ export interface NavItem {
   icon: LucideIcon;
   badge?: string | number;
   moduleKey?: ModuleKey;
+  anyModuleKey?: ModuleKey[];
   adminOnly?: boolean;
   items?: NavSubItem[];
 }
@@ -95,6 +97,7 @@ export const navItems: NavItem[] = [
       { title: 'Controle da IA',           url: '/configuracoes/controle-ia',             moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Encerramento Automático',  url: '/configuracoes/encerramento-automatico', moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Horários do Agente',       url: '/configuracoes/horarios-agente',         moduleKey: MODULE_KEYS.HORARIOS_AGENTE },
+      { title: 'Conexões', url: '/configuracoes/conexoes', anyModuleKey: [MODULE_KEYS.CONEXOES, MODULE_KEYS.CONEXOES_VIEW] },
       { title: 'Gerenciar Usuários', url: '/gerenciar-usuarios',     moduleKey: MODULE_KEYS.GERENCIAR_USUARIOS },
     ],
   },
@@ -122,3 +125,41 @@ export const navItems: NavItem[] = [
     ],
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Helpers de visibilidade — usados pelo AppSidebar
+// ---------------------------------------------------------------------------
+
+export function isNavItemVisible(
+  adminOnly: boolean | undefined,
+  moduleKey: ModuleKey | undefined,
+  isAdmin: boolean,
+  modules: string[],
+  anyModuleKey?: ModuleKey[],
+): boolean {
+  if (adminOnly && !isAdmin) return false;
+  if (moduleKey && !isAdmin && !hasModule(modules, moduleKey)) return false;
+  if (anyModuleKey && !isAdmin && !anyModuleKey.some((k) => hasModule(modules, k))) return false;
+  return true;
+}
+
+export function filterNavItems(
+  items: NavItem[],
+  role: string,
+  modules: string[],
+): NavItem[] {
+  const isAdmin = isSuperAdmin(role);
+  return items.reduce<NavItem[]>((acc, item) => {
+    if (item.items) {
+      const visibleSubs = item.items.filter((sub: NavSubItem) =>
+        isNavItemVisible(sub.adminOnly, sub.moduleKey, isAdmin, modules, sub.anyModuleKey)
+      );
+      if (visibleSubs.length === 0) return acc;
+      acc.push({ ...item, items: visibleSubs, url: visibleSubs[0]?.url ?? item.url });
+      return acc;
+    }
+    if (!isNavItemVisible(item.adminOnly, item.moduleKey, isAdmin, modules, item.anyModuleKey)) return acc;
+    acc.push(item);
+    return acc;
+  }, []);
+}

@@ -70,6 +70,14 @@ export async function POST(request: NextRequest) {
         instanceName,
         integration: 'WHATSAPP-BAILEYS',
         qrcode: true,
+        webhook: process.env.NEXT_PUBLIC_APP_URL ? {
+          enabled: true,
+          url:     `${process.env.NEXT_PUBLIC_APP_URL}/api/configuracoes/conexoes/webhook`,
+          events:  ['CONNECTION_UPDATE'],
+          ...(process.env.EVOLUTION_WEBHOOK_SECRET
+            ? { headers: { 'x-webhook-token': process.env.EVOLUTION_WEBHOOK_SECRET } }
+            : {}),
+        } : undefined,
       }),
     });
 

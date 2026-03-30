@@ -30,6 +30,8 @@ export const MODULE_KEYS = {
   GERENCIAR_USUARIOS: 'gerenciar-usuarios',
   HORARIOS_AGENTE:    'horarios_agente',
   AGENDAMENTOS:       'agendamentos',
+  CONEXOES:           'conexoes',
+  CONEXOES_VIEW:      'conexoes-view',
 } as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS];
@@ -101,6 +103,16 @@ export const MODULES_CONFIG: ModuleConfig[] = [
     name:        'Agendamentos',
     description: 'Agendamento de clientes — multi-nicho (clínicas, ISP, laboratórios, etc.)',
   },
+  {
+    key:         MODULE_KEYS.CONEXOES,
+    name:        'Conexões',
+    description: 'Gerenciamento completo de conexões de API (reconectar, reiniciar, desconectar)',
+  },
+  {
+    key:         MODULE_KEYS.CONEXOES_VIEW,
+    name:        'Conexões (visualização)',
+    description: 'Visualização do status das conexões de API sem permissão para executar ações',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -113,6 +125,8 @@ export const MODULES_CONFIG: ModuleConfig[] = [
 interface RoutePermission {
   adminOnly?: boolean;
   moduleKey?: ModuleKey;
+  /** Passa se o usuário tiver QUALQUER um dos módulos listados. */
+  anyModuleKey?: ModuleKey[];
 }
 
 const ROUTE_PERMISSIONS: Array<{ pattern: string; permission: RoutePermission }> = [
@@ -127,6 +141,7 @@ const ROUTE_PERMISSIONS: Array<{ pattern: string; permission: RoutePermission }>
   { pattern: '/meus-agentes',       permission: { moduleKey: MODULE_KEYS.AGENTS } },
   { pattern: '/reativacao',         permission: { moduleKey: MODULE_KEYS.REATIVACAO } },
   { pattern: '/configuracoes/horarios-agente', permission: { moduleKey: MODULE_KEYS.HORARIOS_AGENTE } },
+  { pattern: '/configuracoes/conexoes',        permission: { anyModuleKey: [MODULE_KEYS.CONEXOES, MODULE_KEYS.CONEXOES_VIEW] } },
   { pattern: '/configuracoes',                permission: { moduleKey: MODULE_KEYS.CONFIGURACOES } },
   { pattern: '/agendamentos',                 permission: { moduleKey: MODULE_KEYS.AGENDAMENTOS } },
 ];
@@ -163,6 +178,7 @@ export function canAccessRoute(
   if (!permission) return true;
   if (permission.adminOnly) return false;
   if (permission.moduleKey && !hasModule(modules, permission.moduleKey)) return false;
+  if (permission.anyModuleKey && !permission.anyModuleKey.some((key) => hasModule(modules, key))) return false;
 
   return true;
 }
