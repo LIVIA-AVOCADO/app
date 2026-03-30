@@ -145,21 +145,20 @@ export async function connectInstance(instanceName: string): Promise<{ base64: s
  * POST /webhook/set/{name}
  *
  * Configura o webhook da instância apontando para o n8n first integrator.
- * URL montada a partir de N8N_BASE_URL + N8N_FIRST_INTEGRATOR_WEBHOOK.
- * Ativa base64, byEvents, MESSAGES_UPSERT e CONNECTION_UPDATE.
+ * REQUER env var EVOLUTION_INSTANCE_WEBHOOK_URL com a URL completa
+ * (ex: https://acesse.ligeiratelecom.com.br/webhook/dev_first_integrator_001_dev).
  *
- * Payload correto para Evolution v2: wrapper "webhook" com campos
- * byEvents e base64 (não webhook_by_events/webhook_base64).
+ * Payload Evolution v2: wrapper {webhook:{}} com campos byEvents e base64.
  */
 export async function configureInstanceWebhook(instanceName: string): Promise<void> {
-  // Usa URL completa via EVOLUTION_INSTANCE_WEBHOOK_URL (preferencial)
-  // ou monta a partir de N8N_BASE_URL + N8N_FIRST_INTEGRATOR_WEBHOOK
-  const webhookUrl =
-    process.env.EVOLUTION_INSTANCE_WEBHOOK_URL ||
-    ((process.env.N8N_BASE_URL ?? '') + (process.env.N8N_FIRST_INTEGRATOR_WEBHOOK ?? ''));
+  const webhookUrl = process.env.EVOLUTION_INSTANCE_WEBHOOK_URL;
 
-  if (!webhookUrl || !webhookUrl.startsWith('http')) {
-    console.error(`[evolution/configureWebhook] ${instanceName}: EVOLUTION_INSTANCE_WEBHOOK_URL não configurado ou inválido (valor: "${webhookUrl}")`);
+  if (!webhookUrl || !webhookUrl.includes('/webhook/')) {
+    console.error(
+      `[evolution/configureWebhook] ${instanceName}: EVOLUTION_INSTANCE_WEBHOOK_URL ausente ou inválida.` +
+      ` Valor atual: "${webhookUrl ?? '(não definido)'}".` +
+      ` Configure a URL completa do webhook n8n (deve conter /webhook/).`
+    );
     return;
   }
 
@@ -181,9 +180,9 @@ export async function configureInstanceWebhook(instanceName: string): Promise<vo
 
   if (!res.ok) {
     const text = await res.text();
-    console.error(`[evolution/configureWebhook] ${instanceName}: ${res.status} url=${webhookUrl}`, text);
+    console.error(`[evolution/configureWebhook] ${instanceName}: ${res.status}`, text);
   } else {
-    console.log(`[evolution/configureWebhook] ${instanceName}: webhook configurado → ${webhookUrl}`);
+    console.log(`[evolution/configureWebhook] ${instanceName}: webhook → ${webhookUrl}`);
   }
 }
 
