@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
-import { connectInstance } from '@/lib/evolution/client';
+import { connectInstance, configureInstanceWebhook, configureInstanceSettings } from '@/lib/evolution/client';
 import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
 
 const EVOLUTION_BASE = process.env.EVOLUTION_API_BASE_URL!;
@@ -81,17 +81,6 @@ export async function POST(request: NextRequest) {
   const instanceName = `livia-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
 
   // Cria instância na Evolution
-  const webhookPayload = process.env.NEXT_PUBLIC_APP_URL
-    ? {
-        enabled: true,
-        url:     `${process.env.NEXT_PUBLIC_APP_URL}/api/configuracoes/conexoes/webhook`,
-        events:  ['CONNECTION_UPDATE'],
-        ...(process.env.EVOLUTION_WEBHOOK_SECRET
-          ? { headers: { 'x-webhook-token': process.env.EVOLUTION_WEBHOOK_SECRET } }
-          : {}),
-      }
-    : undefined;
-
   const evolRes = await fetch(`${EVOLUTION_BASE}/instance/create`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', apikey: EVOLUTION_KEY },
@@ -99,7 +88,6 @@ export async function POST(request: NextRequest) {
       instanceName,
       integration: 'WHATSAPP-BAILEYS',
       qrcode:      true,
-      ...(webhookPayload ? { webhook: webhookPayload } : {}),
     }),
   });
 
@@ -108,6 +96,13 @@ export async function POST(request: NextRequest) {
     console.error('[conexoes/create] evolution error:', evolRes.status, text);
     return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
   }
+
+  // Aplica configurações padrão LIVIA na instância recém-criada
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+  await Promise.all([
+    configureInstanceWebhook(instanceName, appUrl),
+    configureInstanceSettings(instanceName),
+  ]);
 
   // Insere canal no banco
   const { data: channel, error: insertError } = await admin

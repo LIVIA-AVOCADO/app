@@ -124,3 +124,70 @@ export async function connectInstance(instanceName: string): Promise<{ base64: s
   if (!res.ok) throw new Error(`Evolution connect error: ${res.status}`);
   return res.json() as Promise<{ base64: string; pairingCode?: string }>;
 }
+
+/**
+ * POST /webhook/set/{name}
+ *
+ * Configura o webhook da instância com base64 e byEvents habilitados.
+ * A URL aponta sempre para /api/configuracoes/conexoes/webhook do app.
+ */
+export async function configureInstanceWebhook(instanceName: string, appUrl: string): Promise<void> {
+  const webhookUrl = `${appUrl}/api/configuracoes/conexoes/webhook`;
+  const secret = process.env.EVOLUTION_WEBHOOK_SECRET;
+
+  const payload: Record<string, unknown> = {
+    enabled:         true,
+    url:             webhookUrl,
+    webhook_by_events: true,
+    webhook_base64:  true,
+    events:          ['CONNECTION_UPDATE'],
+  };
+
+  if (secret) {
+    payload.headers = { 'x-webhook-token': secret };
+  }
+
+  const res = await fetch(`${BASE}/webhook/set/${encodeURIComponent(instanceName)}`, {
+    method:  'POST',
+    headers: headers(),
+    body:    JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`[evolution/configureWebhook] ${instanceName}: ${res.status}`, text);
+  }
+}
+
+/**
+ * POST /settings/set/{name}
+ *
+ * Aplica as configurações padrão LIVIA na instância:
+ * - Rejeitar chamadas + mensagem de resposta
+ * - Ignorar grupos
+ * - Não marcar como online permanente
+ * - Não marcar mensagens/status como lidos automaticamente
+ * - Não sincronizar histórico completo
+ */
+export async function configureInstanceSettings(instanceName: string): Promise<void> {
+  const payload = {
+    rejectCall:      true,
+    msgCall:         'No momento só consigo falar por mensagens...',
+    groupsIgnore:    true,
+    alwaysOnline:    false,
+    readMessages:    false,
+    readStatus:      false,
+    syncFullHistory: false,
+  };
+
+  const res = await fetch(`${BASE}/settings/set/${encodeURIComponent(instanceName)}`, {
+    method:  'POST',
+    headers: headers(),
+    body:    JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`[evolution/configureSettings] ${instanceName}: ${res.status}`, text);
+  }
+}
