@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
       provider_external_channel_id: instanceName,
       identification_number:        '',
       connection_status:            'connecting',
+      config_json:                  { instance: instanceName },
       is_active:                    true,
       is_receiving_messages:        true,
       is_sending_messages:          true,

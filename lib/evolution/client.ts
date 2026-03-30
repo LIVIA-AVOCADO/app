@@ -131,18 +131,28 @@ export async function connectInstance(instanceName: string): Promise<{ base64: s
  * Configura o webhook da instância apontando para o n8n first integrator.
  * URL montada a partir de N8N_BASE_URL + N8N_FIRST_INTEGRATOR_WEBHOOK.
  * Ativa base64, byEvents, MESSAGES_UPSERT e CONNECTION_UPDATE.
+ *
+ * Payload correto para Evolution v2: wrapper "webhook" com campos
+ * byEvents e base64 (não webhook_by_events/webhook_base64).
  */
 export async function configureInstanceWebhook(instanceName: string): Promise<void> {
   const n8nBase    = process.env.N8N_BASE_URL ?? '';
   const n8nPath    = process.env.N8N_FIRST_INTEGRATOR_WEBHOOK ?? '';
   const webhookUrl = `${n8nBase}${n8nPath}`;
 
+  if (!webhookUrl || webhookUrl === '/') {
+    console.error(`[evolution/configureWebhook] ${instanceName}: N8N_BASE_URL ou N8N_FIRST_INTEGRATOR_WEBHOOK não configurados`);
+    return;
+  }
+
   const payload = {
-    enabled:           true,
-    url:               webhookUrl,
-    webhook_by_events: true,
-    webhook_base64:    true,
-    events:            ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+    webhook: {
+      enabled:  true,
+      url:      webhookUrl,
+      byEvents: true,
+      base64:   true,
+      events:   ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+    },
   };
 
   const res = await fetch(`${BASE}/webhook/set/${encodeURIComponent(instanceName)}`, {
@@ -153,7 +163,9 @@ export async function configureInstanceWebhook(instanceName: string): Promise<vo
 
   if (!res.ok) {
     const text = await res.text();
-    console.error(`[evolution/configureWebhook] ${instanceName}: ${res.status}`, text);
+    console.error(`[evolution/configureWebhook] ${instanceName}: ${res.status} url=${webhookUrl}`, text);
+  } else {
+    console.log(`[evolution/configureWebhook] ${instanceName}: webhook configurado → ${webhookUrl}`);
   }
 }
 

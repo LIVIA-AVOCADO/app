@@ -68,17 +68,20 @@ export async function GET(request: NextRequest) {
     const profileName      = info?.instance.profileName ?? null;
     const profilePictureUrl = info?.instance.profilePictureUrl ?? null;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7437/ingest/2b721602-2047-4888-9293-28aef6765ae7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6eb864'},body:JSON.stringify({sessionId:'6eb864',location:'status/route.ts:after-fetch',message:'status fetch results',data:{instanceName,rawState,connectionStatus,dbStatus:channel.connection_status,dbIdNumber:channel.identification_number,owner,profileName,instanceInfoStatus:instanceInfo.status,stateResStatus:stateRes.status,rawInfo:info},timestamp:Date.now(),hypothesisId:'H-A,H-B,H-C,H-D'})}).catch(()=>{});
-    // #endregion
+    // Sincroniza DB:
+    // - sempre que status muda
+    // - ou quando identification_number está vazio mas owner já está disponível
+    const ownerClean = owner ? owner.split(':')[0] : null;
+    const needsStatusUpdate   = channel.connection_status !== connectionStatus;
+    const needsNumberUpdate   = ownerClean && !channel.identification_number;
 
-    // Sincroniza DB se o status mudou
-    if (channel.connection_status !== connectionStatus) {
+    if (needsStatusUpdate || needsNumberUpdate) {
       await admin
         .from('channels')
         .update({
-          connection_status: connectionStatus,
-          ...(owner ? { identification_number: owner } : {}),
+          ...(needsStatusUpdate ? { connection_status: connectionStatus } : {}),
+          ...(ownerClean ? { identification_number: ownerClean } : {}),
+          ...(connectionStatus === 'disconnected' ? { identification_number: '' } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('id', channel.id);
