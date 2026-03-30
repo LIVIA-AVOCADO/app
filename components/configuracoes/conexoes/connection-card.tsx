@@ -1,14 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { RefreshCw, Power, RotateCcw, Wifi } from 'lucide-react';
+import { RefreshCw, Power, RotateCcw, Wifi, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ConnectionStatusBadge } from './connection-status-badge';
 import { DisconnectConfirmDialog } from './disconnect-confirm-dialog';
 import { ReconnectDialog } from './reconnect-dialog';
+import { DeleteInstanceDialog } from './delete-instance-dialog';
 import { useChannelRealtime } from '@/lib/hooks/use-channel-realtime';
+import { useRouter } from 'next/navigation';
 
 export interface ChannelData {
   id:               string;
@@ -26,16 +28,18 @@ interface ConnectionCardProps {
 }
 
 export function ConnectionCard({ channel, canAct }: ConnectionCardProps) {
+  const router = useRouter();
   const { status, setStatus } = useChannelRealtime(channel.id, {
     connectionStatus: channel.connectionStatus,
     phoneNumber:      channel.phoneNumber,
   });
 
-  const [refreshing,         setRefreshing]         = useState(false);
-  const [restarting,         setRestarting]          = useState(false);
-  const [disconnecting,      setDisconnecting]       = useState(false);
-  const [showDisconnectDlg,  setShowDisconnectDlg]   = useState(false);
-  const [showReconnectDlg,   setShowReconnectDlg]    = useState(false);
+  const [refreshing,        setRefreshing]       = useState(false);
+  const [restarting,        setRestarting]       = useState(false);
+  const [disconnecting,     setDisconnecting]    = useState(false);
+  const [showDisconnectDlg, setShowDisconnectDlg] = useState(false);
+  const [showReconnectDlg,  setShowReconnectDlg]  = useState(false);
+  const [showDeleteDlg,     setShowDeleteDlg]     = useState(false);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -93,6 +97,12 @@ export function ConnectionCard({ channel, canAct }: ConnectionCardProps) {
   const isConnected    = status.connectionStatus === 'connected';
   const isDisconnected = status.connectionStatus === 'disconnected';
   const isBusy         = refreshing || restarting || disconnecting;
+
+  function handleDeleted() {
+    setShowDeleteDlg(false);
+    toast.success(`Canal "${channel.name}" deletado`);
+    router.refresh();
+  }
 
   return (
     <>
@@ -188,6 +198,19 @@ export function ConnectionCard({ channel, canAct }: ConnectionCardProps) {
                 Conectar número
               </Button>
             )}
+
+            {canAct && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isBusy}
+                onClick={() => setShowDeleteDlg(true)}
+                className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 ml-auto"
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Deletar
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -205,6 +228,14 @@ export function ConnectionCard({ channel, canAct }: ConnectionCardProps) {
         instanceName={channel.instanceName}
         onConnected={handleConnected}
         onClose={() => setShowReconnectDlg(false)}
+      />
+
+      <DeleteInstanceDialog
+        open={showDeleteDlg}
+        channelId={channel.id}
+        channelName={channel.name}
+        onDeleted={handleDeleted}
+        onCancel={() => setShowDeleteDlg(false)}
       />
     </>
   );
