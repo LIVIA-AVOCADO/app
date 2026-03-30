@@ -1,18 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { PlusCircle, Wifi } from 'lucide-react';
+import { PlusCircle, Wifi, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ConnectionCard, type ChannelData } from './connection-card';
 import { AddChannelDialog } from './add-channel-dialog';
+import { AddMetaChannelDialog } from './add-meta-channel-dialog';
 
 interface ConnectionManagerProps {
   channels: ChannelData[];
   canAct:   boolean;
 }
 
+type ProviderPick = 'evolution' | 'meta';
+
 export function ConnectionManager({ channels, canAct }: ConnectionManagerProps) {
-  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addProvider, setAddProvider] = useState<ProviderPick | null>(null);
 
   return (
     <>
@@ -20,10 +29,25 @@ export function ConnectionManager({ channels, canAct }: ConnectionManagerProps) 
         {/* Header com botão de adicionar */}
         {canAct && (
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setShowAddDialog(true)}>
-              <PlusCircle className="h-4 w-4 mr-1.5" />
-              Adicionar canal
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm">
+                  <PlusCircle className="h-4 w-4 mr-1.5" />
+                  Adicionar canal
+                  <ChevronDown className="h-4 w-4 ml-1.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setAddProvider('evolution')}>
+                  <span className="font-medium">WhatsApp (Evolution API)</span>
+                  <span className="block text-xs text-zinc-500">Conexão via QR code</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAddProvider('meta')}>
+                  <span className="font-medium">WhatsApp (Meta Oficial)</span>
+                  <span className="block text-xs text-zinc-500">Conexão via credenciais Meta</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
 
@@ -51,9 +75,15 @@ export function ConnectionManager({ channels, canAct }: ConnectionManagerProps) 
         )}
       </div>
 
+      {/* Dialogs */}
       <AddChannelDialog
-        open={showAddDialog}
-        onClose={() => setShowAddDialog(false)}
+        open={addProvider === 'evolution'}
+        onClose={() => setAddProvider(null)}
+      />
+
+      <AddMetaChannelDialog
+        open={addProvider === 'meta'}
+        onClose={() => setAddProvider(null)}
       />
     </>
   );

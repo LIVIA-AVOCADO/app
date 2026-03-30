@@ -23,6 +23,13 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient();
   const channelId = new URL(request.url).searchParams.get('channelId');
 
+  // Resolve o channel_provider_id do provedor Meta para excluí-lo desta rota
+  const { data: metaProvider } = await admin
+    .from('channel_providers')
+    .select('id')
+    .eq('channel_provider_identifier_code', 'meta_oficial_whatsapp')
+    .maybeSingle();
+
   let query = admin
     .from('channels')
     .select('id, name, provider_external_channel_id, identification_number, connection_status, config_json')
@@ -31,6 +38,9 @@ export async function GET(request: NextRequest) {
     .not('provider_external_channel_id', 'is', null);
 
   if (channelId) query = query.eq('id', channelId);
+
+  // Exclui canais Meta desta rota (eles têm endpoint próprio: /meta/status)
+  if (metaProvider?.id) query = query.neq('channel_provider_id', metaProvider.id);
 
   // Busca o canal Evolution do tenant
   const { data: channel, error } = await query.limit(1).maybeSingle();

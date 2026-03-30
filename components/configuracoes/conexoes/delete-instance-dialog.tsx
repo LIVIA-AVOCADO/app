@@ -14,17 +14,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 interface DeleteInstanceDialogProps {
-  open:        boolean;
-  channelId:   string;
-  channelName: string;
-  onDeleted:   () => void;
-  onCancel:    () => void;
+  open:         boolean;
+  channelId:    string;
+  channelName:  string;
+  providerType?: 'evolution' | 'meta' | 'unknown';
+  onDeleted:    () => void;
+  onCancel:     () => void;
 }
 
 export function DeleteInstanceDialog({
   open,
   channelId,
   channelName,
+  providerType = 'evolution',
   onDeleted,
   onCancel,
 }: DeleteInstanceDialogProps) {
@@ -40,7 +42,11 @@ export function DeleteInstanceDialog({
     setError(null);
 
     try {
-      const res  = await fetch('/api/configuracoes/conexoes/delete', {
+      const endpoint = providerType === 'meta'
+        ? '/api/configuracoes/conexoes/meta/delete'
+        : '/api/configuracoes/conexoes/delete';
+
+      const res  = await fetch(endpoint, {
         method:  'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ channelId }),
@@ -72,8 +78,8 @@ export function DeleteInstanceDialog({
           </DialogTitle>
           <DialogDescription className="space-y-2 pt-1">
             <span className="block">
-              Esta ação é <strong>irreversível</strong>. A instância será removida da
-              Evolution API e o canal desativado permanentemente.
+              Esta ação é <strong>irreversível</strong>. O canal será desativado permanentemente.
+              {providerType !== 'meta' && ' A instância também será removida da Evolution API.'}
             </span>
             <span className="block text-zinc-500">
               O histórico de conversas será preservado mas o canal não poderá mais
