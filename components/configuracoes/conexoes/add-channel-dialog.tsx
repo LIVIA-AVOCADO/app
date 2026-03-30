@@ -28,7 +28,6 @@ export function AddChannelDialog({ open, onClose }: AddChannelDialogProps) {
   const [step,        setStep]        = useState<Step>('form');
   const [channelName, setChannelName] = useState('');
   const [channelId,   setChannelId]   = useState<string | null>(null);
-  const [instanceName, setInstanceName] = useState<string | null>(null);
   const [qrBase64,    setQrBase64]    = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
@@ -48,7 +47,6 @@ export function AddChannelDialog({ open, onClose }: AddChannelDialogProps) {
       setStep('form');
       setChannelName('');
       setChannelId(null);
-      setInstanceName(null);
       setQrBase64(null);
       setPairingCode(null);
       setErrorMsg(null);
@@ -65,7 +63,7 @@ export function AddChannelDialog({ open, onClose }: AddChannelDialogProps) {
     }
   }, []);
 
-  const startPolling = useCallback((chId: string) => {
+  const startPolling = useCallback((chId: string, instName: string) => {
     clearTimers();
 
     pollingRef.current = setInterval(async () => {
@@ -80,11 +78,9 @@ export function AddChannelDialog({ open, onClose }: AddChannelDialogProps) {
     }, 3000);
 
     qrRefreshRef.current = setInterval(async () => {
-      if (instanceName) {
-        try { await fetchQr(instanceName); } catch { /* silencioso */ }
-      }
+      try { await fetchQr(instName); } catch { /* silencioso */ }
     }, 18000);
-  }, [instanceName, fetchQr]);
+  }, [fetchQr]);
 
   async function handleCreate() {
     if (!channelName.trim()) return;
@@ -107,11 +103,10 @@ export function AddChannelDialog({ open, onClose }: AddChannelDialogProps) {
       if (!res.ok) throw new Error(data.error ?? 'Erro ao criar canal');
 
       setChannelId(data.channelId!);
-      setInstanceName(data.instanceName!);
       setQrBase64(data.base64 ?? null);
       setPairingCode(data.pairingCode ?? null);
       setStep('qr_ready');
-      startPolling(data.channelId!);
+      startPolling(data.channelId!, data.instanceName!);
     } catch (err) {
       setErrorMsg(String(err));
       setStep('error');

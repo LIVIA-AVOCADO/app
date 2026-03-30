@@ -34,6 +34,15 @@ export interface EvolutionInstanceInfo {
   };
 }
 
+// Formato real retornado pela Evolution v2 em /instance/fetchInstances
+interface RawFetchInstance {
+  name: string;
+  ownerJid?: string;
+  profileName?: string;
+  profilePicUrl?: string;
+  connectionStatus?: string;
+}
+
 interface RawInstance { name: string; token?: string; }
 
 /**
@@ -62,18 +71,31 @@ export async function getConnectionState(instanceName: string): Promise<Evolutio
     headers: headers(),
   });
   if (!res.ok) throw new Error(`Evolution connectionState error: ${res.status}`);
-  return res.json() as Promise<EvolutionStateResponse>;
+  // Evolution v2 pode retornar { instance: { state } } ou { state } no nível raiz
+  const data = await res.json() as { instance?: { state?: string }; state?: string };
+  const state = (data?.instance?.state ?? data?.state ?? 'close') as EvolutionConnectionState;
+  return { instance: { instanceName, state } };
 }
 
-/** GET /instance/fetchInstances/{name} — detalhes do perfil conectado */
+/** GET /instance/fetchInstances?instanceName={name} — detalhes do perfil conectado */
 export async function fetchInstance(instanceName: string): Promise<EvolutionInstanceInfo | null> {
   const res = await fetch(`${BASE}/instance/fetchInstances?instanceName=${instanceName}`, {
     headers: headers(),
   });
   if (!res.ok) return null;
-  const data = await res.json() as EvolutionInstanceInfo[] | EvolutionInstanceInfo;
+  const data = await res.json() as RawFetchInstance[] | RawFetchInstance;
   const list = Array.isArray(data) ? data : [data];
-  return list[0] ?? null;
+  const raw = list[0];
+  if (!raw) return null;
+  return {
+    instance: {
+      instanceName: raw.name ?? instanceName,
+      owner:              raw.ownerJid?.split('@')[0],
+      profileName:        raw.profileName,
+      profilePictureUrl:  raw.profilePicUrl,
+      connectionStatus:   (raw.connectionStatus ?? 'close') as EvolutionConnectionState,
+    },
+  };
 }
 
 /** POST /instance/restart/{name} */
