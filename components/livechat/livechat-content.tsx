@@ -162,7 +162,7 @@ export function LivechatContent({
   return (
     <div className="flex h-full overflow-hidden bg-background">
       {/* Coluna esquerda: lista de conversas — superfície elevada sobre o canvas */}
-      <aside className="w-96 border-r border-border flex flex-col h-full bg-card">
+      <aside className="w-72 lg:w-80 xl:w-96 border-r border-border flex flex-col h-full bg-card">
         <div className="p-4 border-b border-border flex-shrink-0">
           <h2 className="text-lg font-semibold">Conversas</h2>
           <p className="text-sm text-on-surface-variant">
@@ -233,7 +233,7 @@ export function LivechatContent({
 
       {/* Coluna direita: painel fixado (modo pinned) */}
       {activeConversation && isPanelPinned && (
-        <aside className="w-80 border-l flex flex-col h-full overflow-hidden shrink-0 bg-card">
+        <aside className="w-64 lg:w-72 xl:w-80 border-l flex flex-col h-full overflow-hidden shrink-0 bg-card">
           <CustomerDataPanel
             contactId={activeConversation.contact.id}
             tenantId={tenantId}
@@ -246,7 +246,7 @@ export function LivechatContent({
       {/* Sheet: painel sob demanda (modo não fixado) */}
       {activeConversation && (
         <Sheet open={isPanelOpen && !isPanelPinned} onOpenChange={setIsPanelOpen}>
-          <SheetContent side="right" className="w-80 p-0 flex flex-col">
+          <SheetContent side="right" className="w-72 xl:w-80 p-0 flex flex-col">
             <SheetTitle className="sr-only">Dados do cliente</SheetTitle>
             <CustomerDataPanel
               contactId={activeConversation.contact.id}

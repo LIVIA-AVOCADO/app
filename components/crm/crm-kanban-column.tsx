@@ -76,7 +76,7 @@ export function CRMKanbanColumn({
       </div>
 
       {/* Body da coluna - Scrollable */}
-      <div className="scrollbar-themed flex-1 overflow-y-auto p-3 space-y-3 scroll-smooth max-h-[calc(100vh-280px)]">
+      <div className="scrollbar-themed flex-1 overflow-y-auto p-3 space-y-3 scroll-smooth max-h-[calc(100dvh-280px)]">
         {count === 0 ? (
           <div className="text-center py-8 text-on-surface-variant">
             <p className="text-sm">📭</p>

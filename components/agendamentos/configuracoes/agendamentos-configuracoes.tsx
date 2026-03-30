@@ -157,6 +157,7 @@ function ServicosTab({ tenantId, initialServices }: { tenantId: string; initialS
       {services.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Nenhum serviço cadastrado.</p>
       ) : (
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -197,11 +198,12 @@ function ServicosTab({ tenantId, initialServices }: { tenantId: string; initialS
             ))}
           </TableBody>
         </Table>
+        </div>
       )}
 
       {/* Dialog criar/editar */}
       <Dialog open={dialogOpen} onOpenChange={(o) => !saving && setDialogOpen(o)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar serviço' : 'Novo serviço'}</DialogTitle>
           </DialogHeader>
@@ -369,6 +371,7 @@ function RecursosTab({ tenantId, initialResources, units }: { tenantId: string; 
       {resources.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Nenhum recurso cadastrado.</p>
       ) : (
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -404,10 +407,11 @@ function RecursosTab({ tenantId, initialResources, units }: { tenantId: string; 
             ))}
           </TableBody>
         </Table>
+        </div>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={(o) => !saving && setDialogOpen(o)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar recurso' : 'Novo recurso'}</DialogTitle>
           </DialogHeader>
@@ -564,6 +568,7 @@ function UnidadesTab({ tenantId, initialUnits }: { tenantId: string; initialUnit
       {units.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma unidade cadastrada.</p>
       ) : (
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -595,10 +600,11 @@ function UnidadesTab({ tenantId, initialUnits }: { tenantId: string; initialUnit
             ))}
           </TableBody>
         </Table>
+        </div>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={(o) => !saving && setDialogOpen(o)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar unidade' : 'Nova unidade'}</DialogTitle>
           </DialogHeader>

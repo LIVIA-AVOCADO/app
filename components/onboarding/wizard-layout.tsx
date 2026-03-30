@@ -129,7 +129,7 @@ export function WizardLayout({ session }: WizardLayoutProps) {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 lg:block">
+        <aside className="hidden w-56 shrink-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 md:block lg:w-64">
           <WizardSidebar
             steps={steps}
             currentIndex={currentIndex}

@@ -23,7 +23,7 @@ export default async function NovoAgendamentoPage() {
   const tenantId = (userData as any)?.tenant_id as string | undefined;
   if (!tenantId) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full">
         <p className="text-destructive">Erro: Usuário sem tenant associado</p>
       </div>
     );

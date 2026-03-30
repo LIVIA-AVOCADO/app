@@ -16,7 +16,7 @@ export default function TagsError({
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen gap-4">
+    <div className="flex flex-col items-center justify-center h-full gap-4">
       <AlertCircle className="h-16 w-16 text-destructive" />
       <h2 className="text-2xl font-bold">Erro ao carregar tags</h2>
       <p className="text-muted-foreground">{error.message}</p>

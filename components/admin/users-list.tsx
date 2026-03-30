@@ -66,7 +66,7 @@ function EditModulesDialog({ user, featureModules, open, onClose, onSaved }: Edi
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Editar acesso de {user.full_name}</DialogTitle>
           <DialogDescription>

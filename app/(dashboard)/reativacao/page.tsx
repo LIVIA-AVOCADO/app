@@ -32,7 +32,7 @@ export default async function ReativacaoPage() {
 
   if (!tenantId) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full">
         <p className="text-destructive">Erro: Usuario sem tenant associado</p>
       </div>
     );

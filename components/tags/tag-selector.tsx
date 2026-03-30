@@ -45,6 +45,9 @@ interface TagSelectorProps {
 
   // ID do tenant (apenas para modo assign)
   tenantId?: string;
+
+  // Lado do popover (útil quando o trigger fica próximo à borda da tela)
+  popoverSide?: 'top' | 'right' | 'bottom' | 'left';
 }
 
 export function TagSelector({
@@ -57,6 +60,7 @@ export function TagSelector({
   placeholder,
   conversationId,
   tenantId,
+  popoverSide = 'bottom',
 }: TagSelectorProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -263,7 +267,13 @@ export function TagSelector({
         </div>
       </PopoverTrigger>
 
-      <PopoverContent className="w-80 p-0" align="start">
+      <PopoverContent
+        className="w-80 p-0"
+        align="start"
+        side={popoverSide}
+        sideOffset={8}
+        collisionPadding={8}
+      >
         <div className="p-3 border-b">
           <h4 className="font-semibold text-sm">
             {mode === 'assign' ? 'Tags Disponíveis' : 'Filtrar por Tags'}
@@ -275,7 +285,7 @@ export function TagSelector({
           </p>
         </div>
 
-        <ScrollArea className="h-[400px]">
+        <ScrollArea className="max-h-[400px]">
           <div className="p-3 space-y-4">
             {/* Seção: Intenção */}
             <TagTypeSection

@@ -297,6 +297,7 @@ export function ContactList({
               availableTags={allTags}
               onTagToggle={handleTagToggle}
               placeholder="Filtrar por tags"
+              popoverSide="right"
             />
           </div>
         )}

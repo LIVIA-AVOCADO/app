@@ -120,6 +120,7 @@ export function UsageByProviderTable({
         <CardDescription>Detalhamento por provider e modelo</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -171,6 +172,7 @@ export function UsageByProviderTable({
             })}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
     </Card>
   );

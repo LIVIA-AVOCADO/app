@@ -181,9 +181,9 @@ export function ConversationHeader({
   const iaDisabled = conversation.status === 'closed';
 
   return (
-    <div className="p-4 border-b">
+    <div className="p-3 border-b">
       {/* Linha 1: Nome + canal (esquerda) | Status + IA + ações (direita) */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         {/* Esquerda: nome + canal */}
         <div className="flex items-center gap-2 min-w-0">
           <h2 className="text-lg font-semibold truncate">{displayName}</h2>
