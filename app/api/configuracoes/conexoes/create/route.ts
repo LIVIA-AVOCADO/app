@@ -59,12 +59,13 @@ export async function POST(request: NextRequest) {
   }
 
   if (!channelProviderId) {
-    // Fallback: usa o provider do primeiro canal ativo do tenant
+    // Fallback: usa o provider de qualquer canal do tenant (ativo ou não),
+    // pois channel_provider_id é atributo do provedor, não do status do canal
     const { data: existing } = await admin
       .from('channels')
       .select('channel_provider_id')
       .eq('tenant_id', auth.tenantId)
-      .eq('is_active', true)
+      .not('channel_provider_id', 'is', null)
       .limit(1)
       .maybeSingle();
     channelProviderId = existing?.channel_provider_id ?? null;
@@ -98,9 +99,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Aplica configurações padrão LIVIA na instância recém-criada
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
   await Promise.all([
-    configureInstanceWebhook(instanceName, appUrl),
+    configureInstanceWebhook(instanceName),
     configureInstanceSettings(instanceName),
   ]);
 

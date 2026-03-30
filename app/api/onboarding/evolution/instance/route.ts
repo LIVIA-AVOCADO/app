@@ -82,9 +82,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Aplica configurações padrão LIVIA na instância recém-criada
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
     await Promise.all([
-      configureInstanceWebhook(instanceName, appUrl),
+      configureInstanceWebhook(instanceName),
       configureInstanceSettings(instanceName),
     ]);
 

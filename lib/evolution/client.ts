@@ -128,24 +128,22 @@ export async function connectInstance(instanceName: string): Promise<{ base64: s
 /**
  * POST /webhook/set/{name}
  *
- * Configura o webhook da instância com base64 e byEvents habilitados.
- * A URL aponta sempre para /api/configuracoes/conexoes/webhook do app.
+ * Configura o webhook da instância apontando para o n8n first integrator.
+ * URL montada a partir de N8N_BASE_URL + N8N_FIRST_INTEGRATOR_WEBHOOK.
+ * Ativa base64, byEvents, MESSAGES_UPSERT e CONNECTION_UPDATE.
  */
-export async function configureInstanceWebhook(instanceName: string, appUrl: string): Promise<void> {
-  const webhookUrl = `${appUrl}/api/configuracoes/conexoes/webhook`;
-  const secret = process.env.EVOLUTION_WEBHOOK_SECRET;
+export async function configureInstanceWebhook(instanceName: string): Promise<void> {
+  const n8nBase    = process.env.N8N_BASE_URL ?? '';
+  const n8nPath    = process.env.N8N_FIRST_INTEGRATOR_WEBHOOK ?? '';
+  const webhookUrl = `${n8nBase}${n8nPath}`;
 
-  const payload: Record<string, unknown> = {
-    enabled:         true,
-    url:             webhookUrl,
+  const payload = {
+    enabled:           true,
+    url:               webhookUrl,
     webhook_by_events: true,
-    webhook_base64:  true,
-    events:          ['CONNECTION_UPDATE'],
+    webhook_base64:    true,
+    events:            ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
   };
-
-  if (secret) {
-    payload.headers = { 'x-webhook-token': secret };
-  }
 
   const res = await fetch(`${BASE}/webhook/set/${encodeURIComponent(instanceName)}`, {
     method:  'POST',
