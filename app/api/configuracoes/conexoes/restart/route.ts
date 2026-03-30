@@ -10,7 +10,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
-import { restartInstance } from '@/lib/evolution/client';
+import { restartInstance, resolveInstanceName } from '@/lib/evolution/client';
 import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
 
 export async function POST() {
@@ -36,7 +36,7 @@ export async function POST() {
     return NextResponse.json({ error: 'Canal não encontrado' }, { status: 404 });
   }
 
-  const instanceName = channel.provider_external_channel_id as string;
+  const instanceName = await resolveInstanceName(channel.provider_external_channel_id as string);
 
   try {
     await restartInstance(instanceName);

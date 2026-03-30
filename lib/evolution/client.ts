@@ -34,6 +34,28 @@ export interface EvolutionInstanceInfo {
   };
 }
 
+interface RawInstance { name: string; token?: string; }
+
+/**
+ * Resolve o nome real da instância na Evolution.
+ * O DB pode armazenar o token legado (ex: "DF95B747EA0F-...") em vez do nome
+ * ("Sergio_teste"). Tenta o valor direto primeiro; se 404, busca pelo token.
+ */
+export async function resolveInstanceName(nameOrToken: string): Promise<string> {
+  // Testa se já é um nome válido
+  const probe = await fetch(`${BASE}/instance/connectionState/${encodeURIComponent(nameOrToken)}`, {
+    headers: headers(),
+  });
+  if (probe.ok) return nameOrToken;
+
+  // Fallback: busca todas e acha pelo token
+  const all = await fetch(`${BASE}/instance/fetchInstances`, { headers: headers() });
+  if (!all.ok) return nameOrToken; // retorna o original se tudo falhar
+  const list = await all.json() as RawInstance[];
+  const match = list.find((i) => i.token === nameOrToken || i.name === nameOrToken);
+  return match?.name ?? nameOrToken;
+}
+
 /** GET /instance/connectionState/{name} */
 export async function getConnectionState(instanceName: string): Promise<EvolutionStateResponse> {
   const res = await fetch(`${BASE}/instance/connectionState/${instanceName}`, {
