@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, RefreshCw, CheckCircle2, Smartphone } from 'lucide-react';
+import { Loader2, RefreshCw, CheckCircle2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { QrCodeDisplay } from './qr-code-display';
 
 interface ReconnectDialogProps {
   open:         boolean;
@@ -137,39 +138,7 @@ export function ReconnectDialog({
           )}
 
           {state === 'qr_ready' && (
-            <>
-              <div className="flex items-center gap-2 text-sm text-zinc-500">
-                <Smartphone className="h-4 w-4" />
-                <span>WhatsApp → Dispositivos conectados → Conectar</span>
-              </div>
-
-              {qrBase64 && (
-                <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white p-4 shadow-sm">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={qrBase64}
-                    alt="QR Code WhatsApp"
-                    width={200}
-                    height={200}
-                    className="rounded-lg"
-                  />
-                </div>
-              )}
-
-              {pairingCode && (
-                <div className="text-center">
-                  <p className="text-xs text-zinc-400 mb-1">Código de pareamento:</p>
-                  <p className="font-mono text-xl font-bold tracking-[0.25em] text-zinc-800 dark:text-zinc-200">
-                    {pairingCode}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Aguardando conexão...
-              </div>
-            </>
+            <QrCodeDisplay base64={qrBase64} pairingCode={pairingCode} />
           )}
         </div>
       </DialogContent>
