@@ -36,6 +36,7 @@ export interface EvolutionInstanceInfo {
 
 // Formato real retornado pela Evolution v2 em /instance/fetchInstances
 interface RawFetchInstance {
+  id?: string;
   name: string;
   ownerJid?: string;
   profileName?: string;
@@ -98,6 +99,21 @@ export async function fetchInstance(instanceName: string): Promise<EvolutionInst
   };
 }
 
+/**
+ * GET /instance/fetchInstances?instanceName={name}
+ * Retorna o UUID interno (id) da instância na Evolution.
+ * Necessário para salvar em config_json.instance.
+ */
+export async function fetchInstanceId(instanceName: string): Promise<string | null> {
+  const res = await fetch(`${BASE}/instance/fetchInstances?instanceName=${encodeURIComponent(instanceName)}`, {
+    headers: headers(),
+  });
+  if (!res.ok) return null;
+  const data = await res.json() as RawFetchInstance[] | RawFetchInstance;
+  const list = Array.isArray(data) ? data : [data];
+  return list[0]?.id ?? null;
+}
+
 /** POST /instance/restart/{name} */
 export async function restartInstance(instanceName: string): Promise<void> {
   const res = await fetch(`${BASE}/instance/restart/${instanceName}`, {
@@ -136,12 +152,14 @@ export async function connectInstance(instanceName: string): Promise<{ base64: s
  * byEvents e base64 (não webhook_by_events/webhook_base64).
  */
 export async function configureInstanceWebhook(instanceName: string): Promise<void> {
-  const n8nBase    = process.env.N8N_BASE_URL ?? '';
-  const n8nPath    = process.env.N8N_FIRST_INTEGRATOR_WEBHOOK ?? '';
-  const webhookUrl = `${n8nBase}${n8nPath}`;
+  // Usa URL completa via EVOLUTION_INSTANCE_WEBHOOK_URL (preferencial)
+  // ou monta a partir de N8N_BASE_URL + N8N_FIRST_INTEGRATOR_WEBHOOK
+  const webhookUrl =
+    process.env.EVOLUTION_INSTANCE_WEBHOOK_URL ||
+    ((process.env.N8N_BASE_URL ?? '') + (process.env.N8N_FIRST_INTEGRATOR_WEBHOOK ?? ''));
 
-  if (!webhookUrl || webhookUrl === '/') {
-    console.error(`[evolution/configureWebhook] ${instanceName}: N8N_BASE_URL ou N8N_FIRST_INTEGRATOR_WEBHOOK não configurados`);
+  if (!webhookUrl || !webhookUrl.startsWith('http')) {
+    console.error(`[evolution/configureWebhook] ${instanceName}: EVOLUTION_INSTANCE_WEBHOOK_URL não configurado ou inválido (valor: "${webhookUrl}")`);
     return;
   }
 

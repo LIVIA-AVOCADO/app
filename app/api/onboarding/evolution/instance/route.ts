@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getSession } from '@/lib/queries/onboarding';
-import { configureInstanceWebhook, configureInstanceSettings } from '@/lib/evolution/client';
+import { configureInstanceWebhook, configureInstanceSettings, fetchInstanceId } from '@/lib/evolution/client';
 
 const EVOLUTION_BASE = process.env.EVOLUTION_API_BASE_URL!;
 const EVOLUTION_KEY  = process.env.EVOLUTION_API_KEY!;
@@ -81,8 +81,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
     }
 
-    // Aplica configurações padrão LIVIA na instância recém-criada
-    await Promise.all([
+    // Busca UUID da instância + aplica configurações em paralelo
+    const [instanceId] = await Promise.all([
+      fetchInstanceId(instanceName),
       configureInstanceWebhook(instanceName),
       configureInstanceSettings(instanceName),
     ]);
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
       p_step_payload: {
         provider_id:         providerId,
         external_channel_id: instanceName,
+        instance_id:         instanceId ?? null,
         connection_status:   'pending',
       },
       p_user_id:      user.id,

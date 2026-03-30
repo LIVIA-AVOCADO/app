@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
-import { connectInstance, configureInstanceWebhook, configureInstanceSettings } from '@/lib/evolution/client';
+import { connectInstance, configureInstanceWebhook, configureInstanceSettings, fetchInstanceId } from '@/lib/evolution/client';
 import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
 
 const EVOLUTION_BASE = process.env.EVOLUTION_API_BASE_URL!;
@@ -98,8 +98,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
   }
 
-  // Aplica configurações padrão LIVIA na instância recém-criada
-  await Promise.all([
+  // Busca o UUID interno da instância na Evolution + aplica configurações em paralelo
+  const [instanceId] = await Promise.all([
+    fetchInstanceId(instanceName),
     configureInstanceWebhook(instanceName),
     configureInstanceSettings(instanceName),
   ]);
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
       provider_external_channel_id: instanceName,
       identification_number:        '',
       connection_status:            'connecting',
-      config_json:                  { instance: instanceName },
+      config_json:                  { instance: instanceId ?? instanceName },
       is_active:                    true,
       is_receiving_messages:        true,
       is_sending_messages:          true,
