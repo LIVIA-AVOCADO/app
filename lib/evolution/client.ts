@@ -187,7 +187,7 @@ export async function configureInstanceWebhook(instanceName: string): Promise<vo
     webhook: {
       enabled:  true,
       url:      webhookUrl,
-      byEvents: true,
+      byEvents: false,
       base64:   true,
       events:   ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
     },
