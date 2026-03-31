@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const webhookUrl = process.env.EVOLUTION_INSTANCE_WEBHOOK_URL ?? null;
+
   try {
     const res = await fetch(`${EVOLUTION_BASE}/instance/create`, {
       method: 'POST',
@@ -81,6 +83,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
     }
 
+    let apikeyInstance: string | null = null;
+    if (res.ok) {
+      try {
+        const evolData = await res.json() as { hash?: { apikey?: string } };
+        apikeyInstance = evolData?.hash?.apikey ?? null;
+      } catch { /* ignora */ }
+    }
+
     // Busca UUID da instância + aplica configurações em paralelo
     const [instanceId] = await Promise.all([
       fetchInstanceId(instanceName),
@@ -88,7 +98,7 @@ export async function POST(request: NextRequest) {
       configureInstanceSettings(instanceName),
     ]);
 
-    // Salva no payload da sessão (step 'channel') com instance_name como chave canônica
+    // Salva no payload da sessão (step 'channel') com todos os dados para config_json
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (adminClient.rpc as any)('onboarding_save_step', {
       p_session_id:   sessionId,
@@ -97,7 +107,19 @@ export async function POST(request: NextRequest) {
         provider_id:       providerId,
         instance_name:     instanceName,
         instance_id:       instanceId ?? null,
+        apikey_instance:   apikeyInstance,
+        webhook_url:       webhookUrl,
+        evolution_api_url: EVOLUTION_BASE,
         connection_status: 'pending',
+        settings: {
+          reject_call:       true,
+          msg_call:          'No momento só consigo falar por mensagens...',
+          groups_ignore:     true,
+          always_online:     false,
+          read_messages:     false,
+          read_status:       false,
+          sync_full_history: false,
+        },
       },
       p_user_id:      user.id,
     });

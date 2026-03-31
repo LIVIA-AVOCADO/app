@@ -65,5 +65,5 @@ ALTER TABLE public.channels DROP COLUMN IF EXISTS external_api_url;
 -- Atualiza comentário da coluna
 COMMENT ON COLUMN public.channels.config_json IS
   'Configuração específica do provider. Estrutura por provider:
-   - evolution_*: { "instance_name": "livia-xxx", "apikey_instance": "...", "webhook_url": "...", "company_name": "...", "client_description": "...", "settings": { ... } }
+   - evolution_*: { "instance_name": "livia-xxx", "instance_id": "uuid", "instance_id_api": "legado", "apikey_instance": "...", "webhook_url": "...", "evolution_api_url": "...", "client_description": "...", "settings": { ... } }
    - meta_oficial_whatsapp: { "phone_number_id": "...", "access_token": "...", "verified_name": "...", "webhook_url": "..." }';

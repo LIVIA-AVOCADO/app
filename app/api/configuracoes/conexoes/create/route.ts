@@ -115,6 +115,23 @@ export async function POST(request: NextRequest) {
   ]);
 
   // Insere canal no banco
+  const configJsonPayload = {
+    instance_name:    instanceName,
+    instance_id:      instanceId ?? null,
+    apikey_instance:  apikeyInstance,
+    webhook_url:      webhookUrl,
+    evolution_api_url: EVOLUTION_BASE,
+    settings: {
+      reject_call:       true,
+      msg_call:          'No momento só consigo falar por mensagens...',
+      groups_ignore:     true,
+      always_online:     false,
+      read_messages:     false,
+      read_status:       false,
+      sync_full_history: false,
+    },
+  };
+
   const { data: channel, error: insertError } = await admin
     .from('channels')
     .insert({
@@ -123,21 +140,7 @@ export async function POST(request: NextRequest) {
       name,
       identification_number: '',
       connection_status:     'connecting',
-      config_json: {
-        instance_name:   instanceName,
-        instance_id:     instanceId ?? null,
-        apikey_instance: apikeyInstance,
-        webhook_url:     webhookUrl,
-        settings: {
-          reject_call:       true,
-          msg_call:          'No momento só consigo falar por mensagens...',
-          groups_ignore:     true,
-          always_online:     false,
-          read_messages:     false,
-          read_status:       false,
-          sync_full_history: false,
-        },
-      },
+      config_json:           configJsonPayload,
       is_active:             true,
       is_receiving_messages: true,
       is_sending_messages:   true,

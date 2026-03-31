@@ -547,18 +547,14 @@ export type Database = {
           config_json: Json | null
           connection_status: string
           created_at: string
-          external_api_url: string | null
           id: string
-          identification_channel_client_descriptions: string | null
           identification_number: string
-          instance_company_name: string | null
           is_active: boolean
           is_receiving_messages: boolean
           is_sending_messages: boolean
           message_wait_time_fragments: number | null
           name: string
           observations: string | null
-          provider_external_channel_id: string | null
           tenant_id: string
           updated_at: string
         }
@@ -567,18 +563,14 @@ export type Database = {
           config_json?: Json | null
           connection_status?: string
           created_at?: string
-          external_api_url?: string | null
           id?: string
-          identification_channel_client_descriptions?: string | null
           identification_number: string
-          instance_company_name?: string | null
           is_active?: boolean
           is_receiving_messages?: boolean
           is_sending_messages?: boolean
           message_wait_time_fragments?: number | null
           name: string
           observations?: string | null
-          provider_external_channel_id?: string | null
           tenant_id: string
           updated_at?: string
         }
@@ -587,18 +579,14 @@ export type Database = {
           config_json?: Json | null
           connection_status?: string
           created_at?: string
-          external_api_url?: string | null
           id?: string
-          identification_channel_client_descriptions?: string | null
           identification_number?: string
-          instance_company_name?: string | null
           is_active?: boolean
           is_receiving_messages?: boolean
           is_sending_messages?: boolean
           message_wait_time_fragments?: number | null
           name?: string
           observations?: string | null
-          provider_external_channel_id?: string | null
           tenant_id?: string
           updated_at?: string
         }
