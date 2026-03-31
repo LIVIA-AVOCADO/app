@@ -96,12 +96,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
   }
 
-  // Lê instance_id_api (hash.apikey) do response da Evolution
+  // Lê instance_id_api (hash) do response da Evolution API v2.3.6
+  // Formato: { instance: { instanceName, instanceId }, hash: "TOKEN-STRING" }
   let instanceIdApi: string | null = null;
   if (evolRes.ok) {
     try {
-      const evolData = await evolRes.json() as { hash?: { apikey?: string } };
-      instanceIdApi = evolData?.hash?.apikey ?? null;
+      const evolData = await evolRes.json() as { hash?: string };
+      instanceIdApi = evolData?.hash ?? null;
     } catch { /* ignora */ }
   }
 

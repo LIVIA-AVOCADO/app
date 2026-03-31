@@ -83,11 +83,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
     }
 
+    // Formato Evolution API v2.3.6: { instance: {...}, hash: "TOKEN-STRING" }
     let instanceIdApi: string | null = null;
     if (res.ok) {
       try {
-        const evolData = await res.json() as { hash?: { apikey?: string } };
-        instanceIdApi = evolData?.hash?.apikey ?? null;
+        const evolData = await res.json() as { hash?: string };
+        instanceIdApi = evolData?.hash ?? null;
       } catch { /* ignora */ }
     }
 
