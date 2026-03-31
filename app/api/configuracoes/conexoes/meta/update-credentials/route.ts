@@ -43,7 +43,7 @@ export async function PATCH(request: NextRequest) {
   // Valida que o canal pertence ao tenant
   const { data: channel } = await admin
     .from('channels')
-    .select('id')
+    .select('id, config_json')
     .eq('id', channelId)
     .eq('tenant_id', auth.tenantId)
     .eq('is_active', true)
@@ -62,15 +62,23 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 422 });
   }
 
+  // Merge no config_json existente (não sobrescreve chaves não relacionadas)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existingCfg = (channel.config_json as any) ?? {};
+  const newCfg = {
+    ...existingCfg,
+    phone_number_id: phoneNumberId,
+    access_token:    accessToken,
+    verified_name:   phoneInfo.verifiedName,
+  };
+
   const { error: updateError } = await admin
     .from('channels')
     .update({
-      provider_external_channel_id: phoneNumberId,
-      identification_number:        phoneInfo.phoneNumber,
-      instance_company_name:        phoneInfo.verifiedName,
-      connection_status:            'connected',
-      config_json:                  { access_token: accessToken },
-      updated_at:                   new Date().toISOString(),
+      identification_number: phoneInfo.phoneNumber,
+      connection_status:     'connected',
+      config_json:           newCfg,
+      updated_at:            new Date().toISOString(),
     })
     .eq('id', channelId);
 

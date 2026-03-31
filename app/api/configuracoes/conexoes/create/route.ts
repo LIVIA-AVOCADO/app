@@ -59,8 +59,6 @@ export async function POST(request: NextRequest) {
   }
 
   if (!channelProviderId) {
-    // Fallback: usa o provider de qualquer canal do tenant (ativo ou não),
-    // pois channel_provider_id é atributo do provedor, não do status do canal
     const { data: existing } = await admin
       .from('channels')
       .select('channel_provider_id')
@@ -98,6 +96,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
   }
 
+  // Lê apikey do response (disponível apenas na criação bem-sucedida)
+  let apikeyInstance: string | null = null;
+  if (evolRes.ok) {
+    try {
+      const evolData = await evolRes.json() as { hash?: { apikey?: string } };
+      apikeyInstance = evolData?.hash?.apikey ?? null;
+    } catch { /* ignora */ }
+  }
+
+  const webhookUrl = process.env.EVOLUTION_INSTANCE_WEBHOOK_URL ?? null;
+
   // Busca o UUID interno da instância na Evolution + aplica configurações em paralelo
   const [instanceId] = await Promise.all([
     fetchInstanceId(instanceName),
@@ -109,16 +118,29 @@ export async function POST(request: NextRequest) {
   const { data: channel, error: insertError } = await admin
     .from('channels')
     .insert({
-      tenant_id:                    auth.tenantId,
-      channel_provider_id:          channelProviderId,
+      tenant_id:             auth.tenantId,
+      channel_provider_id:   channelProviderId,
       name,
-      provider_external_channel_id: instanceName,
-      identification_number:        '',
-      connection_status:            'connecting',
-      config_json:                  { instance: instanceId ?? instanceName },
-      is_active:                    true,
-      is_receiving_messages:        true,
-      is_sending_messages:          true,
+      identification_number: '',
+      connection_status:     'connecting',
+      config_json: {
+        instance_name:   instanceName,
+        instance_id:     instanceId ?? null,
+        apikey_instance: apikeyInstance,
+        webhook_url:     webhookUrl,
+        settings: {
+          reject_call:       true,
+          msg_call:          'No momento só consigo falar por mensagens...',
+          groups_ignore:     true,
+          always_online:     false,
+          read_messages:     false,
+          read_status:       false,
+          sync_full_history: false,
+        },
+      },
+      is_active:             true,
+      is_receiving_messages: true,
+      is_sending_messages:   true,
     })
     .select('id')
     .single();
@@ -140,7 +162,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error('[conexoes/create] qr error:', err);
-    // Canal criado mas QR falhou — retorna channelId para que o usuário possa tentar reconectar
     return NextResponse.json({
       channelId:        channel.id,
       instanceName,

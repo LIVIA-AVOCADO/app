@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 // ── POST: incoming events ─────────────────────────────────────────────────────
 
 interface MetaWebhookEntry {
-  id:      string;  // WhatsApp Business Account ID
+  id:      string;
   changes: Array<{
     value: {
       messaging_product: string;
@@ -44,11 +44,11 @@ interface MetaWebhookEntry {
         phone_number_id?: string;
       };
       statuses?: Array<{
-        id:        string;
-        status:    'sent' | 'delivered' | 'read' | 'failed';
-        timestamp: string;
+        id:           string;
+        status:       'sent' | 'delivered' | 'read' | 'failed';
+        timestamp:    string;
         recipient_id: string;
-        errors?:   Array<{ code: number; title: string }>;
+        errors?:      Array<{ code: number; title: string }>;
       }>;
       errors?: Array<{ code: number; title: string; message?: string }>;
     };
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
             connection_status: 'disconnected',
             updated_at:        new Date().toISOString(),
           })
-          .eq('provider_external_channel_id', phoneNumberId)
+          .filter('config_json->>phone_number_id', 'eq', phoneNumberId)
           .eq('is_active', true);
 
         console.warn(`[meta/webhook] phoneNumberId ${phoneNumberId} marcado como desconectado por erro Meta`);
@@ -98,6 +98,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Meta exige 200 rápido; processamento assíncrono quando necessário
   return NextResponse.json({ ok: true });
 }

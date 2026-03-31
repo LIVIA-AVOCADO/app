@@ -88,16 +88,16 @@ export async function POST(request: NextRequest) {
       configureInstanceSettings(instanceName),
     ]);
 
-    // Salva no payload da sessão (step 'channel')
+    // Salva no payload da sessão (step 'channel') com instance_name como chave canônica
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (adminClient.rpc as any)('onboarding_save_step', {
       p_session_id:   sessionId,
       p_step_key:     'channel',
       p_step_payload: {
-        provider_id:         providerId,
-        external_channel_id: instanceName,
-        instance_id:         instanceId ?? null,
-        connection_status:   'pending',
+        provider_id:       providerId,
+        instance_name:     instanceName,
+        instance_id:       instanceId ?? null,
+        connection_status: 'pending',
       },
       p_user_id:      user.id,
     });

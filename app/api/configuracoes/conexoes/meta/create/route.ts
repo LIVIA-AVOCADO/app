@@ -62,12 +62,6 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Verifica credenciais na Meta Graph API ────────────────────────────────
-  //
-  // Três resultados possíveis:
-  //   verified  → credenciais válidas, salva como 'connected'
-  //   rejected  → Meta retornou 4xx (token inválido), não salva
-  //   unreachable → erro de rede/5xx, salva como 'unknown' com warning
-
   type VerifyOutcome =
     | { kind: 'verified';    phoneNumber: string; verifiedName: string }
     | { kind: 'rejected';    message: string }
@@ -80,43 +74,41 @@ export async function POST(request: NextRequest) {
     outcome = { kind: 'verified', phoneNumber: info.phoneNumber, verifiedName: info.verifiedName };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro desconhecido';
-
-    // Erros de credencial inválida vêm da Graph API com mensagens específicas
     const isAuthError = /invalid|unauthorized|permission|token|oauth/i.test(message);
 
     if (isAuthError) {
       outcome = { kind: 'rejected', message };
     } else {
-      // Pode ser timeout, DNS, ou erro de rede — salva mesmo assim
       console.warn('[meta/create] Graph API unreachable, saving with unknown status:', message);
       outcome = { kind: 'unreachable' };
     }
   }
 
-  // Credencial claramente inválida → não salva, retorna erro imediatamente
   if (outcome.kind === 'rejected') {
     return NextResponse.json({ error: outcome.message }, { status: 422 });
   }
 
-  const connectionStatus   = outcome.kind === 'verified' ? 'connected' : 'unknown';
-  const phoneNumber        = outcome.kind === 'verified' ? outcome.phoneNumber  : '';
-  const verifiedName       = outcome.kind === 'verified' ? outcome.verifiedName : '';
+  const connectionStatus = outcome.kind === 'verified' ? 'connected' : 'unknown';
+  const phoneNumber      = outcome.kind === 'verified' ? outcome.phoneNumber  : '';
+  const verifiedName     = outcome.kind === 'verified' ? outcome.verifiedName : '';
 
-  // Insere canal no banco
+  // Insere canal no banco — dados provider-specific em config_json
   const { data: channel, error: insertError } = await admin
     .from('channels')
     .insert({
-      tenant_id:                    auth.tenantId,
-      channel_provider_id:          provider.id,
+      tenant_id:             auth.tenantId,
+      channel_provider_id:   provider.id,
       name,
-      provider_external_channel_id: phoneNumberId,
-      identification_number:        phoneNumber,
-      instance_company_name:        verifiedName || null,
-      connection_status:            connectionStatus,
-      config_json:                  { access_token: accessToken },
-      is_active:                    true,
-      is_receiving_messages:        true,
-      is_sending_messages:          true,
+      identification_number: phoneNumber,
+      connection_status:     connectionStatus,
+      config_json: {
+        phone_number_id: phoneNumberId,
+        access_token:    accessToken,
+        verified_name:   verifiedName || null,
+      },
+      is_active:             true,
+      is_receiving_messages: true,
+      is_sending_messages:   true,
     })
     .select('id')
     .single();
@@ -132,7 +124,6 @@ export async function POST(request: NextRequest) {
     phoneNumber,
     verifiedName,
     connectionStatus,
-    // warning presente apenas quando não foi possível verificar as credenciais
     warning: outcome.kind === 'unreachable'
       ? 'Canal salvo, mas não foi possível verificar as credenciais agora. Clique em "Atualizar Status" no card para verificar.'
       : undefined,

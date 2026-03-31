@@ -5,16 +5,22 @@
  * A instância Evolution permanece — apenas o número é removido.
  * Isso preserva o instanceName usado nos workflows n8n.
  *
+ * Body: { channelId?: string }
  * Requer módulo 'conexoes' (ação).
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod/v4';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
-import { logoutInstance, resolveInstanceName } from '@/lib/evolution/client';
+import { logoutInstance } from '@/lib/evolution/client';
 import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
 
-export async function POST() {
+const bodySchema = z.object({
+  channelId: z.string().uuid().optional(),
+});
+
+export async function POST(request: NextRequest) {
   const auth = await getAuthenticatedTenant();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -22,22 +28,27 @@ export async function POST() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  const body = await request.json().catch(() => ({}));
+  const parsed = bodySchema.safeParse(body);
+  const channelId = parsed.success ? parsed.data.channelId : undefined;
+
   const admin = createAdminClient();
 
-  const { data: channel } = await admin
+  let query = admin
     .from('channels')
-    .select('id, provider_external_channel_id')
+    .select('id, config_json')
     .eq('tenant_id', auth.tenantId)
-    .eq('is_active', true)
-    .not('provider_external_channel_id', 'is', null)
-    .limit(1)
-    .maybeSingle();
+    .eq('is_active', true);
 
-  if (!channel?.provider_external_channel_id) {
+  if (channelId) query = query.eq('id', channelId);
+
+  const { data: channel } = await query.limit(1).maybeSingle();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const instanceName = (channel?.config_json as any)?.instance_name as string | undefined;
+  if (!instanceName) {
     return NextResponse.json({ error: 'Canal não encontrado' }, { status: 404 });
   }
-
-  const instanceName = await resolveInstanceName(channel.provider_external_channel_id as string);
 
   try {
     await logoutInstance(instanceName);
@@ -45,11 +56,11 @@ export async function POST() {
     await admin
       .from('channels')
       .update({
-        connection_status:   'disconnected',
+        connection_status:     'disconnected',
         identification_number: '',
-        updated_at:          new Date().toISOString(),
+        updated_at:            new Date().toISOString(),
       })
-      .eq('id', channel.id);
+      .eq('id', channel!.id);
 
     return NextResponse.json({ success: true, connectionStatus: 'disconnected' });
   } catch (err) {

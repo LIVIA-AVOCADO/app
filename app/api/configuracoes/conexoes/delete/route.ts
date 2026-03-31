@@ -11,7 +11,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
-import { resolveInstanceName } from '@/lib/evolution/client';
 import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
 
 const EVOLUTION_BASE = process.env.EVOLUTION_API_BASE_URL!;
@@ -41,7 +40,7 @@ export async function DELETE(request: NextRequest) {
   // Valida que o canal pertence ao tenant
   const { data: channel } = await admin
     .from('channels')
-    .select('id, provider_external_channel_id, is_active')
+    .select('id, config_json, is_active')
     .eq('id', channelId)
     .eq('tenant_id', auth.tenantId)
     .eq('is_active', true)
@@ -51,8 +50,11 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Canal não encontrado' }, { status: 404 });
   }
 
-  const stored      = channel.provider_external_channel_id as string;
-  const instanceName = await resolveInstanceName(stored);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const instanceName = (channel.config_json as any)?.instance_name as string | undefined;
+  if (!instanceName) {
+    return NextResponse.json({ error: 'Canal sem instância configurada' }, { status: 422 });
+  }
 
   // Remove da Evolution (ignora 404 — instância pode já não existir)
   try {

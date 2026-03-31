@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { mapConnectionState } from '@/lib/evolution/utils';
 
 const WEBHOOK_SECRET = process.env.EVOLUTION_WEBHOOK_SECRET;
 
@@ -19,14 +20,8 @@ interface EvolutionWebhookPayload {
   event: string;
   instance: string;
   data: {
-    state?: 'open' | 'close' | 'connecting';
+    state?: 'open' | 'close' | 'connecting' | 'refused';
   };
-}
-
-function mapState(state: string): string {
-  if (state === 'open')       return 'connected';
-  if (state === 'connecting') return 'connecting';
-  return 'disconnected';
 }
 
 export async function POST(request: NextRequest) {
@@ -49,16 +44,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
-  const instanceName    = payload.instance;
-  const rawState        = payload.data?.state ?? 'close';
-  const connectionStatus = mapState(rawState);
+  const instanceName     = payload.instance;
+  const rawState         = payload.data?.state ?? 'close';
+  const connectionStatus = mapConnectionState(rawState);
 
   const admin = createAdminClient();
 
   const { data: channel } = await admin
     .from('channels')
     .select('id, connection_status')
-    .eq('provider_external_channel_id', instanceName)
+    .filter('config_json->>instance_name', 'eq', instanceName)
     .limit(1)
     .maybeSingle();
 

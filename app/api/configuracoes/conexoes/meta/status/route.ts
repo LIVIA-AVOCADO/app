@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
   const { data: channel, error } = await admin
     .from('channels')
-    .select('id, name, provider_external_channel_id, identification_number, instance_company_name, connection_status, config_json')
+    .select('id, name, identification_number, connection_status, config_json')
     .eq('id', channelId)
     .eq('tenant_id', auth.tenantId)
     .eq('is_active', true)
@@ -35,20 +35,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Canal não encontrado' }, { status: 404 });
   }
 
-  const phoneNumberId = channel.provider_external_channel_id as string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const accessToken   = (channel.config_json as any)?.access_token as string | undefined;
+  const cfg          = channel.config_json as any;
+  const phoneNumberId = cfg?.phone_number_id as string | undefined;
+  const accessToken   = cfg?.access_token   as string | undefined;
 
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Access token não configurado' }, { status: 422 });
+  if (!phoneNumberId || !accessToken) {
+    return NextResponse.json({ error: 'Credenciais não configuradas' }, { status: 422 });
   }
 
   let connectionStatus: string;
-  let phoneNumber    = channel.identification_number as string;
-  let verifiedName   = channel.instance_company_name as string | null;
+  let phoneNumber  = channel.identification_number as string;
+  let verifiedName = cfg?.verified_name as string | null ?? null;
 
   try {
-    const info = await verifyPhoneNumber(phoneNumberId, accessToken);
+    const info   = await verifyPhoneNumber(phoneNumberId, accessToken);
     connectionStatus = 'connected';
     phoneNumber      = info.phoneNumber;
     verifiedName     = info.verifiedName;
@@ -56,14 +57,14 @@ export async function GET(request: NextRequest) {
     connectionStatus = 'disconnected';
   }
 
-  // Sincroniza DB se o status mudou
-  if (channel.connection_status !== connectionStatus) {
+  // Sincroniza DB se algo mudou
+  if (channel.connection_status !== connectionStatus || phoneNumber !== channel.identification_number) {
     await admin
       .from('channels')
       .update({
         connection_status:     connectionStatus,
         identification_number: phoneNumber,
-        instance_company_name: verifiedName ?? undefined,
+        config_json:           { ...cfg, verified_name: verifiedName },
         updated_at:            new Date().toISOString(),
       })
       .eq('id', channel.id);

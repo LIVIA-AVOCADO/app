@@ -5,6 +5,11 @@
  * Todas as rotas de conexão importam daqui — sem duplicação de URL/apikey.
  */
 
+import qrcode from 'qrcode';
+import type { EvolutionConnectionState } from './utils';
+
+export type { EvolutionConnectionState };
+
 const BASE = process.env.EVOLUTION_API_BASE_URL!;
 const KEY  = process.env.EVOLUTION_API_KEY!;
 
@@ -15,7 +20,14 @@ function headers() {
   };
 }
 
-export type EvolutionConnectionState = 'open' | 'close' | 'connecting';
+/**
+ * Converte o `code` bruto retornado pela Evolution v2.3.6 em uma data URL SVG.
+ * A Evolution retorna `code` (string raw do QR), não `base64`.
+ */
+async function codeToDataUrl(code: string): Promise<string> {
+  const svg = await qrcode.toString(code, { type: 'svg' });
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+}
 
 export interface EvolutionStateResponse {
   instance: {
@@ -23,6 +35,7 @@ export interface EvolutionStateResponse {
     state: EvolutionConnectionState;
   };
 }
+
 
 export interface EvolutionInstanceInfo {
   instance: {
@@ -114,10 +127,10 @@ export async function fetchInstanceId(instanceName: string): Promise<string | nu
   return list[0]?.id ?? null;
 }
 
-/** POST /instance/restart/{name} */
+/** PUT /instance/restart/{name} — Evolution v2.3.6 exige PUT */
 export async function restartInstance(instanceName: string): Promise<void> {
   const res = await fetch(`${BASE}/instance/restart/${instanceName}`, {
-    method: 'POST',
+    method: 'PUT',
     headers: headers(),
   });
   if (!res.ok) throw new Error(`Evolution restart error: ${res.status}`);
@@ -132,13 +145,21 @@ export async function logoutInstance(instanceName: string): Promise<void> {
   if (!res.ok) throw new Error(`Evolution logout error: ${res.status}`);
 }
 
-/** GET /instance/connect/{name} — retorna QR code para nova conexão */
+/**
+ * GET /instance/connect/{name} — retorna QR code para nova conexão.
+ *
+ * Evolution v2.3.6 retorna { code, pairingCode } — sem `base64`.
+ * Convertemos `code` (string raw do QR) para data URL SVG para manter
+ * a interface pública inalterada (frontend continua recebendo `base64`).
+ */
 export async function connectInstance(instanceName: string): Promise<{ base64: string; pairingCode?: string }> {
   const res = await fetch(`${BASE}/instance/connect/${instanceName}`, {
     headers: headers(),
   });
   if (!res.ok) throw new Error(`Evolution connect error: ${res.status}`);
-  return res.json() as Promise<{ base64: string; pairingCode?: string }>;
+  const data = await res.json() as { base64?: string; code?: string; pairingCode?: string };
+  const base64 = data.base64 ?? (data.code ? await codeToDataUrl(data.code) : '');
+  return { base64, pairingCode: data.pairingCode };
 }
 
 /**
@@ -168,7 +189,7 @@ export async function configureInstanceWebhook(instanceName: string): Promise<vo
       url:      webhookUrl,
       byEvents: true,
       base64:   true,
-      events:   ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+      events:   ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
     },
   };
 
@@ -182,7 +203,7 @@ export async function configureInstanceWebhook(instanceName: string): Promise<vo
     const text = await res.text();
     console.error(`[evolution/configureWebhook] ${instanceName}: ${res.status}`, text);
   } else {
-    console.log(`[evolution/configureWebhook] ${instanceName}: webhook → ${webhookUrl}`);
+    console.warn(`[evolution/configureWebhook] ${instanceName}: webhook → ${webhookUrl}`);
   }
 }
 

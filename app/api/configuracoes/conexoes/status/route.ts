@@ -9,12 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
 import { getConnectionState, fetchInstance } from '@/lib/evolution/client';
-
-function mapState(state: string): string {
-  if (state === 'open')       return 'connected';
-  if (state === 'connecting') return 'connecting';
-  return 'disconnected';
-}
+import { mapConnectionState } from '@/lib/evolution/utils';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthenticatedTenant();
@@ -32,24 +27,26 @@ export async function GET(request: NextRequest) {
 
   let query = admin
     .from('channels')
-    .select('id, name, provider_external_channel_id, identification_number, connection_status, config_json')
+    .select('id, name, identification_number, connection_status, config_json')
     .eq('tenant_id', auth.tenantId)
-    .eq('is_active', true)
-    .not('provider_external_channel_id', 'is', null);
+    .eq('is_active', true);
 
   if (channelId) query = query.eq('id', channelId);
 
   // Exclui canais Meta desta rota (eles têm endpoint próprio: /meta/status)
   if (metaProvider?.id) query = query.neq('channel_provider_id', metaProvider.id);
 
-  // Busca o canal Evolution do tenant
   const { data: channel, error } = await query.limit(1).maybeSingle();
 
   if (error || !channel) {
     return NextResponse.json({ error: 'Canal não encontrado' }, { status: 404 });
   }
 
-  const instanceName = channel.provider_external_channel_id as string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const instanceName = (channel.config_json as any)?.instance_name as string | undefined;
+  if (!instanceName) {
+    return NextResponse.json({ error: 'Canal sem instância configurada' }, { status: 404 });
+  }
 
   try {
     const [stateRes, instanceInfo] = await Promise.allSettled([
@@ -61,19 +58,19 @@ export async function GET(request: NextRequest) {
       ? stateRes.value.instance.state
       : 'close';
 
-    const connectionStatus = mapState(rawState);
+    const connectionStatus = mapConnectionState(rawState);
 
     const info = instanceInfo.status === 'fulfilled' ? instanceInfo.value : null;
-    const owner            = info?.instance.owner ?? null;
-    const profileName      = info?.instance.profileName ?? null;
+    const owner             = info?.instance.owner ?? null;
+    const profileName       = info?.instance.profileName ?? null;
     const profilePictureUrl = info?.instance.profilePictureUrl ?? null;
 
     // Sincroniza DB:
     // - sempre que status muda
     // - ou quando identification_number está vazio mas owner já está disponível
     const ownerClean = owner ? owner.split(':')[0] : null;
-    const needsStatusUpdate   = channel.connection_status !== connectionStatus;
-    const needsNumberUpdate   = ownerClean && !channel.identification_number;
+    const needsStatusUpdate = channel.connection_status !== connectionStatus;
+    const needsNumberUpdate = ownerClean && !channel.identification_number;
 
     if (needsStatusUpdate || needsNumberUpdate) {
       await admin

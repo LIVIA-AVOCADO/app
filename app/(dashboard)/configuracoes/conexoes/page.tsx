@@ -44,10 +44,9 @@ export default async function ConexoesPage() {
   // 1. Fetch active channels for the tenant
   const { data: channels } = await admin
     .from('channels')
-    .select('id, name, provider_external_channel_id, identification_number, connection_status, config_json, channel_provider_id')
+    .select('id, name, identification_number, connection_status, config_json, channel_provider_id')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
-    .not('provider_external_channel_id', 'is', null)
     .order('created_at', { ascending: true });
 
   // 2. Fetch provider codes in a single separate query (avoids join syntax issues)
@@ -72,10 +71,13 @@ export default async function ConexoesPage() {
 
   const channelList: ChannelData[] = (channels ?? []).map((ch) => {
     const code = providerCodeMap.get(ch.channel_provider_id as string) ?? '';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cfg  = ch.config_json as any;
+    const instanceName = cfg?.instance_name ?? cfg?.phone_number_id ?? '';
     return {
       id:                ch.id,
       name:              ch.name,
-      instanceName:      ch.provider_external_channel_id as string,
+      instanceName,
       connectionStatus:  (ch.connection_status as string) ?? 'unknown',
       phoneNumber:       (ch.identification_number as string) ?? '',
       profileName:       null,
