@@ -287,12 +287,11 @@ BEGIN
       COALESCE(v_payload -> 'channel' ->> 'desired_number', ''),
       'connected',
       jsonb_build_object(
-        'instance_name',    v_payload -> 'channel' ->> 'instance_name',
-        'instance_id',      v_payload -> 'channel' ->> 'instance_id',
-        'apikey_instance',  v_payload -> 'channel' ->> 'apikey_instance',
-        'webhook_url',      v_payload -> 'channel' ->> 'webhook_url',
+        'instance_name',     v_payload -> 'channel' ->> 'instance_name',
+        'instance_id_api',   v_payload -> 'channel' ->> 'instance_id_api',
+        'webhook_url',       v_payload -> 'channel' ->> 'webhook_url',
         'evolution_api_url', v_payload -> 'channel' ->> 'evolution_api_url',
-        'settings',         COALESCE(v_payload -> 'channel' -> 'settings', '{}'::jsonb)
+        'settings',          COALESCE(v_payload -> 'channel' -> 'settings', '{}'::jsonb)
       ),
       true,
       true,

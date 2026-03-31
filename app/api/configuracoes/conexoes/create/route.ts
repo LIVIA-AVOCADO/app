@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
-import { connectInstance, configureInstanceWebhook, configureInstanceSettings, fetchInstanceId } from '@/lib/evolution/client';
+import { connectInstance, configureInstanceWebhook, configureInstanceSettings } from '@/lib/evolution/client';
 import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
 
 const EVOLUTION_BASE = process.env.EVOLUTION_API_BASE_URL!;
@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Gera instanceName único: livia-{8 hex chars}
-  const instanceName = `livia-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+  // Usa o nome fornecido pelo usuário como instanceName na Evolution API
+  const instanceName = name;
 
   // Cria instância na Evolution
   const evolRes = await fetch(`${EVOLUTION_BASE}/instance/create`, {
@@ -96,30 +96,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
   }
 
-  // Lê apikey do response (disponível apenas na criação bem-sucedida)
-  let apikeyInstance: string | null = null;
+  // Lê instance_id_api (hash.apikey) do response da Evolution
+  let instanceIdApi: string | null = null;
   if (evolRes.ok) {
     try {
       const evolData = await evolRes.json() as { hash?: { apikey?: string } };
-      apikeyInstance = evolData?.hash?.apikey ?? null;
+      instanceIdApi = evolData?.hash?.apikey ?? null;
     } catch { /* ignora */ }
   }
 
   const webhookUrl = process.env.EVOLUTION_INSTANCE_WEBHOOK_URL ?? null;
 
-  // Busca o UUID interno da instância na Evolution + aplica configurações em paralelo
-  const [instanceId] = await Promise.all([
-    fetchInstanceId(instanceName),
+  // Aplica configurações na instância Evolution em paralelo
+  await Promise.all([
     configureInstanceWebhook(instanceName),
     configureInstanceSettings(instanceName),
   ]);
 
   // Insere canal no banco
   const configJsonPayload = {
-    instance_name:    instanceName,
-    instance_id:      instanceId ?? null,
-    apikey_instance:  apikeyInstance,
-    webhook_url:      webhookUrl,
+    instance_name:     instanceName,
+    instance_id_api:   instanceIdApi,
+    webhook_url:       webhookUrl,
     evolution_api_url: EVOLUTION_BASE,
     settings: {
       reject_call:       true,

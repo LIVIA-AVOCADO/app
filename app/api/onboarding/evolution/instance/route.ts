@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getSession } from '@/lib/queries/onboarding';
-import { configureInstanceWebhook, configureInstanceSettings, fetchInstanceId } from '@/lib/evolution/client';
+import { configureInstanceWebhook, configureInstanceSettings } from '@/lib/evolution/client';
 
 const EVOLUTION_BASE = process.env.EVOLUTION_API_BASE_URL!;
 const EVOLUTION_KEY  = process.env.EVOLUTION_API_KEY!;
@@ -83,17 +83,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao criar instância Evolution.' }, { status: 502 });
     }
 
-    let apikeyInstance: string | null = null;
+    let instanceIdApi: string | null = null;
     if (res.ok) {
       try {
         const evolData = await res.json() as { hash?: { apikey?: string } };
-        apikeyInstance = evolData?.hash?.apikey ?? null;
+        instanceIdApi = evolData?.hash?.apikey ?? null;
       } catch { /* ignora */ }
     }
 
-    // Busca UUID da instância + aplica configurações em paralelo
-    const [instanceId] = await Promise.all([
-      fetchInstanceId(instanceName),
+    // Aplica configurações na instância Evolution em paralelo
+    await Promise.all([
       configureInstanceWebhook(instanceName),
       configureInstanceSettings(instanceName),
     ]);
@@ -106,8 +105,7 @@ export async function POST(request: NextRequest) {
       p_step_payload: {
         provider_id:       providerId,
         instance_name:     instanceName,
-        instance_id:       instanceId ?? null,
-        apikey_instance:   apikeyInstance,
+        instance_id_api:   instanceIdApi,
         webhook_url:       webhookUrl,
         evolution_api_url: EVOLUTION_BASE,
         connection_status: 'pending',
