@@ -5,7 +5,7 @@
  * Silencia ou remove o silêncio de um contato.
  * POST /api/contacts/[id]/mute
  *
- * Payload: { action: "mute" | "unmute", tenantId: string }
+ * Payload: { action: "mute" | "unmute", tenantId: string, muteReason?: string }
  *
  * Fluxo mute:
  * 1. Auth + validação de tenant (igual todas as outras rotas)
@@ -30,7 +30,7 @@ export async function POST(
     const contactId = params.id;
 
     const body = await request.json();
-    const { action, tenantId } = body;
+    const { action, tenantId, muteReason } = body;
 
     if (!contactId || !tenantId || !action) {
       return NextResponse.json(
@@ -81,6 +81,14 @@ export async function POST(
     }
 
     if (action === 'mute') {
+      const reason = typeof muteReason === 'string' ? muteReason.trim() : '';
+      if (reason.length < 10) {
+        return NextResponse.json(
+          { error: 'Informe o motivo do silêncio com pelo menos 10 caracteres.' },
+          { status: 400 }
+        );
+      }
+
       // 4a. Silenciar contato
       const { error: muteError } = await (supabase as any)
         .from('contacts')
@@ -88,6 +96,7 @@ export async function POST(
           is_muted: true,
           muted_at: new Date().toISOString(),
           muted_by: user.id,
+          mute_reason: reason,
         })
         .eq('id', contactId)
         .eq('tenant_id', tenantId);
@@ -131,6 +140,7 @@ export async function POST(
         is_muted: false,
         muted_at: null,
         muted_by: null,
+        mute_reason: null,
       })
       .eq('id', contactId)
       .eq('tenant_id', tenantId);

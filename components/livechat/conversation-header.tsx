@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -11,15 +11,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Tooltip,
   TooltipContent,
@@ -49,7 +49,7 @@ interface ConversationHeaderProps {
   initialFollowup?: ConversationFollowup | null;
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
   /** Callback chamado após silenciar o contato com sucesso */
-  onContactMuted?: () => void;
+  onContactMuted?: (detail: { muteReason: string }) => void;
   /** Callback chamado após remover o silêncio do contato */
   onContactUnmuted?: () => void;
   /** Callback para abrir/fechar o painel de dados do cliente */
@@ -79,6 +79,7 @@ export function ConversationHeader({
   const [showPauseIADialog, setShowPauseIADialog] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [showMuteDialog, setShowMuteDialog] = useState(false);
+  const [muteReasonText, setMuteReasonText] = useState('');
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
   const [activeFollowup, setActiveFollowup] = useState<ConversationFollowup | null>(initialFollowup);
   const [isCancellingFollowup, setIsCancellingFollowup] = useState(false);
@@ -87,6 +88,10 @@ export function ConversationHeader({
   const [isMuted, setIsMuted] = useState(contactIsMuted);
 
   const displayName = getContactFirstName(contactName, contactPhone || null);
+
+  useEffect(() => {
+    setIsMuted(contactIsMuted);
+  }, [contactIsMuted]);
 
   const selectedTags = useMemo(() => {
     return conversationTags
@@ -118,22 +123,36 @@ export function ConversationHeader({
     }
   };
 
+  const canSubmitMute = muteReasonText.trim().length >= 10;
+
   const handleMuteConfirm = async () => {
-    if (isMuting) return;
+    if (isMuting || !canSubmitMute) return;
+    const reasonTrimmed = muteReasonText.trim();
     setIsMuting(true);
     try {
       const response = await fetch(`/api/contacts/${contactId}/mute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'mute', tenantId }),
+        body: JSON.stringify({
+          action: 'mute',
+          tenantId,
+          muteReason: reasonTrimmed,
+        }),
       });
-      if (!response.ok) throw new Error('Erro ao silenciar contato');
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error((errBody as { error?: string }).error || 'Erro ao silenciar contato');
+      }
       setIsMuted(true);
+      setShowMuteDialog(false);
+      setMuteReasonText('');
       toast.success('Contato silenciado. As mensagens serão descartadas automaticamente.');
-      onContactMuted?.();
+      onContactMuted?.({ muteReason: reasonTrimmed });
     } catch (error) {
       console.error('Erro ao silenciar contato:', error);
-      toast.error('Erro ao silenciar contato. Tente novamente.');
+      toast.error(
+        error instanceof Error ? error.message : 'Erro ao silenciar contato. Tente novamente.'
+      );
     } finally {
       setIsMuting(false);
     }
@@ -400,28 +419,48 @@ export function ConversationHeader({
         }}
       />
 
-      {/* Dialog de confirmação para silenciar */}
-      <AlertDialog open={showMuteDialog} onOpenChange={setShowMuteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Silenciar {displayName}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              As mensagens deste contato serão descartadas automaticamente. A IA também será pausada.
-              <br /><br />
-              Você pode desfazer essa ação na aba <strong>Silenciadas</strong> no painel de conversas.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
+      <Dialog
+        open={showMuteDialog}
+        onOpenChange={(open) => {
+          setShowMuteDialog(open);
+          if (!open) setMuteReasonText('');
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Silenciar {displayName}?</DialogTitle>
+            <DialogDescription>
+              As mensagens deste contato serão descartadas automaticamente e a IA será pausada. Você
+              pode reabrir a conversa na aba <strong>Silenciadas</strong> para ler o histórico ou
+              remover o silêncio.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="mute-reason">Motivo (mín. 10 caracteres)</Label>
+            <Textarea
+              id="mute-reason"
+              value={muteReasonText}
+              onChange={(e) => setMuteReasonText(e.target.value)}
+              placeholder="Ex.: Spam repetido após aviso — registrar contexto para a equipe"
+              rows={3}
+              className="resize-none"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setShowMuteDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!canSubmitMute || isMuting}
               onClick={handleMuteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Silenciar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              {isMuting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Silenciar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -35,6 +35,8 @@ import {
 interface ContactItemProps {
   conversation: ConversationWithContact;
   isSelected?: boolean;
+  /** Preferir em vez de onClick: referência estável evita memo “preso” a handlers antigos */
+  onActivate?: (conversationId: string) => void;
   onClick?: () => void;
   onMarkUnread?: (conversationId: string) => void;
   onClose?: (conversationId: string) => void;
@@ -46,6 +48,7 @@ interface ContactItemProps {
 function ContactItemComponent({
   conversation,
   isSelected = false,
+  onActivate,
   onClick,
   onMarkUnread,
   onClose,
@@ -79,6 +82,14 @@ function ContactItemComponent({
   const statusDisplay = getStatusDisplay();
   const isClosed = status === 'closed';
 
+  const handleCardClick = useCallback(() => {
+    if (onActivate) {
+      onActivate(conversation.id);
+      return;
+    }
+    onClick?.();
+  }, [onActivate, onClick, conversation.id]);
+
   return (
     <Card
       className={cn(
@@ -87,7 +98,7 @@ function ContactItemComponent({
           ? 'border border-primary/50 bg-primary/5 shadow-md shadow-primary/10'
           : 'border-0'
       )}
-      onClick={onClick}
+      onClick={handleCardClick}
     >
       <div className="flex gap-3">
         <Avatar className="h-10 w-10">
@@ -229,6 +240,8 @@ function ContactItemComponent({
 // Custom comparison function for memo - re-render only when relevant data changes
 function arePropsEqual(prevProps: ContactItemProps, nextProps: ContactItemProps): boolean {
   if (prevProps.isSelected !== nextProps.isSelected) return false;
+  if (prevProps.onActivate !== nextProps.onActivate) return false;
+  if (prevProps.onClick !== nextProps.onClick) return false;
   if (prevProps.onMarkUnread !== nextProps.onMarkUnread) return false;
   if (prevProps.onClose !== nextProps.onClose) return false;
   if (prevProps.onTagToggle !== nextProps.onTagToggle) return false;

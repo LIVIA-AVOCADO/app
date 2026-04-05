@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Query 1: contatos silenciados (sem join cross-schema)
     const { data: contacts, error: contactsError } = await (supabase as any)
       .from('contacts')
-      .select('id, name, phone, email, is_muted, muted_at, muted_by')
+      .select('id, name, phone, email, is_muted, muted_at, muted_by, mute_reason')
       .eq('tenant_id', tenantId)
       .eq('is_muted', true)
       .order('muted_at', { ascending: false });
@@ -52,6 +52,37 @@ export async function GET(request: NextRequest) {
     if (!contacts || contacts.length === 0) {
       return NextResponse.json({ contacts: [] });
     }
+
+    const contactIds = contacts.map((c: { id: string }) => c.id);
+    const { data: convRows } = await (supabase as any)
+      .from('conversations')
+      .select('id, contact_id, status, last_message_at')
+      .eq('tenant_id', tenantId)
+      .in('contact_id', contactIds);
+
+    const byContact: Record<string, { id: string; status: string; last_message_at: string | null }[]> = {};
+    for (const row of convRows || []) {
+      const cid = row.contact_id as string;
+      if (!byContact[cid]) byContact[cid] = [];
+      byContact[cid].push({
+        id: row.id as string,
+        status: row.status as string,
+        last_message_at: row.last_message_at ?? null,
+      });
+    }
+
+    const pickPrimaryConversationId = (
+      rows: { id: string; status: string; last_message_at: string | null }[]
+    ): string | null => {
+      if (!rows.length) return null;
+      const open = rows.filter((r) => r.status === 'open');
+      const pool = open.length > 0 ? open : rows;
+      return pool.reduce((best, r) =>
+        new Date(r.last_message_at || 0).getTime() > new Date(best.last_message_at || 0).getTime()
+          ? r
+          : best
+      ).id;
+    };
 
     // Query 2: nomes dos usuários que silenciaram (public.users, mesmos IDs do auth.users)
     const mutedByIds = [...new Set(
@@ -72,6 +103,7 @@ export async function GET(request: NextRequest) {
     // Combina resultados
     const result = contacts.map((c: any) => ({
       ...c,
+      open_conversation_id: pickPrimaryConversationId(byContact[c.id] || []),
       mutedByUser: c.muted_by
         ? { id: c.muted_by, full_name: usersMap[c.muted_by] ?? null }
         : null,

@@ -55,11 +55,20 @@ export interface ConversationTagWithTag {
 export interface ConversationWithContact extends Conversation {
   contact: Pick<Contact, 'id' | 'name' | 'phone' | 'email' | 'status'> & {
     is_muted?: boolean;
+    mute_reason?: string | null;
   };
   lastMessage: Message | null;
   conversation_tags?: ConversationTagWithTag[];
   category?: Tag | null; // Helper: primeira tag com is_category=true (se existir)
 }
+
+/** Patch no estado local: `contact` pode ser parcial (ex.: só is_muted). */
+export type ConversationWithContactLocalPatch = Omit<
+  Partial<ConversationWithContact>,
+  'contact'
+> & {
+  contact?: Partial<ConversationWithContact['contact']>;
+};
 
 /**
  * Attachment de mensagem (áudio, imagem, arquivo)

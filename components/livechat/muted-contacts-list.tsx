@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Bell, Loader2, User } from 'lucide-react';
+import { Bell, Loader2, MessageSquare, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
 import { formatDistanceToNow } from 'date-fns';
@@ -14,14 +14,24 @@ interface MutedContact {
   phone: string | null;
   email: string | null;
   muted_at: string | null;
+  mute_reason?: string | null;
+  open_conversation_id?: string | null;
   mutedByUser: { id: string; full_name: string | null } | null;
 }
 
 interface MutedContactsListProps {
   tenantId: string;
+  /** Abre o painel de mensagens (mesmo com contato silenciado) */
+  onOpenConversation?: (conversationId: string) => void;
+  /** Mantém a lista principal alinhada ao banco após remover silêncio */
+  onPatchAfterUnmute?: (contactId: string) => void;
 }
 
-export function MutedContactsList({ tenantId }: MutedContactsListProps) {
+export function MutedContactsList({
+  tenantId,
+  onOpenConversation,
+  onPatchAfterUnmute,
+}: MutedContactsListProps) {
   const [contacts, setContacts] = useState<MutedContact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [unmutingId, setUnmutingId] = useState<string | null>(null);
@@ -53,6 +63,7 @@ export function MutedContactsList({ tenantId }: MutedContactsListProps) {
         body: JSON.stringify({ action: 'unmute', tenantId }),
       });
       if (!res.ok) throw new Error('Erro ao remover silêncio');
+      onPatchAfterUnmute?.(contactId);
       setContacts((prev) => prev.filter((c) => c.id !== contactId));
       toast.success('Silêncio removido. O contato voltará a receber mensagens.');
     } catch {
@@ -91,19 +102,50 @@ export function MutedContactsList({ tenantId }: MutedContactsListProps) {
           ? formatDistanceToNow(new Date(contact.muted_at), { addSuffix: true, locale: ptBR })
           : null;
 
+        const convId = contact.open_conversation_id ?? null;
+        const canOpen = Boolean(convId && onOpenConversation);
+
+        const openChat = () => {
+          if (!convId || !onOpenConversation) {
+            toast.error('Nenhuma conversa encontrada para abrir com este contato.');
+            return;
+          }
+          onOpenConversation(convId);
+        };
+
         return (
           <div
             key={contact.id}
-            className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+            role={canOpen ? 'button' : undefined}
+            tabIndex={canOpen ? 0 : undefined}
+            onClick={canOpen ? openChat : undefined}
+            onKeyDown={
+              canOpen
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openChat();
+                    }
+                  }
+                : undefined
+            }
+            className={`flex items-start gap-3 p-3 rounded-lg border bg-card transition-colors ${
+              canOpen
+                ? 'cursor-pointer hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                : 'opacity-90'
+            }`}
           >
-            {/* Avatar placeholder */}
             <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0">
               <User className="h-4 w-4 text-muted-foreground" />
             </div>
 
-            {/* Info */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{displayName}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium truncate">{displayName}</p>
+                {canOpen && (
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                )}
+              </div>
               {contact.phone && contact.name && (
                 <p className="text-xs text-muted-foreground truncate">{contact.phone}</p>
               )}
@@ -113,23 +155,34 @@ export function MutedContactsList({ tenantId }: MutedContactsListProps) {
                   : 'Silenciado'}
                 {mutedAgo ? ` • ${mutedAgo}` : ''}
               </p>
+              {contact.mute_reason ? (
+                <p className="text-xs text-muted-foreground/90 mt-1 line-clamp-2 border-l-2 border-border pl-2">
+                  {contact.mute_reason}
+                </p>
+              ) : null}
+              {!canOpen && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Sem conversa associada — não é possível abrir o histórico por aqui.
+                </p>
+              )}
             </div>
 
-            {/* Botão unmute */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
-              onClick={() => handleUnmute(contact.id)}
-              disabled={unmutingId === contact.id}
-            >
-              {unmutingId === contact.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Bell className="h-3.5 w-3.5 mr-1" />
-              )}
-              Remover
-            </Button>
+            <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
+                onClick={() => handleUnmute(contact.id)}
+                disabled={unmutingId === contact.id}
+              >
+                {unmutingId === contact.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Bell className="h-3.5 w-3.5 mr-1" />
+                )}
+                Remover
+              </Button>
+            </div>
           </div>
         );
       })}

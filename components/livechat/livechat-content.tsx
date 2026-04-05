@@ -36,7 +36,10 @@ export function LivechatContent({
   messages: initialMessages,
   allTags,
 }: LivechatContentProps) {
-  const { conversations, updateConversation } = useRealtimeConversations(tenantId, initialConversations);
+  const { conversations, updateConversation, patchAllConversationsForContact } = useRealtimeConversations(
+    tenantId,
+    initialConversations
+  );
   const { fetchAndCache, prefetch } = useMessagesCache();
 
   // Estado da conversa selecionada (client-side após SSR inicial)
@@ -86,27 +89,37 @@ export function LivechatContent({
     [selectedConvId, updateConversation]
   );
 
-  // Ao silenciar: atualiza is_muted no contato do estado local e deseleciona
-  const handleContactMuted = useCallback(() => {
-    if (!selectedConvId || !activeConversation) return;
-    updateConversation(selectedConvId, {
-      ia_active: false,
-      contact: { ...activeConversation.contact, is_muted: true },
-    });
-    setTimeout(() => {
-      setSelectedConvId(undefined);
-      setCurrentMessages(null);
-      window.history.pushState(null, '', '/livechat');
-    }, 800);
-  }, [selectedConvId, activeConversation, updateConversation]);
+  // Ao silenciar: todas as conversas desse contato refletem mute + IA pausada
+  const handleContactMuted = useCallback(
+    (detail: { muteReason: string }) => {
+      if (!selectedConvId || !activeConversation) return;
+      patchAllConversationsForContact(activeConversation.contact.id, {
+        ia_active: false,
+        contact: {
+          ...activeConversation.contact,
+          is_muted: true,
+          mute_reason: detail.muteReason,
+        },
+      });
+      setTimeout(() => {
+        setSelectedConvId(undefined);
+        setCurrentMessages(null);
+        window.history.pushState(null, '', '/livechat');
+      }, 800);
+    },
+    [selectedConvId, activeConversation, patchAllConversationsForContact]
+  );
 
-  // Ao remover silêncio: atualiza is_muted no contato do estado local
   const handleContactUnmuted = useCallback(() => {
-    if (!selectedConvId || !activeConversation) return;
-    updateConversation(selectedConvId, {
-      contact: { ...activeConversation.contact, is_muted: false },
+    if (!activeConversation) return;
+    patchAllConversationsForContact(activeConversation.contact.id, {
+      contact: {
+        ...activeConversation.contact,
+        is_muted: false,
+        mute_reason: null,
+      },
     });
-  }, [selectedConvId, activeConversation, updateConversation]);
+  }, [activeConversation, patchAllConversationsForContact]);
 
   const handleConversationClick = useCallback(
     async (conversationId: string) => {
@@ -177,6 +190,7 @@ export function LivechatContent({
             onConversationClick={handleConversationClick}
             onConversationHover={prefetch}
             onConversationUpdate={updateConversation}
+            patchAllConversationsForContact={patchAllConversationsForContact}
             allTags={allTags}
           />
         </div>

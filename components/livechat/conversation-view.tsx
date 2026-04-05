@@ -38,7 +38,7 @@ interface ConversationViewProps {
   allTags: Tag[]; // Todas as tags do tenant
   conversationTags?: Array<{ tag: Tag }>; // Tags atuais da conversa
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
-  onContactMuted?: () => void;
+  onContactMuted?: (detail: { muteReason: string }) => void;
   onContactUnmuted?: () => void;
   onTogglePanel?: () => void;
   isPanelActive?: boolean;

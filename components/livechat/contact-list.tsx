@@ -12,7 +12,10 @@ import { Search, MessageCircle, BellOff, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
 import { MutedContactsList } from './muted-contacts-list';
-import type { ConversationWithContact } from '@/types/livechat';
+import type {
+  ConversationWithContact,
+  ConversationWithContactLocalPatch,
+} from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 
 interface ContactListProps {
@@ -22,6 +25,10 @@ interface ContactListProps {
   onConversationClick?: (conversationId: string) => void;
   onConversationHover?: (conversationId: string) => void;
   onConversationUpdate?: (conversationId: string, updates: Partial<ConversationWithContact>) => void;
+  patchAllConversationsForContact?: (
+    contactId: string,
+    updates: ConversationWithContactLocalPatch
+  ) => void;
   allTags: Tag[];
 }
 
@@ -32,6 +39,7 @@ export function ContactList({
   onConversationClick,
   onConversationHover,
   onConversationUpdate,
+  patchAllConversationsForContact,
   allTags,
 }: ContactListProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,6 +128,20 @@ export function ContactList({
   const [showOnlyUnread, setShowOnlyUnread] = useState(false);
   // ID da conversa que acabou de ser marcada como lida (mantém visível até clicar em outra)
   const [justReadConversationId, setJustReadConversationId] = useState<string | null>(null);
+
+  const handleCardActivate = useCallback(
+    (conversationId: string) => {
+      if (showOnlyUnread && statusFilter === 'manual') {
+        setJustReadConversationId((curr) => (conversationId !== curr ? conversationId : curr));
+      }
+      if (onConversationClick) {
+        onConversationClick(conversationId);
+      } else {
+        window.history.pushState(null, '', `/livechat?conversation=${conversationId}`);
+      }
+    },
+    [showOnlyUnread, statusFilter, onConversationClick]
+  );
 
   // Filtros
   const filteredConversations = conversations.filter((conversation) => {
@@ -334,7 +356,18 @@ export function ContactList({
       {/* Aba Silenciadas: renderiza lista dedicada */}
       {statusFilter === 'muted' && (
         <div className="scrollbar-themed flex-1 overflow-y-auto scroll-smooth">
-          <MutedContactsList tenantId={tenantId} />
+          <MutedContactsList
+            tenantId={tenantId}
+            onPatchAfterUnmute={
+              patchAllConversationsForContact
+                ? (contactId) =>
+                    patchAllConversationsForContact(contactId, {
+                      contact: { is_muted: false, mute_reason: null },
+                    })
+                : undefined
+            }
+            onOpenConversation={onConversationClick}
+          />
         </div>
       )}
 
@@ -367,25 +400,12 @@ export function ContactList({
               <ContactItem
                 conversation={conversation}
                 isSelected={selectedConversationId === conversation.id}
+                onActivate={handleCardActivate}
                 onMarkUnread={handleMarkUnread}
                 onClose={handleCloseConversation}
                 onTagToggle={handleCardTagToggle}
                 onToggleImportant={handleToggleImportant}
                 allTags={allTags}
-                onClick={() => {
-                  // No modo "apenas não lidas", mantém a conversa clicada visível até clicar em outra
-                  if (showOnlyUnread && statusFilter === 'manual') {
-                    if (conversation.id !== justReadConversationId) {
-                      setJustReadConversationId(conversation.id);
-                    }
-                  }
-
-                  if (onConversationClick) {
-                    onConversationClick(conversation.id);
-                  } else {
-                    window.history.pushState(null, '', `/livechat?conversation=${conversation.id}`);
-                  }
-                }}
               />
             </div>
           ))

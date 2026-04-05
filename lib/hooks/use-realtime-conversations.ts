@@ -21,7 +21,11 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import { createClient } from '@/lib/supabase/client';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
-import type { ConversationWithContact, ConversationTagWithTag } from '@/types/livechat';
+import type {
+  ConversationWithContact,
+  ConversationWithContactLocalPatch,
+  ConversationTagWithTag,
+} from '@/types/livechat';
 import type { Conversation } from '@/types/database-helpers';
 import { invalidateMessagesCache } from './use-messages-cache';
 
@@ -331,7 +335,9 @@ export function useRealtimeConversations(
   const updateConversation = useCallback((conversationId: string, updates: Partial<ConversationWithContact>) => {
     setConversations((prev) => {
       const index = prev.findIndex((c) => c.id === conversationId);
-      if (index === -1) return prev;
+      if (index === -1) {
+        return prev;
+      }
       const existing = prev[index];
       if (!existing) return prev;
       const result = [...prev];
@@ -340,7 +346,25 @@ export function useRealtimeConversations(
     });
   }, []);
 
-  return { conversations, updateConversation };
+  /** Atualiza todas as conversas do mesmo contato (ex.: is_muted, ia_active em lote). */
+  const patchAllConversationsForContact = useCallback(
+    (contactId: string, updates: ConversationWithContactLocalPatch) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.contact.id !== contactId) return c;
+          const { contact: contactUpd, ...convUpd } = updates;
+          return {
+            ...c,
+            ...convUpd,
+            contact: contactUpd ? { ...c.contact, ...contactUpd } : c.contact,
+          };
+        })
+      );
+    },
+    []
+  );
+
+  return { conversations, updateConversation, patchAllConversationsForContact };
 }
 
 function sortByLastMessage(convs: ConversationWithContact[]): ConversationWithContact[] {
