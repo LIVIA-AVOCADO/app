@@ -63,6 +63,7 @@ export async function saveReactivationConfig(formData: unknown) {
           max_reactivation_window_minutes: settings.max_reactivation_window_minutes,
           max_window_action: settings.max_window_action,
           max_window_message: settings.max_window_message || null,
+          reactivate_when_ia_active_false: settings.reactivate_when_ia_active_false,
         },
         { onConflict: 'tenant_id' }
       );

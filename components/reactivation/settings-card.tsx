@@ -1,7 +1,7 @@
 'use client';
 
 import type { UseFormReturn } from 'react-hook-form';
-import { ShieldAlert, Timer } from 'lucide-react';
+import { BotOff, ShieldAlert, Timer } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import type { ReactivationFormDataValidated } from '@/lib/validations/reactivationValidation';
 
 interface SettingsCardProps {
@@ -101,6 +102,45 @@ export function SettingsCard({ form }: SettingsCardProps) {
               )}
             />
           )}
+        </CardContent>
+      </Card>
+
+      {/* Secao: Conversas sem IA */}
+      <Card className="overflow-hidden">
+        <div className="border-b bg-muted/30 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <BotOff className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold">Reativar Conversas sem IA</h3>
+              <p className="text-xs text-muted-foreground">
+                Inclui conversas com IA desativada no fluxo de reativacao.
+              </p>
+            </div>
+          </div>
+        </div>
+        <CardContent className="p-6">
+          <FormField
+            control={form.control}
+            name="settings.reactivate_when_ia_active_false"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between gap-4">
+                <div>
+                  <FormLabel>Reativar quando IA estiver desativada</FormLabel>
+                  <FormDescription>
+                    Quando ativo, conversas com IA desativada tambem serao processadas pelo fluxo de reativacao. A IA nao sera reativada automaticamente.
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
         </CardContent>
       </Card>
 

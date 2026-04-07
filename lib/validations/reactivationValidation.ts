@@ -20,6 +20,7 @@ export const reactivationSettingsSchema = z.object({
     message: 'Selecione uma acao valida',
   }),
   max_window_message: z.string().max(2000, 'Maximo 2000 caracteres').default(''),
+  reactivate_when_ia_active_false: z.boolean().default(false),
 });
 
 // Schema para um step individual

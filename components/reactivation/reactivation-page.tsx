@@ -57,6 +57,7 @@ export function ReactivationPage({ initialData }: ReactivationPageProps) {
         max_reactivation_window_minutes: initialData.settings?.max_reactivation_window_minutes ?? null,
         max_window_action: initialData.settings?.max_window_action || 'end_conversation',
         max_window_message: initialData.settings?.max_window_message || '',
+        reactivate_when_ia_active_false: initialData.settings?.reactivate_when_ia_active_false ?? false,
       },
       steps: initialSteps.length > 0 ? initialSteps : [],
     },
