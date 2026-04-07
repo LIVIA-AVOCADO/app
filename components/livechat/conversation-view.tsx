@@ -60,9 +60,13 @@ export function ConversationView({
   onTogglePanel,
   isPanelActive,
 }: ConversationViewProps) {
-  const { messages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage } =
-    useRealtimeMessages(initialConversation.id, initialMessages);
   const { conversation } = useRealtimeConversation(initialConversation);
+  const { messages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage } =
+    useRealtimeMessages(
+      initialConversation.id,
+      initialMessages,
+      conversation.last_message_at
+    );
   const { isRemoteTyping, broadcastTyping } = useTypingPresence(initialConversation.id);
 
   // Estado de reply

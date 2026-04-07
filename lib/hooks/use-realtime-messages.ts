@@ -20,13 +20,16 @@ import { createClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { MessageWithSender, MessageStatus } from '@/types/livechat';
 import type { Message } from '@/types/database-helpers';
+import { fetchLivechatMessagesFresh } from '@/lib/hooks/use-messages-cache';
 
 const MAX_RETRIES = 10;
 const BASE_DELAY = 1000;
 
 export function useRealtimeMessages(
   conversationId: string,
-  initialMessages: MessageWithSender[]
+  initialMessages: MessageWithSender[],
+  /** Quando muda (ex.: via Realtime em `conversations`), força refetch se INSERT em `messages` não chegou. */
+  conversationLastMessageAt?: string | null
 ) {
   const [messages, setMessages] = useState<MessageWithSender[]>(initialMessages);
 
@@ -35,11 +38,36 @@ export function useRealtimeMessages(
   const channelRef = useRef<RealtimeChannel | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const prevLastMessageAtRef = useRef<string | null>(null);
 
   useEffect(() => {
     setMessages(initialMessages);
+    prevLastMessageAtRef.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
+
+  useEffect(() => {
+    const at = conversationLastMessageAt;
+    if (at == null || at === '') return;
+
+    if (prevLastMessageAtRef.current === null) {
+      prevLastMessageAtRef.current = at;
+      return;
+    }
+    if (prevLastMessageAtRef.current === at) return;
+
+    prevLastMessageAtRef.current = at;
+    let cancelled = false;
+    fetchLivechatMessagesFresh(conversationId)
+      .then((fresh) => {
+        if (!cancelled) setMessages(fresh);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, conversationLastMessageAt]);
 
   const handleInsert = useCallback(async (payload: { new: Message }) => {
     const supabase = supabaseRef.current;

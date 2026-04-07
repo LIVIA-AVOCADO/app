@@ -13,8 +13,45 @@ import type {
   MessageWithSender,
   ContactFilters,
   ConversationFilters,
+  LivechatTabStatusCounts,
 } from '@/types/livechat';
 import type { QuickReplyTemplate } from '@/types/database-helpers';
+
+/**
+ * Contagens das abas do livechat via agregação SQL (sem teto do PostgREST).
+ * Retorna null se a RPC não existir (migração não aplicada) ou falhar.
+ */
+export async function getLivechatTabStatusCounts(
+  tenantId: string
+): Promise<LivechatTabStatusCounts | null> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc('livechat_conversation_status_counts', {
+    p_tenant_id: tenantId,
+  });
+
+  if (error) {
+    console.warn('[getLivechatTabStatusCounts] RPC indisponível ou erro — badges usam lista local.', {
+      message: error.message,
+      code: (error as { code?: string }).code,
+    });
+    return null;
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== 'object') return null;
+
+  const r = row as Record<string, unknown>;
+  const n = (v: unknown) => (typeof v === 'number' ? v : Number(v) || 0);
+
+  return {
+    ia: n(r.ia_count),
+    manual: n(r.manual_count),
+    closed: n(r.closed_count),
+    important: n(r.important_count),
+    unreadManual: n(r.unread_manual_count),
+  };
+}
 
 /**
  * Busca contatos com conversas
@@ -234,6 +271,17 @@ export async function getConversationsWithContact(
     throw conversationsError;
   }
   if (!conversationsData || conversationsData.length === 0) return [];
+
+  const requestedLimit = filters?.limit;
+  if (
+    requestedLimit != null &&
+    conversationsData.length >= requestedLimit
+  ) {
+    console.warn(
+      '[getConversationsWithContact] Retorno com tamanho igual ou superior ao limit solicitado — pode existir mais conversas. Considere paginação ou aumentar o limit / API max rows no Supabase.',
+      { tenantId, count: conversationsData.length, requestedLimit }
+    );
+  }
 
   // ===== Excluir contatos silenciados da lista principal =====
   // Filtro em JS pois PostgREST não suporta filtros em colunas novas de relacionamentos facilmente

@@ -19,6 +19,17 @@ import type {
  */
 export type MessageStatus = 'pending' | 'sent' | 'failed' | 'read';
 
+/**
+ * Contagens das abas do livechat (agregação no DB; não depende do limite de linhas da lista).
+ */
+export interface LivechatTabStatusCounts {
+  ia: number;
+  manual: number;
+  closed: number;
+  important: number;
+  unreadManual: number;
+}
+
 // ============================================================================
 // COMPOSITE TYPES
 // ============================================================================

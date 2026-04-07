@@ -73,6 +73,18 @@ export function invalidateMessagesCache(conversationId: string): void {
   messagesCache.delete(conversationId);
 }
 
+/**
+ * Busca as últimas mensagens direto no Supabase (ignora cache em memória).
+ * Usado quando `last_message_at` da conversa muda mas o evento INSERT em `messages`
+ * não chegou pelo Realtime (ex.: tabela fora da publicação).
+ */
+export async function fetchLivechatMessagesFresh(
+  conversationId: string
+): Promise<MessageWithSender[]> {
+  invalidateMessagesCache(conversationId);
+  return fetchMessagesFromSupabase(conversationId);
+}
+
 export function useMessagesCache() {
   const getCached = useCallback((conversationId: string): MessageWithSender[] | null => {
     const entry = messagesCache.get(conversationId);

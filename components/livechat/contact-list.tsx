@@ -15,6 +15,7 @@ import { MutedContactsList } from './muted-contacts-list';
 import type {
   ConversationWithContact,
   ConversationWithContactLocalPatch,
+  LivechatTabStatusCounts,
 } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 
@@ -30,6 +31,8 @@ interface ContactListProps {
     updates: ConversationWithContactLocalPatch
   ) => void;
   allTags: Tag[];
+  /** Se definido, contadores das abas vêm do Postgres (total real); senão, da lista carregada. */
+  tabStatusCounts?: LivechatTabStatusCounts | null;
 }
 
 export function ContactList({
@@ -41,6 +44,7 @@ export function ContactList({
   onConversationUpdate,
   patchAllConversationsForContact,
   allTags,
+  tabStatusCounts,
 }: ContactListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<
@@ -191,18 +195,29 @@ export function ContactList({
     return matchesSearch && matchesStatus && matchesTags && matchesUnread;
   });
 
-  // Contadores de status (consolidados) — excluem silenciados
-  const statusCounts = {
+  const derivedStatusCounts = {
     ia: conversations.filter((c) => c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
     manual: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
     closed: conversations.filter((c) => c.status === 'closed' && !c.contact.is_muted).length,
     important: conversations.filter((c) => c.is_important && c.status !== 'closed' && !c.contact.is_muted).length,
   };
 
-  // Contador de não lidas no modo manual
-  const unreadInManualCount = conversations.filter(
+  const derivedUnreadInManual = conversations.filter(
     (c) => !c.ia_active && c.status !== 'closed' && c.has_unread
   ).length;
+
+  const statusCounts = tabStatusCounts
+    ? {
+        ia: tabStatusCounts.ia,
+        manual: tabStatusCounts.manual,
+        closed: tabStatusCounts.closed,
+        important: tabStatusCounts.important,
+      }
+    : derivedStatusCounts;
+
+  const unreadInManualCount = tabStatusCounts
+    ? tabStatusCounts.unreadManual
+    : derivedUnreadInManual;
 
   // Limpar seleção ao mudar filtros (sem SSR — só atualiza a URL)
   const clearSelection = () => {

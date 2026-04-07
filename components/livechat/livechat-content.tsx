@@ -13,7 +13,11 @@ import { CustomerDataPanel } from './customer-data-panel';
 import { MessagesSkeleton } from './messages-skeleton';
 import { useRealtimeConversations } from '@/lib/hooks/use-realtime-conversations';
 import { useMessagesCache } from '@/lib/hooks/use-messages-cache';
-import type { ConversationWithContact, MessageWithSender } from '@/types/livechat';
+import type {
+  ConversationWithContact,
+  LivechatTabStatusCounts,
+  MessageWithSender,
+} from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 
 const PREFETCH_COUNT = 5;
@@ -26,6 +30,8 @@ interface LivechatContentProps {
   selectedConversation: ConversationWithContact | null;
   messages: MessageWithSender[] | null;
   allTags: Tag[];
+  /** Contagens reais das abas (RPC); se null, ContactList deriva da lista (limitada). */
+  tabStatusCounts: LivechatTabStatusCounts | null;
 }
 
 export function LivechatContent({
@@ -35,6 +41,7 @@ export function LivechatContent({
   selectedConversation: initialSelectedConversation,
   messages: initialMessages,
   allTags,
+  tabStatusCounts,
 }: LivechatContentProps) {
   const { conversations, updateConversation, patchAllConversationsForContact } = useRealtimeConversations(
     tenantId,
@@ -46,6 +53,8 @@ export function LivechatContent({
   const [selectedConvId, setSelectedConvId] = useState<string | undefined>(initialSelectedConvId);
   const [currentMessages, setCurrentMessages] = useState<MessageWithSender[] | null>(initialMessages);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  /** Carregamento inicial quando há conversa ativa mas currentMessages ainda null (ex.: Realtime). */
+  const [isBootstrappingMessages, setIsBootstrappingMessages] = useState(false);
 
   // Estado do painel de dados do cliente
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -72,6 +81,45 @@ export function LivechatContent({
     toPreFetch.forEach((c) => prefetch(c.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Há conversa selecionada na lista mas ainda sem mensagens carregadas (ex.: id na URL
+  // ou estado local antes do SSR ter a linha; a conversa entra depois via Realtime).
+  // Sem isto, ConversationView não monta, useRealtimeMessages nunca subscreve e o painel
+  // fica na UI vazia apesar da conversa existir.
+  useEffect(() => {
+    if (currentMessages !== null) {
+      setIsBootstrappingMessages(false);
+      return;
+    }
+    if (!selectedConvId || !activeConversation || activeConversation.id !== selectedConvId) {
+      setIsBootstrappingMessages(false);
+      return;
+    }
+
+    const convIdToFetch = activeConversation.id;
+    let cancelled = false;
+    setIsBootstrappingMessages(true);
+
+    fetchAndCache(convIdToFetch)
+      .then((msgs) => {
+        if (!cancelled) setCurrentMessages(msgs);
+      })
+      .catch((err) => {
+        console.error('[livechat] Failed to load messages (auto):', err);
+        if (!cancelled) setCurrentMessages([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsBootstrappingMessages(false);
+      });
+
+    return () => {
+      cancelled = true;
+      setIsBootstrappingMessages(false);
+    };
+    // Só activeConversation?.id: a identidade do objeto muda a cada UPDATE na lista e
+    // recriaria o efeito, cancelando o fetch em curso sem necessidade.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeConversation alinhado ao id
+  }, [selectedConvId, activeConversation?.id, currentMessages, fetchAndCache]);
 
   // ─── Handlers de conversa ────────────────────────────────────────────────
 
@@ -192,13 +240,14 @@ export function LivechatContent({
             onConversationUpdate={updateConversation}
             patchAllConversationsForContact={patchAllConversationsForContact}
             allTags={allTags}
+            tabStatusCounts={tabStatusCounts}
           />
         </div>
       </aside>
 
       {/* Área principal: conversa */}
       <main className="flex-1 flex flex-col h-full overflow-hidden min-w-0 bg-card">
-        {isLoadingMessages ? (
+        {isLoadingMessages || isBootstrappingMessages ? (
           <div className="flex flex-col h-full">
             <div className="p-4 border-b">
               <div className="h-6 w-48 bg-foreground/[0.08] animate-pulse rounded" />
