@@ -64,28 +64,16 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
           isCustomer ? 'items-start' : 'items-end'
         )}
       >
+        {/* Wrapper com botão reply fora do balão */}
+        <div className="flex items-center gap-1">
         <div
           className={cn(
-            'rounded-lg px-3 py-2 shadow-sm relative',
+            'rounded-lg px-3 py-2 shadow-sm',
             isCustomer
               ? 'bg-white text-foreground border border-border'
               : 'bg-muted text-foreground border border-border'
           )}
         >
-          {/* Botão reply — centralizado verticalmente, fora do balão */}
-          {canReply && onReply && (
-            <button
-              onClick={() => onReply(message)}
-              className={cn(
-                'absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-background border border-border shadow-sm transition-opacity duration-150 text-muted-foreground hover:text-foreground',
-                isCustomer ? 'right-2' : 'left-2',
-                isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              )}
-              title="Responder mensagem"
-            >
-              <Reply className="h-3.5 w-3.5" />
-            </button>
-          )}
           {/* Bubble da mensagem citada (reply) */}
           {message.quotedMessage && (
             <QuotedBubble quoted={message.quotedMessage} isCustomer={isCustomer} />
@@ -138,6 +126,21 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
             </div>
           )}
         </div>
+
+          {/* Botão reply à direita do balão (recebidas: lado centro; enviadas: lado avatar) */}
+          {canReply && onReply && (
+            <button
+              onClick={() => onReply(message)}
+              className={cn(
+                'p-1 rounded-full bg-background border border-border shadow-sm transition-opacity duration-150 text-muted-foreground hover:text-foreground flex-shrink-0',
+                isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              )}
+              title="Responder mensagem"
+            >
+              <Reply className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>{/* fim wrapper reply */}
 
         {/* Retry fora do balão, alinhado à direita (apenas atendente com falha) */}
         {message.status === 'failed' && isAttendant && onRetry && (
