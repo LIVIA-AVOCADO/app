@@ -180,11 +180,6 @@ export function useRealtimeConversations(
       return;
     }
 
-    // Nova mensagem chegou: invalida cache para que o próximo acesso busque dados frescos
-    if (conv.last_message_at) {
-      invalidateMessagesCache(conv.id);
-    }
-
     const latestMessage = conv.last_message_at
       ? await fetchLatestMessage(conv.id)
       : null;
@@ -198,6 +193,13 @@ export function useRealtimeConversations(
       const existing = prev[index];
       if (!existing) return prev;
 
+      const lastMessageChanged = existing.last_message_at !== conv.last_message_at;
+
+      // Invalida cache apenas quando chegou uma nova mensagem (last_message_at mudou)
+      if (lastMessageChanged && conv.last_message_at) {
+        invalidateMessagesCache(conv.id);
+      }
+
       const updated: ConversationWithContact = {
         ...existing,
         ...conv,
@@ -207,7 +209,6 @@ export function useRealtimeConversations(
         category: existing.category,
       };
 
-      const lastMessageChanged = existing.last_message_at !== conv.last_message_at;
       if (lastMessageChanged && index !== 0) {
         return [updated, ...prev.filter((_, i) => i !== index)];
       }

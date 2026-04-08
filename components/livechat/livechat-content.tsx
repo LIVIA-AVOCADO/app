@@ -15,7 +15,6 @@ import { useRealtimeConversations } from '@/lib/hooks/use-realtime-conversations
 import { useMessagesCache } from '@/lib/hooks/use-messages-cache';
 import type {
   ConversationWithContact,
-  LivechatTabStatusCounts,
   MessageWithSender,
 } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
@@ -30,8 +29,6 @@ interface LivechatContentProps {
   selectedConversation: ConversationWithContact | null;
   messages: MessageWithSender[] | null;
   allTags: Tag[];
-  /** Contagens reais das abas (RPC); se null, ContactList deriva da lista (limitada). */
-  tabStatusCounts: LivechatTabStatusCounts | null;
 }
 
 export function LivechatContent({
@@ -41,7 +38,6 @@ export function LivechatContent({
   selectedConversation: initialSelectedConversation,
   messages: initialMessages,
   allTags,
-  tabStatusCounts,
 }: LivechatContentProps) {
   const { conversations, updateConversation, patchAllConversationsForContact } = useRealtimeConversations(
     tenantId,
@@ -177,6 +173,9 @@ export function LivechatContent({
       setIsLoadingMessages(true);
       window.history.pushState(null, '', `/livechat?conversation=${conversationId}`);
 
+      // Otimistic: zera has_unread localmente sem esperar o Realtime (evita badge preso)
+      updateConversation(conversationId, { has_unread: false, unread_count: 0 });
+
       fetch('/api/conversations/mark-as-read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -193,7 +192,7 @@ export function LivechatContent({
         setIsLoadingMessages(false);
       }
     },
-    [selectedConvId, tenantId, fetchAndCache]
+    [selectedConvId, tenantId, fetchAndCache, updateConversation]
   );
 
   // ─── Handlers do painel de dados ─────────────────────────────────────────
@@ -240,7 +239,6 @@ export function LivechatContent({
             onConversationUpdate={updateConversation}
             patchAllConversationsForContact={patchAllConversationsForContact}
             allTags={allTags}
-            tabStatusCounts={tabStatusCounts}
           />
         </div>
       </aside>

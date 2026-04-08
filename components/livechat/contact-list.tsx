@@ -15,7 +15,6 @@ import { MutedContactsList } from './muted-contacts-list';
 import type {
   ConversationWithContact,
   ConversationWithContactLocalPatch,
-  LivechatTabStatusCounts,
 } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 
@@ -31,8 +30,6 @@ interface ContactListProps {
     updates: ConversationWithContactLocalPatch
   ) => void;
   allTags: Tag[];
-  /** Se definido, contadores das abas vêm do Postgres (total real); senão, da lista carregada. */
-  tabStatusCounts?: LivechatTabStatusCounts | null;
 }
 
 export function ContactList({
@@ -44,7 +41,6 @@ export function ContactList({
   onConversationUpdate,
   patchAllConversationsForContact,
   allTags,
-  tabStatusCounts,
 }: ContactListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<
@@ -206,18 +202,10 @@ export function ContactList({
     (c) => !c.ia_active && c.status !== 'closed' && c.has_unread
   ).length;
 
-  const statusCounts = tabStatusCounts
-    ? {
-        ia: tabStatusCounts.ia,
-        manual: tabStatusCounts.manual,
-        closed: tabStatusCounts.closed,
-        important: tabStatusCounts.important,
-      }
-    : derivedStatusCounts;
-
-  const unreadInManualCount = tabStatusCounts
-    ? tabStatusCounts.unreadManual
-    : derivedUnreadInManual;
+  // Sempre derivar do estado reativo (conversations atualizado pelo Realtime).
+  // tabStatusCounts vinha do SSR e nunca era atualizado, congelando os badges.
+  const statusCounts = derivedStatusCounts;
+  const unreadInManualCount = derivedUnreadInManual;
 
   // Limpar seleção ao mudar filtros (sem SSR — só atualiza a URL)
   const clearSelection = () => {
