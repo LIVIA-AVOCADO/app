@@ -59,10 +59,18 @@ export default async function LivechatPage({
     );
   }
 
-  const [conversationsResult, allTagsResult, tabCountsResult] = await Promise.allSettled([
+  // Duas queries paralelas para conversas:
+  // 1. Ativas (ia + manual) — sujeitas ao Max Rows do PostgREST, mas são as mais recentes
+  // 2. Encerradas separadas — query dedicada garantindo que não sejam cortadas pela janela
+  // Ambas correm em paralelo com tags e contagem RPC.
+  const [conversationsResult, closedConvsResult, allTagsResult, tabCountsResult] = await Promise.allSettled([
+    getConversationsWithContact(tenantId, {
+      limit: LIVECHAT_INITIAL_CONVERSATIONS_LIMIT,
+    }),
     getConversationsWithContact(tenantId, {
       includeClosedConversations: true,
-      limit: LIVECHAT_INITIAL_CONVERSATIONS_LIMIT,
+      status: 'closed',
+      limit: 500,
     }),
     getAllTags(neurocoreId),
     getLivechatTabStatusCounts(tenantId),
@@ -77,7 +85,15 @@ export default async function LivechatPage({
     throw allTagsResult.reason;
   }
 
-  const conversations = conversationsResult.value;
+  // Mescla ativas + encerradas, dedupando por id (ativa tem precedência)
+  const activeConvs = conversationsResult.value;
+  const closedConvs = closedConvsResult.status === 'fulfilled' ? closedConvsResult.value : [];
+  if (closedConvsResult.status === 'rejected') {
+    console.warn('[livechat] closed conversations query failed:', closedConvsResult.reason);
+  }
+  const activeIds = new Set(activeConvs.map((c) => c.id));
+  const conversations = [...activeConvs, ...closedConvs.filter((c) => !activeIds.has(c.id))];
+
   const allTags = allTagsResult.value;
   const tabStatusCounts = tabCountsResult.status === 'fulfilled' ? tabCountsResult.value : null;
   if (tabCountsResult.status === 'rejected') {
