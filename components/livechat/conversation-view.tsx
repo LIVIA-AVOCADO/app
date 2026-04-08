@@ -78,7 +78,12 @@ export function ConversationView({
     if (!hasMore || isLoadingOlder || isPrependingRef.current) return;
     isPrependingRef.current = true;
     prevScrollHeightRef.current = scrollRef.current?.scrollHeight ?? 0;
-    await loadOlderMessages();
+    const prepended = await loadOlderMessages();
+    // Se não foram adicionadas mensagens, messages.length não muda e o useLayoutEffect
+    // não vai rodar — precisamos resetar manualmente para não bloquear cargas futuras.
+    if (prepended === 0) {
+      isPrependingRef.current = false;
+    }
   }, [hasMore, isLoadingOlder, loadOlderMessages]);
 
   // Estado de reply
