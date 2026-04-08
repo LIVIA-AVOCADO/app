@@ -36,7 +36,9 @@ const STABILITY_WINDOW_MS = 5000;
 
 export function useRealtimeConversations(
   tenantId: string,
-  initialConversations: ConversationWithContact[]
+  initialConversations: ConversationWithContact[],
+  /** Chamado quando um evento que altera os totais de aba é detectado (INSERT, mudança ia_active/status/is_important). */
+  onCountChange?: () => void
 ) {
   const [conversations, setConversations] = useState<ConversationWithContact[]>(
     () => sortByLastMessage(initialConversations)
@@ -50,6 +52,14 @@ export function useRealtimeConversations(
   const isSubscribedRef = useRef(false);
   const hasInitialDataRef = useRef(false);
 
+  /** Mapa leve para detectar mudanças nos campos que afetam contadores das abas. */
+  const statusMapRef = useRef<Map<string, { ia_active: boolean; status: string; is_important: boolean }>>(new Map());
+
+  const onCountChangeRef = useRef(onCountChange);
+  useEffect(() => {
+    onCountChangeRef.current = onCountChange;
+  }, [onCountChange]);
+
   const tenantIdRef = useRef(tenantId);
   useEffect(() => {
     tenantIdRef.current = tenantId;
@@ -61,8 +71,11 @@ export function useRealtimeConversations(
 
   useEffect(() => {
     if (!hasInitialDataRef.current) {
-      // Primeira carga: inicializa o estado completo
+      // Primeira carga: inicializa o estado completo e o mapa de status para delta
       setConversations(sortByLastMessage(initialConversations));
+      statusMapRef.current = new Map(
+        initialConversations.map((c) => [c.id, { ia_active: c.ia_active, status: c.status, is_important: !!c.is_important }])
+      );
       hasInitialDataRef.current = true;
       return;
     }
@@ -163,10 +176,22 @@ export function useRealtimeConversations(
         if (prev.some((c) => c.id === fullConv.id)) return prev;
         return sortByLastMessage([fullConv, ...prev]);
       });
+      // Nova conversa afeta os totais das abas
+      statusMapRef.current.set(conv.id, { ia_active: conv.ia_active, status: conv.status, is_important: !!conv.is_important });
+      onCountChangeRef.current?.();
       return;
     }
 
     // --- UPDATE ---
+    // Detecta mudança nos campos que afetam os totais das abas antes de atualizar o mapa
+    const prevStatus = statusMapRef.current.get(conv.id);
+    const countAffected =
+      !prevStatus ||
+      prevStatus.ia_active !== conv.ia_active ||
+      prevStatus.status !== conv.status ||
+      prevStatus.is_important !== !!conv.is_important;
+    statusMapRef.current.set(conv.id, { ia_active: conv.ia_active, status: conv.status, is_important: !!conv.is_important });
+
     if (conv.status === 'closed') {
       setConversations((prev) => {
         const index = prev.findIndex((c) => c.id === conv.id);
@@ -177,6 +202,7 @@ export function useRealtimeConversations(
         result[index] = { ...existing, ...conv, contact: existing.contact, lastMessage: existing.lastMessage, conversation_tags: existing.conversation_tags, category: existing.category };
         return result;
       });
+      if (countAffected) onCountChangeRef.current?.();
       return;
     }
 
@@ -217,6 +243,8 @@ export function useRealtimeConversations(
       result[index] = updated;
       return result;
     });
+
+    if (countAffected) onCountChangeRef.current?.();
 
     if (!wasFound) {
       const fullConv = await fetchFullConversation(conv.id);

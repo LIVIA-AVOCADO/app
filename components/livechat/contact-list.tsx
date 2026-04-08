@@ -15,8 +15,16 @@ import { MutedContactsList } from './muted-contacts-list';
 import type {
   ConversationWithContact,
   ConversationWithContactLocalPatch,
+  LivechatTabStatusCounts,
 } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
+
+/** Formata contadores grandes: ≥1000 vira "1k", "1.3k", "2k" etc. */
+function fmtCount(n: number): string {
+  if (n < 1000) return String(n);
+  const k = n / 1000;
+  return (Number.isInteger(k) ? String(k) : k.toFixed(1)) + 'k';
+}
 
 interface ContactListProps {
   conversations: ConversationWithContact[];
@@ -30,6 +38,8 @@ interface ContactListProps {
     updates: ConversationWithContactLocalPatch
   ) => void;
   allTags: Tag[];
+  /** Contagens reais das abas (RPC); se null, deriva da lista carregada. */
+  tabStatusCounts?: LivechatTabStatusCounts | null;
 }
 
 export function ContactList({
@@ -41,6 +51,7 @@ export function ContactList({
   onConversationUpdate,
   patchAllConversationsForContact,
   allTags,
+  tabStatusCounts,
 }: ContactListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<
@@ -198,14 +209,17 @@ export function ContactList({
     important: conversations.filter((c) => c.is_important && c.status !== 'closed' && !c.contact.is_muted).length,
   };
 
-  const derivedUnreadInManual = conversations.filter(
+  // Totais das abas: usa RPC (preciso, ignora limite do PostgREST) quando disponível;
+  // cai para derivado da lista local como fallback.
+  const statusCounts = tabStatusCounts
+    ? { ia: tabStatusCounts.ia, manual: tabStatusCounts.manual, closed: tabStatusCounts.closed, important: tabStatusCounts.important }
+    : derivedStatusCounts;
+
+  // Não-lidas: SEMPRE derivado do estado reativo (atualiza a cada mensagem via Realtime).
+  // tabStatusCounts.unreadManual é SSR-estático e ficaria congelado.
+  const unreadInManualCount = conversations.filter(
     (c) => !c.ia_active && c.status !== 'closed' && c.has_unread
   ).length;
-
-  // Sempre derivar do estado reativo (conversations atualizado pelo Realtime).
-  // tabStatusCounts vinha do SSR e nunca era atualizado, congelando os badges.
-  const statusCounts = derivedStatusCounts;
-  const unreadInManualCount = derivedUnreadInManual;
 
   // Limpar seleção ao mudar filtros (sem SSR — só atualiza a URL)
   const clearSelection = () => {
@@ -282,14 +296,14 @@ export function ContactList({
             className="cursor-pointer"
             onClick={() => handleStatusFilterChange('ia')}
           >
-            IA ({statusCounts.ia})
+            IA ({fmtCount(statusCounts.ia)})
           </Badge>
           <Badge
             variant={statusFilter === 'manual' ? 'default' : 'outline'}
             className="cursor-pointer"
             onClick={() => handleStatusFilterChange('manual')}
           >
-            Modo Manual ({statusCounts.manual})
+            Modo Manual ({fmtCount(statusCounts.manual)})
             {unreadInManualCount > 0 && (
               <MessageCircle className="ml-1 h-3.5 w-3.5 fill-green-500 text-green-500" />
             )}
@@ -299,7 +313,7 @@ export function ContactList({
             className="cursor-pointer"
             onClick={() => handleStatusFilterChange('closed')}
           >
-            Encerradas ({statusCounts.closed})
+            Encerradas ({fmtCount(statusCounts.closed)})
           </Badge>
           <Badge
             variant={statusFilter === 'muted' ? 'default' : 'outline'}
@@ -316,7 +330,7 @@ export function ContactList({
               onClick={() => handleStatusFilterChange('important')}
             >
               <Star className="h-3 w-3" />
-              Importantes ({statusCounts.important})
+              Importantes ({fmtCount(statusCounts.important)})
             </Badge>
           )}
         </div>
@@ -327,7 +341,7 @@ export function ContactList({
             <Separator className="my-2" />
             <div className="flex items-center justify-between">
               <Label htmlFor="unread-toggle" className="text-sm text-muted-foreground">
-                Apenas não lidas ({unreadInManualCount})
+                Apenas não lidas ({fmtCount(unreadInManualCount)})
               </Label>
               <Switch
                 id="unread-toggle"

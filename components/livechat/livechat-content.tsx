@@ -1,20 +1,23 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MessageSquare, ArrowLeft } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { useDebouncedCallback } from 'use-debounce';
 import { ContactList } from './contact-list';
 import { ConversationView } from './conversation-view';
 import { CustomerDataPanel } from './customer-data-panel';
 import { MessagesSkeleton } from './messages-skeleton';
 import { useRealtimeConversations } from '@/lib/hooks/use-realtime-conversations';
 import { useMessagesCache } from '@/lib/hooks/use-messages-cache';
+import { createClient } from '@/lib/supabase/client';
 import type {
   ConversationWithContact,
+  LivechatTabStatusCounts,
   MessageWithSender,
 } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
@@ -29,6 +32,8 @@ interface LivechatContentProps {
   selectedConversation: ConversationWithContact | null;
   messages: MessageWithSender[] | null;
   allTags: Tag[];
+  /** Contagens iniciais das abas (RPC no SSR); atualizadas client-side quando Realtime detecta mudança nos totais. */
+  tabStatusCounts: LivechatTabStatusCounts | null;
 }
 
 export function LivechatContent({
@@ -38,10 +43,34 @@ export function LivechatContent({
   selectedConversation: initialSelectedConversation,
   messages: initialMessages,
   allTags,
+  tabStatusCounts: initialTabStatusCounts,
 }: LivechatContentProps) {
+  /** Contagens das abas: inicializadas pelo SSR, re-buscadas via RPC quando Realtime detecta INSERT/status change. */
+  const [tabCounts, setTabCounts] = useState<LivechatTabStatusCounts | null>(initialTabStatusCounts);
+  const supabaseRef = useRef(createClient());
+
+  const refreshTabCounts = useDebouncedCallback(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabaseRef.current as any).rpc(
+      'livechat_conversation_status_counts',
+      { p_tenant_id: tenantId }
+    );
+    if (error || !data) return;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || typeof row !== 'object') return;
+    setTabCounts({
+      ia: Number(row.ia_count ?? 0),
+      manual: Number(row.manual_count ?? 0),
+      closed: Number(row.closed_count ?? 0),
+      important: Number(row.important_count ?? 0),
+      unreadManual: Number(row.unread_manual_count ?? 0),
+    });
+  }, 600);
+
   const { conversations, updateConversation, patchAllConversationsForContact } = useRealtimeConversations(
     tenantId,
-    initialConversations
+    initialConversations,
+    refreshTabCounts
   );
   const { fetchAndCache, prefetch } = useMessagesCache();
 
@@ -239,6 +268,7 @@ export function LivechatContent({
             onConversationUpdate={updateConversation}
             patchAllConversationsForContact={patchAllConversationsForContact}
             allTags={allTags}
+            tabStatusCounts={tabCounts}
           />
         </div>
       </aside>

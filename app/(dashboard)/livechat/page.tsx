@@ -4,6 +4,7 @@ import {
   getConversationsWithContact,
   getMessages,
   getAllTags,
+  getLivechatTabStatusCounts,
 } from '@/lib/queries/livechat';
 import { LivechatContent } from '@/components/livechat/livechat-content';
 import { LIVECHAT_INITIAL_CONVERSATIONS_LIMIT } from '@/config/constants';
@@ -58,12 +59,13 @@ export default async function LivechatPage({
     );
   }
 
-  const [conversationsResult, allTagsResult] = await Promise.allSettled([
+  const [conversationsResult, allTagsResult, tabCountsResult] = await Promise.allSettled([
     getConversationsWithContact(tenantId, {
       includeClosedConversations: true,
       limit: LIVECHAT_INITIAL_CONVERSATIONS_LIMIT,
     }),
     getAllTags(neurocoreId),
+    getLivechatTabStatusCounts(tenantId),
   ]);
 
   if (conversationsResult.status === 'rejected') {
@@ -77,6 +79,10 @@ export default async function LivechatPage({
 
   const conversations = conversationsResult.value;
   const allTags = allTagsResult.value;
+  const tabStatusCounts = tabCountsResult.status === 'fulfilled' ? tabCountsResult.value : null;
+  if (tabCountsResult.status === 'rejected') {
+    console.warn('[livechat] getLivechatTabStatusCounts failed:', tabCountsResult.reason);
+  }
 
   const resolvedParams = await searchParams;
   const selectedConversationId = resolvedParams.conversation;
@@ -100,6 +106,7 @@ export default async function LivechatPage({
       selectedConversation={selectedConversation}
       messages={messages}
       allTags={allTags}
+      tabStatusCounts={tabStatusCounts}
     />
   );
 }
