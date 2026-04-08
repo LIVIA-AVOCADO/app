@@ -110,9 +110,15 @@ export default async function LivechatPage({
 
   // Busca mensagens apenas para o carregamento inicial (SSR)
   // Trocas subsequentes de conversa usam a API client-side (/api/livechat/messages)
-  const messages = selectedConversation
-    ? await getMessages(selectedConversation.id)
-    : null;
+  let messages = null;
+  if (selectedConversation) {
+    try {
+      messages = await getMessages(selectedConversation.id);
+    } catch (err) {
+      console.error('[livechat] getMessages failed:', JSON.stringify(err));
+      messages = [];
+    }
+  }
 
   return (
     <LivechatContent
