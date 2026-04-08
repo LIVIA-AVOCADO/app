@@ -20,10 +20,11 @@ import { createClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { MessageWithSender, MessageStatus } from '@/types/livechat';
 import type { Message } from '@/types/database-helpers';
-import { fetchLivechatMessagesFresh } from '@/lib/hooks/use-messages-cache';
+import { fetchLivechatMessagesFresh, fetchOlderMessages } from '@/lib/hooks/use-messages-cache';
 
 const MAX_RETRIES = 10;
 const BASE_DELAY = 1000;
+const MESSAGES_PAGE_SIZE = 50;
 
 export function useRealtimeMessages(
   conversationId: string,
@@ -32,6 +33,9 @@ export function useRealtimeMessages(
   conversationLastMessageAt?: string | null
 ) {
   const [messages, setMessages] = useState<MessageWithSender[]>(initialMessages);
+  const [hasMore, setHasMore] = useState(() => initialMessages.length >= MESSAGES_PAGE_SIZE);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const isLoadingOlderRef = useRef(false);
 
   const supabaseRef = useRef(createClient());
 
@@ -42,6 +46,8 @@ export function useRealtimeMessages(
 
   useEffect(() => {
     setMessages(initialMessages);
+    setHasMore(initialMessages.length >= MESSAGES_PAGE_SIZE);
+    isLoadingOlderRef.current = false;
     prevLastMessageAtRef.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
@@ -255,5 +261,38 @@ export function useRealtimeMessages(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  return { messages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage };
+  /** Ref espelho do estado messages — permite leitura síncrona sem stale closure. */
+  const messagesRef = useRef<MessageWithSender[]>(initialMessages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  const loadOlderMessages = useCallback(async (): Promise<number> => {
+    if (isLoadingOlderRef.current || !hasMore) return 0;
+    const oldest = messagesRef.current[0];
+    if (!oldest) return 0;
+
+    isLoadingOlderRef.current = true;
+    setIsLoadingOlder(true);
+
+    try {
+      const older = await fetchOlderMessages(conversationId, oldest.timestamp);
+      if (older.length === 0) {
+        setHasMore(false);
+        return 0;
+      }
+      if (older.length < 30) setHasMore(false);
+      setMessages((current) => {
+        const existingIds = new Set(current.map((m) => m.id));
+        const toAdd = older.filter((m) => !existingIds.has(m.id));
+        return toAdd.length > 0 ? [...toAdd, ...current] : current;
+      });
+      return older.length;
+    } catch {
+      return 0;
+    } finally {
+      isLoadingOlderRef.current = false;
+      setIsLoadingOlder(false);
+    }
+  }, [conversationId, hasMore]);
+
+  return { messages, hasMore, isLoadingOlder, loadOlderMessages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage };
 }

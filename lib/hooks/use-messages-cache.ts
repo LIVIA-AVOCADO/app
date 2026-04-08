@@ -85,6 +85,33 @@ export async function fetchLivechatMessagesFresh(
   return fetchMessagesFromSupabase(conversationId);
 }
 
+/**
+ * Busca mensagens anteriores a um determinado timestamp (scroll para cima / paginação).
+ */
+export async function fetchOlderMessages(
+  conversationId: string,
+  beforeTimestamp: string,
+  limit = 30
+): Promise<MessageWithSender[]> {
+  const { data, error } = await getSupabase()
+    .from('messages')
+    .select(`
+      *,
+      senderUser:users!messages_sender_user_id_fkey(
+        id,
+        full_name,
+        avatar_url
+      )
+    `)
+    .eq('conversation_id', conversationId)
+    .lt('timestamp', beforeTimestamp)
+    .order('timestamp', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return ((data || []) as MessageWithSender[]).reverse();
+}
+
 export function useMessagesCache() {
   const getCached = useCallback((conversationId: string): MessageWithSender[] | null => {
     const entry = messagesCache.get(conversationId);

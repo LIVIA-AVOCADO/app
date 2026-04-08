@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { MessageItem } from './message-item';
 import { MessageInput } from './message-input';
@@ -61,13 +61,25 @@ export function ConversationView({
   isPanelActive,
 }: ConversationViewProps) {
   const { conversation } = useRealtimeConversation(initialConversation);
-  const { messages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage } =
+  const { messages, hasMore, isLoadingOlder, loadOlderMessages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage } =
     useRealtimeMessages(
       initialConversation.id,
       initialMessages,
       conversation.last_message_at
     );
   const { isRemoteTyping, broadcastTyping } = useTypingPresence(initialConversation.id);
+
+  // scrollRef criado aqui para que handleLoadOlder possa usá-lo antes de useChatScroll
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isPrependingRef = useRef(false);
+  const prevScrollHeightRef = useRef(0);
+
+  const handleLoadOlder = useCallback(async () => {
+    if (!hasMore || isLoadingOlder || isPrependingRef.current) return;
+    isPrependingRef.current = true;
+    prevScrollHeightRef.current = scrollRef.current?.scrollHeight ?? 0;
+    await loadOlderMessages();
+  }, [hasMore, isLoadingOlder, loadOlderMessages]);
 
   // Estado de reply
   const [replyToMessage, setReplyToMessage] = useState<MessageWithSender | null>(null);
@@ -95,8 +107,21 @@ export function ConversationView({
     [removeMessage, retrySend]
   );
 
-  const { scrollRef, isAtBottom, unreadCount, scrollToBottom } =
-    useChatScroll(messages);
+  const { isAtBottom, unreadCount, scrollToBottom } =
+    useChatScroll(messages, {
+      onNearTop: handleLoadOlder,
+      isPrependingRef,
+      scrollRef,
+    });
+
+  // Restaura posição do scroll após prepend de mensagens antigas (refs estáveis, deps só messages.length)
+  useLayoutEffect(() => {
+    if (isPrependingRef.current && scrollRef.current) {
+      const diff = scrollRef.current.scrollHeight - prevScrollHeightRef.current;
+      scrollRef.current.scrollTop += diff;
+      isPrependingRef.current = false;
+    }
+  }, [messages.length]);
 
   // IDs das mensagens iniciais — memoizado por conversa (muda só quando troca de conversa)
   // Mensagens além deste set são "novas" e recebem animação de entrada
@@ -160,6 +185,23 @@ export function ConversationView({
               ref={scrollRef}
               className="scrollbar-themed h-full overflow-y-auto p-4 scroll-smooth bg-card"
             >
+              {/* Indicador de carregamento de mensagens antigas */}
+              {isLoadingOlder && (
+                <div className="flex justify-center py-3">
+                  <span className="text-xs text-muted-foreground animate-pulse">Carregando mensagens anteriores...</span>
+                </div>
+              )}
+              {!isLoadingOlder && hasMore && messages.length > 0 && (
+                <div className="flex justify-center py-2">
+                  <button
+                    onClick={handleLoadOlder}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Carregar mensagens anteriores
+                  </button>
+                </div>
+              )}
+
               {messages.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhuma mensagem ainda
