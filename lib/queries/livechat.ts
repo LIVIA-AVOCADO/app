@@ -350,6 +350,16 @@ export async function getMessages(
         mime_type,
         file_size_bytes,
         duration_ms
+      ),
+      quotedMessage:messages!messages_quoted_message_id_fkey(
+        id,
+        content,
+        sender_type,
+        senderUser:users!messages_sender_user_id_fkey(
+          id,
+          full_name,
+          avatar_url
+        )
       )
     `)
     .eq('conversation_id', conversationId)
@@ -362,6 +372,7 @@ export async function getMessages(
     ...msg,
     attachment: msg.message_attachments?.[0] ?? null,
     message_attachments: undefined,
+    quotedMessage: msg.quotedMessage ?? null,
   }));
 
   return messages as MessageWithSender[];

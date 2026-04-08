@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const { data, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
     .from('messages')
     .select(`
       *,
@@ -53,6 +54,16 @@ export async function GET(request: NextRequest) {
         id,
         full_name,
         avatar_url
+      ),
+      quotedMessage:messages!messages_quoted_message_id_fkey(
+        id,
+        content,
+        sender_type,
+        senderUser:users!messages_sender_user_id_fkey(
+          id,
+          full_name,
+          avatar_url
+        )
       )
     `)
     .eq('conversation_id', conversationId)

@@ -82,7 +82,26 @@ export function useRealtimeMessages(
       senderUser = data;
     }
 
-    const newMessage: MessageWithSender = { ...payload.new, senderUser };
+    // Resolve mensagem citada (reply do WhatsApp ou do atendente)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const quotedMessageId = (payload.new as any).quoted_message_id as string | null | undefined;
+    let quotedMessage = null;
+    if (quotedMessageId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: qm } = await (supabase as any)
+        .from('messages')
+        .select(`
+          id,
+          content,
+          sender_type,
+          senderUser:users!messages_sender_user_id_fkey(id, full_name, avatar_url)
+        `)
+        .eq('id', quotedMessageId)
+        .single();
+      quotedMessage = qm ?? null;
+    }
+
+    const newMessage: MessageWithSender = { ...payload.new, senderUser, quotedMessage };
     setMessages((prev) => {
       // 1. Dedup por ID exato (caso normal)
       const exactIdx = prev.findIndex((m) => m.id === newMessage.id);

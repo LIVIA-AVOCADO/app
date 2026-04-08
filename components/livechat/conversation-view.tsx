@@ -177,12 +177,20 @@ export function ConversationView({
                   }
 
                   return messages.map((message) => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const quotedId = (message as any).quoted_message_id as string | null | undefined;
-                    const quotedMsg = quotedId ? messagesById.get(quotedId) : null;
-                    const messageWithQuote: MessageWithSender = quotedMsg
-                      ? { ...message, quotedMessage: { id: quotedMsg.id, content: quotedMsg.content, sender_type: quotedMsg.sender_type, senderUser: quotedMsg.senderUser } }
-                      : message;
+                    // quotedMessage já vem resolvido via join no banco.
+                    // Fallback: resolução em memória para msgs chegadas via Realtime (sem join).
+                    let messageWithQuote: MessageWithSender = message;
+                    if (!message.quotedMessage) {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const quotedId = (message as any).quoted_message_id as string | null | undefined;
+                      const quotedMsg = quotedId ? messagesById.get(quotedId) : null;
+                      if (quotedMsg) {
+                        messageWithQuote = {
+                          ...message,
+                          quotedMessage: { id: quotedMsg.id, content: quotedMsg.content, sender_type: quotedMsg.sender_type, senderUser: quotedMsg.senderUser },
+                        };
+                      }
+                    }
 
                     return (
                       <div key={message.id}>
