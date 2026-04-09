@@ -246,6 +246,10 @@ export async function getConversationsWithContact(
     query = query.eq('status', filters.status);
   }
 
+  if (filters?.isImportant !== undefined) {
+    query = query.eq('is_important', filters.isImportant);
+  }
+
   // Ordenar conversas pela última mensagem mais recente
   query = query.order('last_message_at', { ascending: false, nullsFirst: false });
 

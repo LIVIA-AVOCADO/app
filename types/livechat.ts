@@ -193,6 +193,7 @@ export interface ConversationFilters {
   status?: Conversation['status']; // 'open' | 'closed'
   categoryId?: string; // Filtrar por categoria específica
   includeClosedConversations?: boolean; // Se true, inclui conversas encerradas
+  isImportant?: boolean; // Se true, filtra apenas conversas marcadas como importantes
   limit?: number;
   offset?: number;
 }
