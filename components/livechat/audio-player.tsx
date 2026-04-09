@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+const PLAYBACK_SPEEDS = [1, 1.5, 2] as const;
+
 interface AudioPlayerProps {
   src: string;
   durationMs?: number | null;
@@ -16,9 +18,19 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function formatSpeedLabel(rate: (typeof PLAYBACK_SPEEDS)[number]): string {
+  if (rate === 1) return '1x';
+  if (rate === 1.5) return '1.5x';
+  return '2x';
+}
+
 export function AudioPlayer({ src, durationMs, className }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+
+  const [speedIndex, setSpeedIndex] = useState(0);
+  const playbackRate: (typeof PLAYBACK_SPEEDS)[number] =
+    PLAYBACK_SPEEDS[speedIndex] ?? PLAYBACK_SPEEDS[0];
 
   const [playerState, setPlayerState] = useState({
     isPlaying: false,
@@ -29,6 +41,12 @@ export function AudioPlayer({ src, durationMs, className }: AudioPlayerProps) {
   });
 
   const { isPlaying, currentTime, duration, isLoading, hasError } = playerState;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.playbackRate = playbackRate;
+  }, [playbackRate]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -73,6 +91,11 @@ export function AudioPlayer({ src, durationMs, className }: AudioPlayerProps) {
     }
   }, [isPlaying, hasError]);
 
+  const cyclePlaybackSpeed = useCallback(() => {
+    if (hasError) return;
+    setSpeedIndex((i) => (i + 1) % PLAYBACK_SPEEDS.length);
+  }, [hasError]);
+
   const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current;
     const bar = progressRef.current;
@@ -88,9 +111,11 @@ export function AudioPlayer({ src, durationMs, className }: AudioPlayerProps) {
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const displayDuration = duration > 0 ? formatTime(duration) : durationMs ? formatTime(durationMs / 1000) : '--:--';
   const displayCurrent = formatTime(currentTime);
+  const speedLabel = formatSpeedLabel(playbackRate);
+  const speedAriaLabel = `Velocidade de reprodução, ${playbackRate === 1 ? 'normal' : `${playbackRate} vezes`}. Clicar para alterar.`;
 
   return (
-    <div className={cn('flex items-center gap-2 w-[220px]', className)}>
+    <div className={cn('flex items-center gap-2 w-[268px]', className)}>
       <audio ref={audioRef} src={src} preload="metadata" />
 
       {/* Ícone de microfone */}
@@ -100,6 +125,7 @@ export function AudioPlayer({ src, durationMs, className }: AudioPlayerProps) {
 
       {/* Botão play/pause */}
       <button
+        type="button"
         onClick={togglePlay}
         disabled={hasError}
         className={cn(
@@ -135,15 +161,32 @@ export function AudioPlayer({ src, durationMs, className }: AudioPlayerProps) {
           />
         </div>
 
-        <div className="flex justify-between">
+        <div className="flex justify-between gap-1">
           <span className="text-[10px] leading-none text-muted-foreground">
             {hasError ? 'Erro ao carregar' : displayCurrent}
           </span>
-          <span className="text-[10px] leading-none text-muted-foreground">
+          <span className="text-[10px] leading-none text-muted-foreground tabular-nums">
             {displayDuration}
           </span>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={cyclePlaybackSpeed}
+        disabled={hasError}
+        title={speedAriaLabel}
+        aria-label={speedAriaLabel}
+        className={cn(
+          'flex-shrink-0 min-w-[2.5rem] h-7 px-1 rounded-md text-[10px] font-medium tabular-nums transition-colors',
+          'border border-border bg-muted/40',
+          hasError
+            ? 'text-muted-foreground cursor-not-allowed opacity-60'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer'
+        )}
+      >
+        {speedLabel}
+      </button>
     </div>
   );
 }
