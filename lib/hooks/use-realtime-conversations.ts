@@ -125,6 +125,12 @@ export function useRealtimeConversations(
         contacts!inner(*),
         conversation_tags(
           tag:tags(id, tag_name, tag_type, color, is_category, order_index)
+        ),
+        channels(
+          id,
+          name,
+          identification_number,
+          channel_provider_id
         )
       `)
       .eq('id', conversationId)
@@ -148,6 +154,7 @@ export function useRealtimeConversations(
       lastMessage: lastMsg,
       conversation_tags: tags,
       category,
+      channel: dataAny.channels || null,
     } as ConversationWithContact;
   }, [fetchLatestMessage]);
 

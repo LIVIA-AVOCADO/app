@@ -15,7 +15,7 @@ import { useTypingPresence } from '@/lib/hooks/use-typing-presence';
 import { useSendMessage } from '@/lib/hooks/use-send-message';
 import { getMessageDayLabel } from '@/lib/utils/date-helpers';
 import type { Conversation, Tag } from '@/types/database-helpers';
-import type { ConversationWithContact, MessageWithSender } from '@/types/livechat';
+import type { ConversationChannel, ConversationWithContact, MessageWithSender } from '@/types/livechat';
 
 function DateSeparator({ label }: { label: string }) {
   return (
@@ -35,6 +35,7 @@ interface ConversationViewProps {
   contactName: string;
   contactPhone?: string | null;
   contactIsMuted?: boolean;
+  channel?: ConversationChannel | null;
   allTags: Tag[]; // Todas as tags do tenant
   conversationTags?: Array<{ tag: Tag }>; // Tags atuais da conversa
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
@@ -52,6 +53,7 @@ export function ConversationView({
   contactName,
   contactPhone,
   contactIsMuted,
+  channel,
   allTags,
   conversationTags,
   onConversationUpdate,
@@ -171,6 +173,7 @@ export function ConversationView({
         contactPhone={contactPhone}
         contactIsMuted={contactIsMuted}
         conversation={conversation}
+        channel={channel}
         tenantId={tenantId}
         allTags={allTags}
         conversationTags={conversationTags}

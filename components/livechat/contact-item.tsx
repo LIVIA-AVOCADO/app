@@ -25,7 +25,7 @@ import {
 import type { ConversationWithContact } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 import { TagBadge } from './tag-badge';
-import { MoreVertical, BellOff, XCircle, Tag as TagIcon, Check, Star } from 'lucide-react';
+import { MoreVertical, BellOff, XCircle, Tag as TagIcon, Check, Star, MessageSquare } from 'lucide-react';
 import {
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -223,13 +223,19 @@ function ContactItemComponent({
             </div>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1">
             <Badge
               variant={statusDisplay.badgeVariant}
-              className="transition-colors duration-300"
+              className="transition-colors duration-300 self-start"
             >
               {statusDisplay.label}
             </Badge>
+            {conversation.channel && (
+              <div className="flex items-center gap-1 text-muted-foreground/70">
+                <MessageSquare className="h-3 w-3 shrink-0" />
+                <span className="text-[11px] truncate">{conversation.channel.name}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -261,6 +267,7 @@ function arePropsEqual(prevProps: ContactItemProps, nextProps: ContactItemProps)
     prevConv.is_important === nextConv.is_important &&
     prevConv.lastMessage?.content === nextConv.lastMessage?.content &&
     prevConv.category?.id === nextConv.category?.id &&
+    prevConv.channel?.id === nextConv.channel?.id &&
     (prevConv.conversation_tags?.map(ct => ct.tag?.id).join(',') || '') ===
     (nextConv.conversation_tags?.map(ct => ct.tag?.id).join(',') || '')
   );

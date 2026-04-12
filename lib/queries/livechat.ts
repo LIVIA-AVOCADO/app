@@ -223,6 +223,12 @@ export async function getConversationsWithContact(
         timestamp,
         sender_type,
         sender_user_id
+      ),
+      channels(
+        id,
+        name,
+        identification_number,
+        channel_provider_id
       )
     `)
     .eq('tenant_id', tenantId)
@@ -318,6 +324,7 @@ export async function getConversationsWithContact(
       lastMessage: conv.messages?.[0] || null,
       conversation_tags: conv.conversation_tags || [],
       category,
+      channel: conv.channels || null,
     };
   });
 

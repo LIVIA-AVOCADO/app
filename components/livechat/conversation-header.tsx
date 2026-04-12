@@ -29,7 +29,7 @@ import {
 import { Pause, MessageSquare, FileText, Loader2, MoreVertical, User, BellOff, Bell, AlarmClock, AlarmClockOff, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Conversation, Tag } from '@/types/database-helpers';
-import type { ConversationFollowup, ConversationWithContact } from '@/types/livechat';
+import type { ConversationChannel, ConversationFollowup, ConversationWithContact } from '@/types/livechat';
 import { getContactFirstName } from '@/lib/utils/contact-helpers';
 import { ConversationSummaryModal } from './conversation-summary-modal';
 import { PauseIAConfirmDialog } from './pause-ia-confirm-dialog';
@@ -43,6 +43,7 @@ interface ConversationHeaderProps {
   contactPhone?: string | null;
   contactIsMuted?: boolean;
   conversation: Conversation;
+  channel?: ConversationChannel | null;
   tenantId: string;
   allTags: Tag[];
   conversationTags?: Array<{ tag: Tag }>;
@@ -64,6 +65,7 @@ export function ConversationHeader({
   contactPhone,
   contactIsMuted = false,
   conversation,
+  channel,
   tenantId,
   allTags,
   conversationTags = [],
@@ -233,10 +235,28 @@ export function ConversationHeader({
               </Tooltip>
             </TooltipProvider>
           )}
-          <div className="flex items-center gap-1 text-muted-foreground shrink-0">
-            <MessageSquare className="h-3.5 w-3.5" />
-            <span className="text-xs">WhatsApp</span>
-          </div>
+          {channel ? (
+            <TooltipProvider delayDuration={400}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 text-muted-foreground shrink-0 cursor-default">
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span className="text-xs truncate max-w-[180px]">{channel.name}</span>
+                  </div>
+                </TooltipTrigger>
+                {channel.identification_number && (
+                  <TooltipContent side="bottom">
+                    {channel.name} · {channel.identification_number}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <div className="flex items-center gap-1 text-muted-foreground shrink-0">
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span className="text-xs">Canal</span>
+            </div>
+          )}
         </div>
 
         {/* Direita: status + badge IA + botões */}

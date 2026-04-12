@@ -63,6 +63,13 @@ export interface ConversationTagWithTag {
  *
  * Ver: docs/LIVECHAT_CONVERSATION_CARDS_REFACTOR.md
  */
+export interface ConversationChannel {
+  id: string;
+  name: string;
+  identification_number: string | null;
+  channel_provider_id: string | null;
+}
+
 export interface ConversationWithContact extends Conversation {
   contact: Pick<Contact, 'id' | 'name' | 'phone' | 'email' | 'status'> & {
     is_muted?: boolean;
@@ -71,6 +78,7 @@ export interface ConversationWithContact extends Conversation {
   lastMessage: Message | null;
   conversation_tags?: ConversationTagWithTag[];
   category?: Tag | null; // Helper: primeira tag com is_category=true (se existir)
+  channel?: ConversationChannel | null;
 }
 
 /** Patch no estado local: `contact` pode ser parcial (ex.: só is_muted). */

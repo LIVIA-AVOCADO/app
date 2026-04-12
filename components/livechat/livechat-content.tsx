@@ -291,6 +291,7 @@ export function LivechatContent({
             contactName={activeConversation.contact.name ?? ''}
             contactPhone={activeConversation.contact.phone}
             contactIsMuted={activeConversation.contact.is_muted}
+            channel={activeConversation.channel}
             allTags={allTags}
             conversationTags={activeConversation.conversation_tags}
             onConversationUpdate={handleConversationUpdate}
