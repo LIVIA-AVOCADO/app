@@ -74,7 +74,7 @@ export async function createCreditCheckoutSession(
   const session = await getStripe().checkout.sessions.create({
     mode: 'payment',
     customer: customerId,
-    payment_method_types: ['card', 'pix'],
+    payment_method_types: ['card'],
     line_items: [
       {
         price_data: {
