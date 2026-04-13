@@ -77,7 +77,7 @@ export default async function LivechatPage({
       isImportant: true,
       limit: 500,
     }),
-    getAllTags(neurocoreId),
+    getAllTags(neurocoreId, tenantId),
     getLivechatTabStatusCounts(tenantId),
   ]);
 

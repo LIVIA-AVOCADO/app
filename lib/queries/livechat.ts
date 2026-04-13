@@ -502,22 +502,47 @@ export async function getCategories(neurocoreId: string) {
 }
 
 /**
- * Busca TODAS as tags ativas do neurocore (intenção, checkout, falha)
- * @param neurocoreId - ID do neurocore
- * @returns Lista de todas as tags ordenadas por tipo e order_index
+ * Busca TODAS as tags ativas disponíveis para o tenant:
+ * - Tags próprias do tenant (tenant_id = tenantId)
+ * - Tags herdadas do neurocore (id_neurocore = neurocoreId AND tenant_id IS NULL)
+ *
+ * Sem deduplicação: tags próprias e herdadas são entidades distintas.
+ * A query OR evita duplicatas que ocorriam quando createTag gravava
+ * id_neurocore no registro do tenant, fazendo a busca por neurocoreId
+ * retornar tanto as herdadas quanto as próprias.
+ *
+ * @param neurocoreId - ID do neurocore do tenant
+ * @param tenantId - ID do tenant (necessário para incluir tags próprias)
+ * @returns Lista de todas as tags ativas, ordenadas por tipo e order_index
  */
-export async function getAllTags(neurocoreId: string) {
+export async function getAllTags(neurocoreId: string, tenantId: string) {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  // Tags próprias do tenant
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: tenantTags, error: tenantError } = await (supabase as any)
     .from('tags')
     .select('*')
-    .eq('id_neurocore', neurocoreId)
+    .eq('tenant_id', tenantId)
     .eq('active', true)
     .order('tag_type', { ascending: true })
     .order('order_index', { ascending: true });
 
-  if (error) throw error;
+  if (tenantError) throw tenantError;
 
-  return data || [];
+  // Tags herdadas do neurocore (sem tenant_id — são compartilhadas)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: neurocoreTags, error: neurocoreError } = await (supabase as any)
+    .from('tags')
+    .select('*')
+    .eq('id_neurocore', neurocoreId)
+    .is('tenant_id', null)
+    .eq('active', true)
+    .order('tag_type', { ascending: true })
+    .order('order_index', { ascending: true });
+
+  if (neurocoreError) throw neurocoreError;
+
+  // Neurocore primeiro (herdadas), depois as próprias do tenant
+  return [...(neurocoreTags || []), ...(tenantTags || [])];
 }
