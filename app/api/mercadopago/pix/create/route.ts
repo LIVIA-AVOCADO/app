@@ -136,7 +136,9 @@ export async function POST(request: NextRequest) {
       credits,
     });
   } catch (error) {
-    console.error('[mp/pix/create] Error:', error);
-    return NextResponse.json({ error: 'Erro interno', code: 'internal_error' }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error('[mp/pix/create] Error:', msg, stack);
+    return NextResponse.json({ error: msg, code: 'internal_error' }, { status: 500 });
   }
 }
