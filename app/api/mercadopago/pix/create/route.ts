@@ -1,0 +1,142 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { createPixPayment } from '@/lib/mercadopago/pix';
+
+const createPixSchema = z.object({
+  packageId: z.string().uuid({ message: 'packageId inválido' }).optional(),
+  customAmountCents: z.number().int().min(50).optional(),
+}).refine(
+  (data) => data.packageId || data.customAmountCents,
+  { message: 'Informe packageId ou customAmountCents' }
+);
+
+/**
+ * POST /api/mercadopago/pix/create
+ *
+ * Cria um pagamento PIX para recarga de créditos.
+ * Retorna QR code e dados para exibição.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    // 1. AUTH
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized', code: 'unauthorized' }, { status: 401 });
+    }
+
+    // 2. TENANT
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('tenant_id, email')
+      .eq('id', user.id)
+      .single();
+
+    if (userError || !userData?.tenant_id) {
+      return NextResponse.json({ error: 'Tenant não encontrado', code: 'tenant_not_found' }, { status: 404 });
+    }
+
+    const tenantId = userData.tenant_id;
+    const payerEmail = userData.email || user.email || 'pagador@livia.app';
+
+    // 3. VALIDAÇÃO
+    const body = await request.json();
+    const parsed = createPixSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
+      return NextResponse.json(
+        { error: firstError?.message ?? 'Dados inválidos', code: 'validation_error' },
+        { status: 400 }
+      );
+    }
+
+    const adminSupabase = createAdminClient();
+
+    // 4. RESOLVE PACOTE
+    let amountCents: number;
+    let credits: number;
+    let description: string;
+
+    if (parsed.data.packageId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pkg, error: pkgError } = await (adminSupabase as any)
+        .from('credit_packages')
+        .select('price_brl_cents, credits, bonus_credits, name')
+        .eq('id', parsed.data.packageId)
+        .eq('is_active', true)
+        .single();
+
+      if (pkgError || !pkg) {
+        return NextResponse.json({ error: 'Pacote não encontrado', code: 'not_found' }, { status: 404 });
+      }
+
+      amountCents = pkg.price_brl_cents;
+      credits = pkg.credits + (pkg.bonus_credits || 0);
+      description = `${pkg.name} — ${credits.toLocaleString('pt-BR')} créditos LIVIA`;
+    } else {
+      amountCents = parsed.data.customAmountCents!;
+      credits = amountCents; // 1 centavo = 1 crédito (mesma lógica do Stripe)
+      description = `Recarga personalizada — R$ ${(amountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} LIVIA`;
+    }
+
+    // 5. LIMITE PIX (R$ 3.000,00)
+    if (amountCents > 300000) {
+      return NextResponse.json(
+        { error: 'Valor máximo para PIX é R$ 3.000,00', code: 'pix_limit_exceeded' },
+        { status: 400 }
+      );
+    }
+
+    // 6. CRIA PAGAMENTO NO MERCADO PAGO
+    const pixResult = await createPixPayment({
+      tenantId,
+      amountCents,
+      credits,
+      payerEmail,
+      description,
+      type: 'credit_purchase',
+      expirationMinutes: 30,
+    });
+
+    // 7. SALVA NO DB
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: insertError } = await (adminSupabase as any)
+      .from('mp_pix_payments')
+      .insert({
+        tenant_id: tenantId,
+        mp_payment_id: pixResult.paymentId,
+        payment_type: 'credit_purchase',
+        status: 'pending',
+        amount_cents: amountCents,
+        credits,
+        qr_code: pixResult.qrCode,
+        qr_code_base64: pixResult.qrCodeBase64,
+        expires_at: pixResult.expiresAt,
+        meta: {
+          package_id: parsed.data.packageId ?? null,
+          description,
+          payer_email: payerEmail,
+        },
+      });
+
+    if (insertError) {
+      console.error('[mp/pix/create] Erro ao salvar no DB:', insertError);
+      return NextResponse.json({ error: 'Erro interno', code: 'db_error' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      payment_id: pixResult.paymentId,
+      qr_code: pixResult.qrCode,
+      qr_code_base64: pixResult.qrCodeBase64,
+      expires_at: pixResult.expiresAt,
+      amount_cents: amountCents,
+      credits,
+    });
+  } catch (error) {
+    console.error('[mp/pix/create] Error:', error);
+    return NextResponse.json({ error: 'Erro interno', code: 'internal_error' }, { status: 500 });
+  }
+}

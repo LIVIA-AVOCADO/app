@@ -6,7 +6,7 @@ export function logStripeEvent(
   eventType: string,
   eventId: string,
   tenantId: string | null,
-  status: 'processing' | 'success' | 'skipped' | 'error'
+  status: 'processing' | 'success' | 'skipped' | 'error' | 'pix_pending'
 ) {
   console.log(
     `[STRIPE] [${eventType}] [${tenantId ?? 'unknown'}] [${status}] event=${eventId}`

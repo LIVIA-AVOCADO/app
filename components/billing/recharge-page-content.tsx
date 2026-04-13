@@ -12,6 +12,7 @@ import {
   Loader2,
   Sparkles,
   ChevronDown,
+  QrCode,
 } from 'lucide-react';
 import {
   Card,
@@ -76,6 +77,7 @@ export function RechargePageContent({
   creditPackages,
 }: RechargePageContentProps) {
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
+  const [loadingPix, setLoadingPix] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const { data: billingData } = useStripeBilling();
 
@@ -104,6 +106,37 @@ export function RechargePageContent({
         error instanceof Error ? error.message : 'Falha na conexão. Verifique sua internet e tente novamente.'
       );
       setLoadingPackage(null);
+    }
+  }
+
+  async function handlePixPayment(packageId: string) {
+    setLoadingPix(packageId);
+    try {
+      const res = await fetch('/api/mercadopago/pix/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageId }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao gerar PIX');
+      }
+
+      const params = new URLSearchParams({
+        payment_id: data.payment_id,
+        qr_code: data.qr_code,
+        qr_base64: data.qr_code_base64,
+        expires_at: data.expires_at,
+        credits: String(data.credits),
+      });
+
+      window.location.href = `/financeiro/checkout/pix?${params.toString()}`;
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Falha ao gerar PIX. Tente novamente.'
+      );
+      setLoadingPix(null);
     }
   }
 
@@ -303,17 +336,32 @@ export function RechargePageContent({
                     Necessários para o Agente IA funcionar. Os créditos não expiram.
                   </p>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex flex-col gap-2">
                   <Button
                     className="w-full"
                     variant={pkg.is_highlighted ? 'default' : 'outline'}
                     onClick={() => handleBuyCredits(pkg.id)}
-                    disabled={loadingPackage !== null}
+                    disabled={loadingPackage !== null || loadingPix !== null}
                   >
                     {loadingPackage === pkg.id ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : null}
-                    Comprar
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    Cartão
+                  </Button>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => handlePixPayment(pkg.id)}
+                    disabled={loadingPackage !== null || loadingPix !== null}
+                  >
+                    {loadingPix === pkg.id ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <QrCode className="h-4 w-4 mr-2" />
+                    )}
+                    PIX
                   </Button>
                 </CardFooter>
               </Card>

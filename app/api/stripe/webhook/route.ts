@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { logStripeEvent, logStripeError } from '@/lib/stripe/logger';
 import {
   handleCheckoutCompleted,
+  handleAsyncPaymentSucceeded,
+  handleAsyncPaymentFailed,
   handleInvoicePaid,
   handleInvoicePaymentFailed,
   handleSubscriptionUpdated,
@@ -58,6 +60,18 @@ export async function POST(request: NextRequest) {
         console.log('[STRIPE WEBHOOK] Handling checkout.session.completed...');
         await handleCheckoutCompleted(event, supabaseAdmin);
         console.log('[STRIPE WEBHOOK] checkout.session.completed handled OK');
+        break;
+
+      case 'checkout.session.async_payment_succeeded':
+        console.log('[STRIPE WEBHOOK] Handling checkout.session.async_payment_succeeded...');
+        await handleAsyncPaymentSucceeded(event, supabaseAdmin);
+        console.log('[STRIPE WEBHOOK] checkout.session.async_payment_succeeded handled OK');
+        break;
+
+      case 'checkout.session.async_payment_failed':
+        console.log('[STRIPE WEBHOOK] Handling checkout.session.async_payment_failed...');
+        await handleAsyncPaymentFailed(event, supabaseAdmin);
+        console.log('[STRIPE WEBHOOK] checkout.session.async_payment_failed handled OK');
         break;
 
       case 'invoice.paid':

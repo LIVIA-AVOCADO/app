@@ -76,6 +76,62 @@ export async function handleCheckoutCompleted(
     return; // Return 200 — don't retry, investigate manually
   }
 
+  if (session.mode === 'payment') {
+    // PIX payments are async: checkout.session.completed fires when the QR code is
+    // generated (payment_status = 'unpaid'). Only credit the wallet immediately for
+    // card payments (payment_status = 'paid'). PIX is handled by
+    // checkout.session.async_payment_succeeded.
+    if (session.payment_status !== 'paid') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabaseAdmin as any)
+        .from('stripe_checkout_sessions')
+        .update({ status: 'pix_pending', updated_at: new Date().toISOString() })
+        .eq('stripe_session_id', session.id);
+      logStripeEvent('checkout.session.completed', eventId, tenantId, 'pix_pending');
+      return;
+    }
+
+    await creditWalletFromCheckoutSession(
+      session,
+      eventId,
+      tenantId,
+      supabaseAdmin,
+      'checkout.session.completed'
+    );
+  } else if (session.mode === 'subscription') {
+    // Subscription activation is handled by customer.subscription.updated
+    logStripeEvent('checkout.session.completed', eventId, tenantId, 'success');
+  }
+}
+
+// ============================================================================
+// Shared helper: credit wallet from a checkout session
+// ============================================================================
+
+async function creditWalletFromCheckoutSession(
+  session: Stripe.Checkout.Session,
+  eventId: string,
+  tenantId: string,
+  supabaseAdmin: SupabaseClient,
+  eventType: string
+) {
+  const sourceRef = `stripe_checkout_${session.id}`;
+  const credits = Number(session.metadata?.package_credits || 0);
+
+  if (credits <= 0) {
+    logStripeError(eventType, 'Invalid credits amount', {
+      sessionId: session.id,
+      tenantId,
+    });
+    return;
+  }
+
+  // Idempotency check
+  if (await isAlreadyProcessed(supabaseAdmin, sourceRef)) {
+    logStripeEvent(eventType, eventId, tenantId, 'skipped');
+    return;
+  }
+
   // Update checkout session status
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabaseAdmin as any)
@@ -83,56 +139,103 @@ export async function handleCheckoutCompleted(
     .update({ status: 'completed', updated_at: new Date().toISOString() })
     .eq('stripe_session_id', session.id);
 
-  if (session.mode === 'payment') {
-    // Credit purchase
-    const sourceRef = `stripe_checkout_${session.id}`;
-    const credits = Number(session.metadata?.package_credits || 0);
+  // Credit wallet via RPC
+  console.log('[STRIPE] Calling credit_wallet RPC:', { tenantId, credits, sourceRef });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: rpcError, data: rpcData } = await (supabaseAdmin as any).rpc('credit_wallet', {
+    p_tenant_id: tenantId,
+    p_amount_credits: credits,
+    p_source_type: 'purchase',
+    p_source_ref: sourceRef,
+    p_description: `Compra de ${credits.toLocaleString('pt-BR')} créditos via Stripe`,
+    p_meta: {
+      stripe_session_id: session.id,
+      stripe_event_id: eventId,
+      amount_cents: session.metadata?.package_amount_cents,
+    },
+  });
+  console.log('[STRIPE] credit_wallet result:', { rpcError, rpcData });
 
-    if (credits <= 0) {
-      logStripeError('handleCheckoutCompleted', 'Invalid credits amount', {
-        sessionId: session.id,
-        tenantId,
-      });
-      return;
-    }
-
-    // Idempotency check
-    if (await isAlreadyProcessed(supabaseAdmin, sourceRef)) {
-      logStripeEvent('checkout.session.completed', eventId, tenantId, 'skipped');
-      return;
-    }
-
-    // Credit wallet via RPC
-    console.log('[STRIPE] Calling credit_wallet RPC:', { tenantId, credits, sourceRef });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: rpcError, data: rpcData } = await (supabaseAdmin as any).rpc('credit_wallet', {
-      p_tenant_id: tenantId,
-      p_amount_credits: credits,
-      p_source_type: 'purchase',
-      p_source_ref: sourceRef,
-      p_description: `Compra de ${credits.toLocaleString('pt-BR')} créditos via Stripe`,
-      p_meta: {
-        stripe_session_id: session.id,
-        stripe_event_id: eventId,
-        amount_cents: session.metadata?.package_amount_cents,
-      },
+  if (rpcError) {
+    logStripeError(`${eventType}.credit_wallet`, rpcError, {
+      tenantId,
+      credits,
+      sourceRef,
     });
-    console.log('[STRIPE] credit_wallet result:', { rpcError, rpcData });
-
-    if (rpcError) {
-      logStripeError('handleCheckoutCompleted.credit_wallet', rpcError, {
-        tenantId,
-        credits,
-        sourceRef,
-      });
-      throw rpcError; // Return 500 to retry
-    }
-
-    logStripeEvent('checkout.session.completed', eventId, tenantId, 'success');
-  } else if (session.mode === 'subscription') {
-    // Subscription activation is handled by customer.subscription.updated
-    logStripeEvent('checkout.session.completed', eventId, tenantId, 'success');
+    throw rpcError; // Return 500 to retry
   }
+
+  logStripeEvent(eventType, eventId, tenantId, 'success');
+}
+
+// ============================================================================
+// checkout.session.async_payment_succeeded (PIX paid)
+// ============================================================================
+
+export async function handleAsyncPaymentSucceeded(
+  event: Stripe.Event,
+  supabaseAdmin: SupabaseClient
+) {
+  const session = event.data.object as Stripe.Checkout.Session;
+  const eventId = event.id;
+
+  const tenantId = await resolveTenantId(
+    supabaseAdmin,
+    session.customer as string | null,
+    session.metadata
+  );
+
+  if (!tenantId) {
+    logStripeError('handleAsyncPaymentSucceeded', 'Tenant not found for customer', {
+      customerId: session.customer,
+      eventId,
+    });
+    return;
+  }
+
+  if (session.mode !== 'payment') return;
+
+  await creditWalletFromCheckoutSession(
+    session,
+    eventId,
+    tenantId,
+    supabaseAdmin,
+    'checkout.session.async_payment_succeeded'
+  );
+}
+
+// ============================================================================
+// checkout.session.async_payment_failed (PIX expired without payment)
+// ============================================================================
+
+export async function handleAsyncPaymentFailed(
+  event: Stripe.Event,
+  supabaseAdmin: SupabaseClient
+) {
+  const session = event.data.object as Stripe.Checkout.Session;
+  const eventId = event.id;
+
+  const tenantId = await resolveTenantId(
+    supabaseAdmin,
+    session.customer as string | null,
+    session.metadata
+  );
+
+  if (!tenantId) {
+    logStripeError('handleAsyncPaymentFailed', 'Tenant not found', {
+      customerId: session.customer,
+      eventId,
+    });
+    return;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabaseAdmin as any)
+    .from('stripe_checkout_sessions')
+    .update({ status: 'pix_failed', updated_at: new Date().toISOString() })
+    .eq('stripe_session_id', session.id);
+
+  logStripeEvent('checkout.session.async_payment_failed', eventId, tenantId, 'success');
 }
 
 // ============================================================================
