@@ -191,12 +191,16 @@ async function handleSubscriptionApproved(
   }
 
   // Calcula próximo vencimento com base no billing_day
-  const billingDay = tenant.subscription_billing_day ?? 1;
+  // Se nova assinatura (sem period_end), usa o dia de hoje como âncora
+  const hoje = new Date();
+  const billingDay = tenant.subscription_billing_day ?? hoje.getUTCDate();
   const currentPeriodEnd = tenant.subscription_current_period_end
     ? new Date(tenant.subscription_current_period_end)
-    : new Date();
+    : hoje;
 
-  const proximoVencimento = calcularProximoVencimento(billingDay, currentPeriodEnd);
+  // Se o period_end já passou (ou não existe), o novo período começa de hoje
+  const baseParaCalculo = currentPeriodEnd < hoje ? hoje : currentPeriodEnd;
+  const proximoVencimento = calcularProximoVencimento(billingDay, baseParaCalculo);
 
   // Atualiza tenant
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -4,13 +4,21 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createPixPayment } from '@/lib/mercadopago/pix';
 
-const createPixSchema = z.object({
-  packageId: z.string().uuid({ message: 'packageId inválido' }).optional(),
-  customAmountCents: z.number().int().min(50).optional(),
-}).refine(
-  (data) => data.packageId || data.customAmountCents,
-  { message: 'Informe packageId ou customAmountCents' }
-);
+const SUBSCRIPTION_AMOUNT_CENTS = 30000; // R$ 300,00
+
+const createPixSchema = z.union([
+  z.object({
+    mode: z.literal('subscription'),
+  }),
+  z.object({
+    mode: z.literal('credit_purchase').optional(),
+    packageId: z.string().uuid({ message: 'packageId inválido' }).optional(),
+    customAmountCents: z.number().int().min(50).optional(),
+  }).refine(
+    (data) => data.packageId || data.customAmountCents,
+    { message: 'Informe packageId ou customAmountCents' }
+  ),
+]);
 
 /**
  * POST /api/mercadopago/pix/create
@@ -55,12 +63,18 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient();
 
-    // 4. RESOLVE PACOTE
+    // 4. RESOLVE VALORES CONFORME MODO
     let amountCents: number;
     let credits: number;
     let description: string;
+    let paymentType: 'credit_purchase' | 'subscription';
 
-    if (parsed.data.packageId) {
+    if (parsed.data.mode === 'subscription') {
+      amountCents = SUBSCRIPTION_AMOUNT_CENTS;
+      credits = 0;
+      description = 'Manutenção Mensal LIVIA — R$ 300,00';
+      paymentType = 'subscription';
+    } else if (parsed.data.packageId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: pkg, error: pkgError } = await (adminSupabase as any)
         .from('credit_packages')
@@ -76,10 +90,12 @@ export async function POST(request: NextRequest) {
       amountCents = pkg.price_brl_cents;
       credits = pkg.credits + (pkg.bonus_credits || 0);
       description = `${pkg.name} — ${credits.toLocaleString('pt-BR')} créditos LIVIA`;
+      paymentType = 'credit_purchase';
     } else {
       amountCents = parsed.data.customAmountCents!;
-      credits = amountCents; // 1 centavo = 1 crédito (mesma lógica do Stripe)
+      credits = amountCents;
       description = `Recarga personalizada — R$ ${(amountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} LIVIA`;
+      paymentType = 'credit_purchase';
     }
 
     // 5. LIMITE PIX (R$ 3.000,00)
@@ -97,8 +113,8 @@ export async function POST(request: NextRequest) {
       credits,
       payerEmail,
       description,
-      type: 'credit_purchase',
-      expirationMinutes: 30,
+      type: paymentType,
+      expirationMinutes: paymentType === 'subscription' ? 60 : 30,
     });
 
     // 7. SALVA NO DB
@@ -116,7 +132,7 @@ export async function POST(request: NextRequest) {
         qr_code_base64: pixResult.qrCodeBase64,
         expires_at: pixResult.expiresAt,
         meta: {
-          package_id: parsed.data.packageId ?? null,
+          package_id: 'packageId' in parsed.data ? (parsed.data.packageId ?? null) : null,
           description,
           payer_email: payerEmail,
         },

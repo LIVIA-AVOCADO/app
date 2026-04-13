@@ -78,6 +78,7 @@ export function RechargePageContent({
 }: RechargePageContentProps) {
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
   const [loadingPix, setLoadingPix] = useState<string | null>(null);
+  const [loadingPixSubscription, setLoadingPixSubscription] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const { data: billingData } = useStripeBilling();
 
@@ -163,6 +164,37 @@ export function RechargePageContent({
     }
   }
 
+  async function handlePixSubscription() {
+    setLoadingPixSubscription(true);
+    try {
+      const res = await fetch('/api/mercadopago/pix/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'subscription' }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao gerar PIX');
+      }
+
+      const params = new URLSearchParams({
+        payment_id: data.payment_id,
+        qr_code: data.qr_code,
+        qr_base64: data.qr_code_base64,
+        expires_at: data.expires_at,
+        mode: 'subscription',
+      });
+
+      window.location.href = `/financeiro/checkout/pix?${params.toString()}`;
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Falha ao gerar PIX. Tente novamente.'
+      );
+      setLoadingPixSubscription(false);
+    }
+  }
+
   async function handleSubscribe() {
     const firstPlan = plans[0];
     if (!firstPlan) {
@@ -230,12 +262,28 @@ export function RechargePageContent({
               className="w-full text-base py-6"
               size="lg"
               onClick={handleSubscribe}
-              disabled={loadingPackage === 'subscription'}
+              disabled={loadingPackage === 'subscription' || loadingPixSubscription}
             >
               {loadingPackage === 'subscription' ? (
                 <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              ) : null}
-              Assinar Agora — R$ 300,00/mês
+              ) : (
+                <CreditCard className="h-5 w-5 mr-2" />
+              )}
+              Assinar com Cartão — R$ 300,00/mês
+            </Button>
+            <Button
+              className="w-full text-base py-6"
+              size="lg"
+              variant="outline"
+              onClick={handlePixSubscription}
+              disabled={loadingPackage === 'subscription' || loadingPixSubscription}
+            >
+              {loadingPixSubscription ? (
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              ) : (
+                <QrCode className="h-5 w-5 mr-2" />
+              )}
+              Assinar com PIX — R$ 300,00/mês
             </Button>
           </div>
         </DialogContent>
@@ -267,6 +315,7 @@ export function RechargePageContent({
           periodEnd={subscription?.subscription_current_period_end || null}
           cancelAtPeriodEnd={subscription?.subscription_cancel_at_period_end || false}
           onSubscribe={handleSubscribe}
+          onPixSubscribe={handlePixSubscription}
         />
 
         {/* Saldo Atual */}

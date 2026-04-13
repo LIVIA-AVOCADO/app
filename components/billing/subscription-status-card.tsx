@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Loader2, ExternalLink } from 'lucide-react';
+import { Shield, Loader2, ExternalLink, QrCode, CreditCard } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -18,6 +18,7 @@ interface SubscriptionStatusCardProps {
   periodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   onSubscribe?: () => void;
+  onPixSubscribe?: () => void;
 }
 
 function getStatusBadge(status: SubscriptionStatus) {
@@ -49,6 +50,7 @@ export function SubscriptionStatusCard({
   periodEnd,
   cancelAtPeriodEnd,
   onSubscribe,
+  onPixSubscribe,
 }: SubscriptionStatusCardProps) {
   const [loadingPortal, setLoadingPortal] = useState(false);
   const badge = getStatusBadge(status);
@@ -120,18 +122,39 @@ export function SubscriptionStatusCard({
           )}
 
           {isPastDue && (
-            <Button size="sm" onClick={handlePortal} disabled={loadingPortal}>
-              {loadingPortal ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : null}
-              Regularizar Pagamento
-            </Button>
+            <>
+              <Button size="sm" onClick={handlePortal} disabled={loadingPortal}>
+                {loadingPortal ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CreditCard className="h-4 w-4 mr-2" />
+                )}
+                Pagar com Cartão
+              </Button>
+              {onPixSubscribe && (
+                <Button size="sm" variant="outline" onClick={onPixSubscribe}>
+                  <QrCode className="h-4 w-4 mr-2" />
+                  Pagar com PIX
+                </Button>
+              )}
+            </>
           )}
 
-          {(status === 'canceled' || status === 'inactive') && onSubscribe && (
-            <Button size="sm" onClick={onSubscribe}>
-              Assinar Manutenção
-            </Button>
+          {(status === 'canceled' || status === 'inactive') && (
+            <div className="flex flex-wrap gap-2">
+              {onSubscribe && (
+                <Button size="sm" onClick={onSubscribe}>
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Assinar com Cartão
+                </Button>
+              )}
+              {onPixSubscribe && (
+                <Button size="sm" variant="outline" onClick={onPixSubscribe}>
+                  <QrCode className="h-4 w-4 mr-2" />
+                  Assinar com PIX
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </CardContent>
