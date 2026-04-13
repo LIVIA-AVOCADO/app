@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     // 2. TENANT
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('tenant_id, email')
+      .select('tenant_id')
       .eq('id', user.id)
       .single();
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantId = userData.tenant_id;
-    const payerEmail = userData.email || user.email || 'pagador@livia.app';
+    const payerEmail = user.email ?? 'pagador@livia.app';
 
     // 3. VALIDAÇÃO
     const body = await request.json();
