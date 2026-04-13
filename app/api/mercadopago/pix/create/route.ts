@@ -136,9 +136,8 @@ export async function POST(request: NextRequest) {
       credits,
     });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    const stack = error instanceof Error ? error.stack : undefined;
-    console.error('[mp/pix/create] Error:', msg, stack);
-    return NextResponse.json({ error: msg, code: 'internal_error' }, { status: 500 });
+    const serialized = JSON.stringify(error, Object.getOwnPropertyNames(error ?? {}));
+    console.error('[mp/pix/create] Error:', serialized);
+    return NextResponse.json({ error: serialized, code: 'internal_error' }, { status: 500 });
   }
 }
