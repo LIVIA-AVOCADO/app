@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { Payment } from 'mercadopago';
-import { getMercadoPago } from '@/lib/mercadopago/client';
+import { getMPAccessToken } from '@/lib/mercadopago/client';
 import { calcularProximoVencimento } from '@/lib/mercadopago/pix';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getStripe } from '@/lib/stripe/client';
@@ -62,9 +61,16 @@ export async function POST(request: NextRequest) {
 
   try {
     // 3. BUSCA DETALHES DO PAGAMENTO NO MP
-    const payment = new Payment(getMercadoPago());
-    const mpPayment = await payment.get({ id: mpPaymentId });
-    const mpStatus = mpPayment.status;
+    const accessToken = getMPAccessToken();
+    const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${mpPaymentId}`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!mpRes.ok) {
+      console.error('[mp/webhook] Falha ao buscar pagamento:', mpPaymentId, mpRes.status);
+      return NextResponse.json({ received: true });
+    }
+    const mpPayment = await mpRes.json();
+    const mpStatus = mpPayment.status as string;
     const metadata = mpPayment.metadata as Record<string, unknown> | undefined;
     const tenantId = metadata?.tenant_id as string | undefined;
     const paymentType = metadata?.type as string | undefined;
