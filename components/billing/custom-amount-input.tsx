@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { DollarSign } from 'lucide-react';
+import { DollarSign, CreditCard, QrCode, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,11 +14,13 @@ import {
 } from '@/components/ui/card';
 
 const MIN_AMOUNT_BRL = 5;
-const MAX_AMOUNT_BRL = 5000;
+const MAX_AMOUNT_BRL = 3000; // Limite PIX R$ 3.000
 
 interface CustomAmountInputProps {
   onSubmit: (amountCents: number) => void;
+  onPixSubmit: (amountCents: number) => void;
   isLoading: boolean;
+  isPixLoading: boolean;
 }
 
 function formatInputBRL(value: string): string {
@@ -37,13 +39,13 @@ function parseInputBRL(formatted: string): number {
   return parseInt(digits, 10); // centavos
 }
 
-export function CustomAmountInput({ onSubmit, isLoading }: CustomAmountInputProps) {
+export function CustomAmountInput({ onSubmit, onPixSubmit, isLoading, isPixLoading }: CustomAmountInputProps) {
   const [displayValue, setDisplayValue] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const amountCents = parseInputBRL(displayValue);
   const amountBRL = amountCents / 100;
-  const credits = amountCents; // 1 crédito = R$ 0,01
+  const credits = amountCents;
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -52,16 +54,26 @@ export function CustomAmountInput({ onSubmit, isLoading }: CustomAmountInputProp
     setError(null);
   }, []);
 
-  const handleSubmit = () => {
+  function validate(): boolean {
     if (amountBRL < MIN_AMOUNT_BRL) {
       setError(`Valor mínimo: R$ ${MIN_AMOUNT_BRL},00`);
-      return;
+      return false;
     }
     if (amountBRL > MAX_AMOUNT_BRL) {
-      setError(`Valor máximo: R$ ${MAX_AMOUNT_BRL.toLocaleString('pt-BR')},00`);
-      return;
+      setError(`Valor máximo via PIX: R$ ${MAX_AMOUNT_BRL.toLocaleString('pt-BR')},00`);
+      return false;
     }
+    return true;
+  }
+
+  const handleSubmit = () => {
+    if (!validate()) return;
     onSubmit(amountCents);
+  };
+
+  const handlePixSubmit = () => {
+    if (!validate()) return;
+    onPixSubmit(amountCents);
   };
 
   return (
@@ -106,13 +118,33 @@ export function CustomAmountInput({ onSubmit, isLoading }: CustomAmountInputProp
           </div>
         )}
 
-        <Button
-          className="w-full"
-          onClick={handleSubmit}
-          disabled={isLoading || amountCents === 0}
-        >
-          {isLoading ? 'Processando...' : 'Comprar Créditos'}
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            className="w-full"
+            onClick={handleSubmit}
+            disabled={isLoading || isPixLoading || amountCents === 0}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <CreditCard className="h-4 w-4 mr-2" />
+            )}
+            Pagar com Cartão
+          </Button>
+          <Button
+            className="w-full"
+            variant="outline"
+            onClick={handlePixSubmit}
+            disabled={isLoading || isPixLoading || amountCents === 0}
+          >
+            {isPixLoading ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <QrCode className="h-4 w-4 mr-2" />
+            )}
+            Pagar com PIX
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

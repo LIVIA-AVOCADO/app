@@ -80,12 +80,13 @@ export function RechargePageContent({
   const [loadingPix, setLoadingPix] = useState<string | null>(null);
   const [loadingPixSubscription, setLoadingPixSubscription] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const { data: billingData } = useStripeBilling();
+  const { data: billingData, isLoading: isBillingLoading } = useStripeBilling();
 
   const subscription = billingData?.subscription;
   const subscriptionStatus: SubscriptionStatus = subscription?.subscription_status || 'inactive';
   const plans = billingData?.plans || [];
-  const isSubscriptionBlocked = subscriptionStatus === 'canceled' || subscriptionStatus === 'inactive';
+  // Só bloqueia após confirmar que os dados carregaram — evita modal piscando
+  const isSubscriptionBlocked = !isBillingLoading && (subscriptionStatus === 'canceled' || subscriptionStatus === 'inactive');
 
   async function handleBuyCredits(packageId: string) {
     setLoadingPackage(packageId);
@@ -421,7 +422,31 @@ export function RechargePageContent({
         {/* Seção 3: Valor Personalizado */}
         <CustomAmountInput
           onSubmit={handleCustomAmount}
+          onPixSubmit={async (amountCents) => {
+            setLoadingPix('custom');
+            try {
+              const res = await fetch('/api/mercadopago/pix/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customAmountCents: amountCents }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Erro ao gerar PIX');
+              const params = new URLSearchParams({
+                payment_id: data.payment_id,
+                qr_code: data.qr_code,
+                qr_base64: data.qr_code_base64,
+                expires_at: data.expires_at,
+                credits: String(data.credits),
+              });
+              window.location.href = `/financeiro/checkout/pix?${params.toString()}`;
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : 'Falha ao gerar PIX.');
+              setLoadingPix(null);
+            }
+          }}
           isLoading={loadingPackage === 'custom'}
+          isPixLoading={loadingPix === 'custom'}
         />
 
         {/* Seção 4: Histórico de Recargas (collapsible) */}
