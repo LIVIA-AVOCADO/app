@@ -1835,7 +1835,7 @@ export type Database = {
       conversation_status_enum: "open" | "closed"
       feedback_process_status_enum: "open" | "in_progress" | "closed"
       feedback_type_enum: "like" | "dislike"
-      message_sender_type_enum: "customer" | "attendant" | "ai"
+      message_sender_type_enum: "customer" | "attendant" | "ai" | "channel"
       message_status: "pending" | "sent" | "failed" | "read"
       reactivation_action_type:
         | "transfer_to_human"
@@ -2008,7 +2008,7 @@ export const Constants = {
       conversation_status_enum: ["open", "closed"],
       feedback_process_status_enum: ["open", "in_progress", "closed"],
       feedback_type_enum: ["like", "dislike"],
-      message_sender_type_enum: ["customer", "attendant", "ai"],
+      message_sender_type_enum: ["customer", "attendant", "ai", "channel"],
       message_status: ["pending", "sent", "failed", "read"],
       reactivation_action_type: [
         "transfer_to_human",
