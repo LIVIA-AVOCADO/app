@@ -23,9 +23,8 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
   const isCustomer = message.sender_type === 'customer';
   const isAttendant = message.sender_type === 'attendant';
   const isIA = message.sender_type === 'ai';
+  const isSystem = message.sender_type === 'channel';
   const [isHovered, setIsHovered] = useState(false);
-
-  const isSystem = isAttendant && !message.sender_user_id;
 
   const senderName = isCustomer
     ? 'Cliente'
