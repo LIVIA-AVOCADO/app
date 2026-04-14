@@ -25,11 +25,15 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
   const isIA = message.sender_type === 'ai';
   const [isHovered, setIsHovered] = useState(false);
 
+  const isSystem = isAttendant && !message.sender_user_id;
+
   const senderName = isCustomer
     ? 'Cliente'
     : isIA
       ? 'IA'
-      : message.senderUser?.full_name || 'Atendente';
+      : isSystem
+        ? 'Enviado pelo sistema'
+        : message.senderUser?.full_name || 'Atendente';
 
   const initials = senderName
     .split(' ')
@@ -85,6 +89,7 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
               senderName={senderName}
               isIA={isIA}
               isAttendant={isAttendant}
+              isSystem={isSystem}
               isCustomer={isCustomer}
             />
           )}
@@ -291,10 +296,11 @@ interface MessageHeaderProps {
   senderName: string;
   isIA: boolean;
   isAttendant: boolean;
+  isSystem: boolean;
   isCustomer: boolean;
 }
 
-function MessageHeader({ senderName, isIA, isAttendant, isCustomer }: MessageHeaderProps) {
+function MessageHeader({ senderName, isIA, isAttendant, isSystem, isCustomer }: MessageHeaderProps) {
   return (
     <div className={cn(
       "flex items-center gap-1.5 mb-0.5",
@@ -303,13 +309,13 @@ function MessageHeader({ senderName, isIA, isAttendant, isCustomer }: MessageHea
       <span
         className={cn(
           'text-xs font-semibold',
-          isIA ? 'text-purple-600' : 'text-blue-600'
+          isIA ? 'text-purple-600' : isSystem ? 'text-muted-foreground' : 'text-blue-600'
         )}
       >
         {senderName}
       </span>
-      {/* Badge apenas para Atendente (IA terá badge na linha do feedback) */}
-      {isAttendant && !isIA && (
+      {/* Badge apenas para Atendente humano (IA terá badge na linha do feedback; sistema não mostra badge) */}
+      {isAttendant && !isIA && !isSystem && (
         <Badge variant="outline" className="h-3.5 text-[9px] px-1 py-0">
           Atendente
         </Badge>
