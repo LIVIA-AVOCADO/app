@@ -186,7 +186,6 @@ async function sendToN8nAsync(
     console.error(`[n8n-async] 📞 Calling n8n webhook for message ${msgId}...`);
     console.error(`[n8n-async] 🔗 Webhook: ${process.env.N8N_BASE_URL}${N8N_SEND_MESSAGE_WEBHOOK}`);
 
-    // Timeout de 5s para n8n (reduzido de 10s padrão)
     const result = await callN8nWebhook(
       N8N_SEND_MESSAGE_WEBHOOK,
       {
@@ -205,7 +204,7 @@ async function sendToN8nAsync(
           quotedFromMe: quotedData.fromMe,
         } : {}),
       },
-      { timeout: 5000 } // 5 segundos máximo
+      { timeout: 15000 } // 15s — N8N pode levar até 10s em workflows complexos
     );
 
     const n8nTime = Date.now() - n8nStartTime;
@@ -216,9 +215,18 @@ async function sendToN8nAsync(
       // N8N é responsável por atualizar status='sent' e external_message_id
     } else {
       console.error(`[n8n-async] ❌ N8N failed after ${n8nTime}ms:`, result.error);
-      // Fallback: atualizar status manualmente apenas se n8n não conseguir
-      console.error(`[n8n-async] 🔄 Updating message status to 'failed'...`);
-      await updateMessageStatus(messageId, 'failed');
+
+      // Timeout ≠ falha de entrega: AbortController.abort() cancela o fetch no
+      // nosso lado, mas o N8N já recebeu o request e continua processando.
+      // Deixar como 'pending' — N8N atualizará para 'sent' via Realtime.
+      // Só marcar 'failed' em erros reais (conexão recusada, N8N offline).
+      const isTimeout = result.error?.includes('timeout');
+      if (isTimeout) {
+        console.error(`[n8n-async] ⏱️ Timeout — keeping status as 'pending', N8N may still deliver`);
+      } else {
+        console.error(`[n8n-async] 🔄 Real error — updating message status to 'failed'`);
+        await updateMessageStatus(messageId, 'failed');
+      }
     }
   } catch (error) {
     const n8nTime = Date.now() - n8nStartTime;
