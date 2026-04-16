@@ -27,6 +27,7 @@ export interface TenantSubscription {
   subscription_status: SubscriptionStatus;
   subscription_current_period_end: string | null;
   subscription_cancel_at_period_end: boolean;
+  subscription_provider: 'stripe' | 'pix_manual';
 }
 
 // ===== CHECKOUT =====

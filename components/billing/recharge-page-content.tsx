@@ -79,11 +79,16 @@ export function RechargePageContent({
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
   const [loadingPix, setLoadingPix] = useState<string | null>(null);
   const [loadingPixSubscription, setLoadingPixSubscription] = useState(false);
+  const [loadingSwitchToPix, setLoadingSwitchToPix] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const { data: billingData, isLoading: isBillingLoading } = useStripeBilling();
 
   const subscription = billingData?.subscription;
-  const subscriptionStatus: SubscriptionStatus = subscription?.subscription_status || 'inactive';
+  // Só usa o status real após carregamento — evita default 'inactive' piscando botões
+  const subscriptionStatus: SubscriptionStatus = isBillingLoading
+    ? 'active' // valor neutro durante loading (não exibe botões de assinar nem bloqueia)
+    : (subscription?.subscription_status || 'inactive');
+  const subscriptionProvider = subscription?.subscription_provider ?? 'stripe';
   const plans = billingData?.plans || [];
   // Só bloqueia após confirmar que os dados carregaram — evita modal piscando
   const isSubscriptionBlocked = !isBillingLoading && (subscriptionStatus === 'canceled' || subscriptionStatus === 'inactive');
@@ -193,6 +198,22 @@ export function RechargePageContent({
         error instanceof Error ? error.message : 'Falha ao gerar PIX. Tente novamente.'
       );
       setLoadingPixSubscription(false);
+    }
+  }
+
+  async function handleSwitchToPix() {
+    setLoadingSwitchToPix(true);
+    try {
+      // 1. Cancela renovação Stripe + muda provider para pix_manual
+      const switchRes = await fetch('/api/stripe/switch-to-pix', { method: 'POST' });
+      const switchData = await switchRes.json();
+      if (!switchRes.ok) throw new Error(switchData.error || 'Erro ao migrar para PIX');
+
+      // 2. Gera PIX da próxima mensalidade imediatamente
+      await handlePixSubscription();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao migrar para PIX.');
+      setLoadingSwitchToPix(false);
     }
   }
 
@@ -315,8 +336,12 @@ export function RechargePageContent({
           status={subscriptionStatus}
           periodEnd={subscription?.subscription_current_period_end || null}
           cancelAtPeriodEnd={subscription?.subscription_cancel_at_period_end || false}
+          subscriptionProvider={subscriptionProvider}
+          isLoading={isBillingLoading}
+          isSwitchingToPix={loadingSwitchToPix}
           onSubscribe={handleSubscribe}
           onPixSubscribe={handlePixSubscription}
+          onSwitchToPix={handleSwitchToPix}
         />
 
         {/* Saldo Atual */}

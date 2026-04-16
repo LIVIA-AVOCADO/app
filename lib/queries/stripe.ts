@@ -41,7 +41,7 @@ export async function getTenantSubscription(
   const { data, error } = await (supabase as any)
     .from('tenants')
     .select(
-      'stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, subscription_cancel_at_period_end'
+      'stripe_customer_id, stripe_subscription_id, subscription_status, subscription_current_period_end, subscription_cancel_at_period_end, subscription_provider'
     )
     .eq('id', tenantId)
     .single();

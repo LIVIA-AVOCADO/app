@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import type { SubscriptionStatus } from '@/types/stripe';
 
@@ -17,8 +18,12 @@ interface SubscriptionStatusCardProps {
   status: SubscriptionStatus;
   periodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  subscriptionProvider?: 'stripe' | 'pix_manual';
+  isLoading?: boolean;
+  isSwitchingToPix?: boolean;
   onSubscribe?: () => void;
   onPixSubscribe?: () => void;
+  onSwitchToPix?: () => void;
 }
 
 function getStatusBadge(status: SubscriptionStatus) {
@@ -49,13 +54,18 @@ export function SubscriptionStatusCard({
   status,
   periodEnd,
   cancelAtPeriodEnd,
+  subscriptionProvider = 'stripe',
+  isLoading = false,
+  isSwitchingToPix = false,
   onSubscribe,
   onPixSubscribe,
+  onSwitchToPix,
 }: SubscriptionStatusCardProps) {
   const [loadingPortal, setLoadingPortal] = useState(false);
   const badge = getStatusBadge(status);
   const isActive = status === 'active' || status === 'trialing';
   const isPastDue = status === 'past_due';
+  const isStripeActive = isActive && subscriptionProvider === 'stripe' && !cancelAtPeriodEnd;
 
   async function handlePortal() {
     setLoadingPortal(true);
@@ -84,9 +94,13 @@ export function SubscriptionStatusCard({
             <Shield className="h-5 w-5" />
             Manutenção Mensal
           </CardTitle>
-          <Badge variant="outline" className={badge.className}>
-            {badge.label}
-          </Badge>
+          {isLoading ? (
+            <Skeleton className="h-6 w-24 rounded-full" />
+          ) : (
+            <Badge variant="outline" className={badge.className}>
+              {badge.label}
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -95,68 +109,93 @@ export function SubscriptionStatusCard({
           <p className="text-sm text-muted-foreground">Sistema online, suporte técnico e atualizações</p>
         </div>
 
-        {isActive && periodEnd && (
-          <p className="text-sm text-muted-foreground">
-            {cancelAtPeriodEnd
-              ? `Cancela em ${formatPeriodEnd(periodEnd)}`
-              : `Renova em ${formatPeriodEnd(periodEnd)}`
-            }
-          </p>
-        )}
+        {isLoading ? (
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-40 rounded-md" />
+          </div>
+        ) : (
+          <>
+            {isActive && periodEnd && (
+              <p className="text-sm text-muted-foreground">
+                {cancelAtPeriodEnd
+                  ? `Cancela em ${formatPeriodEnd(periodEnd)} — aguardando pagamento PIX`
+                  : `Renova em ${formatPeriodEnd(periodEnd)}`
+                }
+              </p>
+            )}
 
-        <div className="flex flex-wrap gap-2">
-          {isActive && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePortal}
-              disabled={loadingPortal}
-            >
-              {loadingPortal ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <ExternalLink className="h-4 w-4 mr-2" />
-              )}
-              Gerenciar Assinatura
-            </Button>
-          )}
-
-          {isPastDue && (
-            <>
-              <Button size="sm" onClick={handlePortal} disabled={loadingPortal}>
-                {loadingPortal ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <CreditCard className="h-4 w-4 mr-2" />
-                )}
-                Pagar com Cartão
-              </Button>
-              {onPixSubscribe && (
-                <Button size="sm" variant="outline" onClick={onPixSubscribe}>
-                  <QrCode className="h-4 w-4 mr-2" />
-                  Pagar com PIX
-                </Button>
-              )}
-            </>
-          )}
-
-          {(status === 'canceled' || status === 'inactive') && (
             <div className="flex flex-wrap gap-2">
-              {onSubscribe && (
-                <Button size="sm" onClick={onSubscribe}>
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Assinar com Cartão
+              {isActive && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePortal}
+                  disabled={loadingPortal}
+                >
+                  {loadingPortal ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                  )}
+                  Gerenciar Assinatura
                 </Button>
               )}
-              {onPixSubscribe && (
-                <Button size="sm" variant="outline" onClick={onPixSubscribe}>
-                  <QrCode className="h-4 w-4 mr-2" />
-                  Assinar com PIX
+
+              {/* Migrar para PIX: apenas para assinantes Stripe ativos sem cancelamento pendente */}
+              {isStripeActive && onSwitchToPix && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onSwitchToPix}
+                  disabled={isSwitchingToPix || loadingPortal}
+                >
+                  {isSwitchingToPix ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <QrCode className="h-4 w-4 mr-2" />
+                  )}
+                  Pagar próximo mês com PIX
                 </Button>
+              )}
+
+              {isPastDue && (
+                <>
+                  <Button size="sm" onClick={handlePortal} disabled={loadingPortal}>
+                    {loadingPortal ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    Pagar com Cartão
+                  </Button>
+                  {onPixSubscribe && (
+                    <Button size="sm" variant="outline" onClick={onPixSubscribe}>
+                      <QrCode className="h-4 w-4 mr-2" />
+                      Pagar com PIX
+                    </Button>
+                  )}
+                </>
+              )}
+
+              {(status === 'canceled' || status === 'inactive') && (
+                <div className="flex flex-wrap gap-2">
+                  {onSubscribe && (
+                    <Button size="sm" onClick={onSubscribe}>
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Assinar com Cartão
+                    </Button>
+                  )}
+                  {onPixSubscribe && (
+                    <Button size="sm" variant="outline" onClick={onPixSubscribe}>
+                      <QrCode className="h-4 w-4 mr-2" />
+                      Assinar com PIX
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
