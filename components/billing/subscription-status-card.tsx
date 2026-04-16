@@ -21,9 +21,11 @@ interface SubscriptionStatusCardProps {
   subscriptionProvider?: 'stripe' | 'pix_manual';
   isLoading?: boolean;
   isSwitchingToPix?: boolean;
+  isRevertingToStripe?: boolean;
   onSubscribe?: () => void;
   onPixSubscribe?: () => void;
   onSwitchToPix?: () => void;
+  onRevertToStripe?: () => void;
 }
 
 function getStatusBadge(status: SubscriptionStatus) {
@@ -57,15 +59,19 @@ export function SubscriptionStatusCard({
   subscriptionProvider = 'stripe',
   isLoading = false,
   isSwitchingToPix = false,
+  isRevertingToStripe = false,
   onSubscribe,
   onPixSubscribe,
   onSwitchToPix,
+  onRevertToStripe,
 }: SubscriptionStatusCardProps) {
   const [loadingPortal, setLoadingPortal] = useState(false);
   const badge = getStatusBadge(status);
   const isActive = status === 'active' || status === 'trialing';
   const isPastDue = status === 'past_due';
   const isStripeActive = isActive && subscriptionProvider === 'stripe' && !cancelAtPeriodEnd;
+  // Assinatura ativa mas aguardando pagamento PIX (migração já iniciada)
+  const isPixPending = isActive && subscriptionProvider === 'pix_manual' && cancelAtPeriodEnd;
 
   async function handlePortal() {
     setLoadingPortal(true);
@@ -156,6 +162,37 @@ export function SubscriptionStatusCard({
                   )}
                   Pagar próximo mês com PIX
                 </Button>
+              )}
+
+              {/* Estado: migração iniciada, aguardando pagamento PIX */}
+              {isPixPending && (
+                <>
+                  {onPixSubscribe && (
+                    <Button
+                      size="sm"
+                      onClick={onPixSubscribe}
+                      disabled={isRevertingToStripe}
+                    >
+                      <QrCode className="h-4 w-4 mr-2" />
+                      Gerar novo PIX
+                    </Button>
+                  )}
+                  {onRevertToStripe && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onRevertToStripe}
+                      disabled={isRevertingToStripe}
+                    >
+                      {isRevertingToStripe ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <CreditCard className="h-4 w-4 mr-2" />
+                      )}
+                      Manter cobrança no cartão
+                    </Button>
+                  )}
+                </>
               )}
 
               {isPastDue && (

@@ -80,6 +80,7 @@ export function RechargePageContent({
   const [loadingPix, setLoadingPix] = useState<string | null>(null);
   const [loadingPixSubscription, setLoadingPixSubscription] = useState(false);
   const [loadingSwitchToPix, setLoadingSwitchToPix] = useState(false);
+  const [loadingRevertToStripe, setLoadingRevertToStripe] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const { data: billingData, isLoading: isBillingLoading } = useStripeBilling();
 
@@ -198,6 +199,20 @@ export function RechargePageContent({
         error instanceof Error ? error.message : 'Falha ao gerar PIX. Tente novamente.'
       );
       setLoadingPixSubscription(false);
+    }
+  }
+
+  async function handleRevertToStripe() {
+    setLoadingRevertToStripe(true);
+    try {
+      const res = await fetch('/api/stripe/revert-to-stripe', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao reverter para cartão');
+      toast.success('Cobrança revertida para o cartão com sucesso');
+      window.location.reload();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao reverter para cartão.');
+      setLoadingRevertToStripe(false);
     }
   }
 
@@ -339,9 +354,11 @@ export function RechargePageContent({
           subscriptionProvider={subscriptionProvider}
           isLoading={isBillingLoading}
           isSwitchingToPix={loadingSwitchToPix}
+          isRevertingToStripe={loadingRevertToStripe}
           onSubscribe={handleSubscribe}
           onPixSubscribe={handlePixSubscription}
           onSwitchToPix={handleSwitchToPix}
+          onRevertToStripe={handleRevertToStripe}
         />
 
         {/* Saldo Atual */}
