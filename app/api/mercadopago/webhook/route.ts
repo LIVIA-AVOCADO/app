@@ -175,18 +175,22 @@ async function handleSubscriptionApproved(
     return;
   }
 
-  // CASO CRÍTICO: cliente estava em past_due no Stripe
-  // Cancelar imediatamente para evitar retry do Smart Retry
-  if (
-    tenant.stripe_subscription_id &&
-    tenant.subscription_status === 'past_due'
-  ) {
-    try {
-      await getStripe().subscriptions.cancel(tenant.stripe_subscription_id);
-      console.log('[mp/webhook] Stripe subscription cancelada (past_due → PIX pago):', tenant.stripe_subscription_id);
-    } catch (err) {
-      // Se já foi cancelada, ignora
-      console.warn('[mp/webhook] Erro ao cancelar Stripe (pode já estar cancelada):', err);
+  // Cancela Stripe quando PIX é confirmado:
+  // - past_due: cancela imediatamente para parar Smart Retry
+  // - active com cancel_at_period_end: cancela para não ficar como "zumbi"
+  if (tenant.stripe_subscription_id) {
+    const shouldCancelStripe =
+      tenant.subscription_status === 'past_due' ||
+      (tenant.subscription_status === 'active' && tenant.subscription_provider === 'pix_manual');
+
+    if (shouldCancelStripe) {
+      try {
+        await getStripe().subscriptions.cancel(tenant.stripe_subscription_id);
+        console.log('[mp/webhook] Stripe subscription cancelada (PIX pago):', tenant.stripe_subscription_id);
+      } catch (err) {
+        // Se já foi cancelada, ignora
+        console.warn('[mp/webhook] Erro ao cancelar Stripe (pode já estar cancelada):', err);
+      }
     }
   }
 
