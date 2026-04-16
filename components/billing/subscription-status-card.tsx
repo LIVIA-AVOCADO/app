@@ -80,8 +80,11 @@ export function SubscriptionStatusCard({
   const badge = getStatusBadge(status);
   const isActive = status === 'active' || status === 'trialing';
   const isPastDue = status === 'past_due';
+  // Stripe ativo sem cancelamento pendente → renovação automática normal
   const isStripeActive = isActive && subscriptionProvider === 'stripe' && !cancelAtPeriodEnd;
-  // Assinatura ativa mas aguardando pagamento PIX (migração já iniciada)
+  // Stripe com cancel_at_period_end (via portal Stripe ou migração pendente sem PIX)
+  const isStripeCancelling = isActive && subscriptionProvider === 'stripe' && cancelAtPeriodEnd;
+  // Migração para PIX já iniciada — aguardando pagamento PIX
   const isPixPending = isActive && subscriptionProvider === 'pix_manual' && cancelAtPeriodEnd;
 
   async function handlePortal() {
@@ -134,9 +137,11 @@ export function SubscriptionStatusCard({
           <>
             {isActive && periodEnd && (
               <p className="text-sm text-muted-foreground">
-                {cancelAtPeriodEnd
+                {isPixPending
                   ? `Cancela em ${formatPeriodEnd(periodEnd)} — aguardando pagamento PIX`
-                  : `Renova em ${formatPeriodEnd(periodEnd)}`
+                  : isStripeCancelling
+                    ? `Cancela em ${formatPeriodEnd(periodEnd)} — cancelado pelo portal`
+                    : `Renova em ${formatPeriodEnd(periodEnd)}`
                 }
               </p>
             )}
@@ -159,6 +164,22 @@ export function SubscriptionStatusCard({
               )}
 
               {/* Migrar para PIX: apenas para assinantes Stripe ativos sem cancelamento pendente */}
+              {isStripeCancelling && onSwitchToPix && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onSwitchToPix}
+                  disabled={isSwitchingToPix || loadingPortal}
+                >
+                  {isSwitchingToPix ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <QrCode className="h-4 w-4 mr-2" />
+                  )}
+                  Pagar próximo mês com PIX
+                </Button>
+              )}
+
               {isStripeActive && onSwitchToPix && (
                 <Button
                   variant="outline"
