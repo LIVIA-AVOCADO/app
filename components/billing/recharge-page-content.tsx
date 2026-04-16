@@ -352,6 +352,7 @@ export function RechargePageContent({
           periodEnd={subscription?.subscription_current_period_end || null}
           cancelAtPeriodEnd={subscription?.subscription_cancel_at_period_end || false}
           subscriptionProvider={subscriptionProvider}
+          hasStripeSubscription={!!subscription?.stripe_subscription_id}
           isLoading={isBillingLoading}
           isSwitchingToPix={loadingSwitchToPix}
           isRevertingToStripe={loadingRevertToStripe}

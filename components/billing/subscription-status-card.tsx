@@ -29,6 +29,7 @@ interface SubscriptionStatusCardProps {
   periodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   subscriptionProvider?: 'stripe' | 'pix_manual';
+  hasStripeSubscription?: boolean;
   isLoading?: boolean;
   isSwitchingToPix?: boolean;
   isRevertingToStripe?: boolean;
@@ -67,6 +68,7 @@ export function SubscriptionStatusCard({
   periodEnd,
   cancelAtPeriodEnd,
   subscriptionProvider = 'stripe',
+  hasStripeSubscription = false,
   isLoading = false,
   isSwitchingToPix = false,
   isRevertingToStripe = false,
@@ -147,7 +149,7 @@ export function SubscriptionStatusCard({
             )}
 
             <div className="flex flex-wrap gap-2">
-              {isActive && (
+              {isActive && hasStripeSubscription && (
                 <Button
                   variant="outline"
                   size="sm"

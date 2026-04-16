@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       .insert({
         tenant_id: tenantId,
         mp_payment_id: pixResult.paymentId,
-        payment_type: 'credit_purchase',
+        payment_type: paymentType,
         status: 'pending',
         amount_cents: amountCents,
         credits,

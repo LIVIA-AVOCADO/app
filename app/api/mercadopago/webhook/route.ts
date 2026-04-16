@@ -206,7 +206,7 @@ async function handleSubscriptionApproved(
   const baseParaCalculo = currentPeriodEnd < hoje ? hoje : currentPeriodEnd;
   const proximoVencimento = calcularProximoVencimento(billingDay, baseParaCalculo);
 
-  // Atualiza tenant
+  // Atualiza tenant — reseta cancel_at_period_end pois o PIX foi pago
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (adminSupabase as any)
     .from('tenants')
@@ -214,6 +214,7 @@ async function handleSubscriptionApproved(
       subscription_provider: 'pix_manual',
       subscription_status: 'active',
       subscription_current_period_end: proximoVencimento.toISOString(),
+      subscription_cancel_at_period_end: false,
     })
     .eq('id', tenantId);
 

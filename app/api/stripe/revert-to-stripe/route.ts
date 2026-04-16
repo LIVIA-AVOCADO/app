@@ -58,8 +58,20 @@ export async function POST() {
       return NextResponse.json({ error: 'Assinatura Stripe não está mais ativa', code: 'not_active' }, { status: 400 });
     }
 
-    // Re-ativa renovação automática no Stripe
+    // Valida que a assinatura Stripe ainda existe e está ativa antes de chamar a API
     const stripe = getStripe();
+    let stripeSubscription;
+    try {
+      stripeSubscription = await stripe.subscriptions.retrieve(tenant.stripe_subscription_id);
+    } catch {
+      return NextResponse.json({ error: 'Assinatura Stripe não encontrada ou expirada', code: 'stripe_not_found' }, { status: 400 });
+    }
+
+    if (stripeSubscription.status !== 'active' && stripeSubscription.status !== 'trialing') {
+      return NextResponse.json({ error: 'Assinatura Stripe não está mais ativa', code: 'stripe_expired' }, { status: 400 });
+    }
+
+    // Re-ativa renovação automática no Stripe
     await stripe.subscriptions.update(tenant.stripe_subscription_id, {
       cancel_at_period_end: false,
     });
