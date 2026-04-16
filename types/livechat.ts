@@ -393,6 +393,27 @@ export interface CreateFollowupPayload {
 }
 
 // ============================================================================
+// MESSAGE SEARCH
+// ============================================================================
+
+export interface MessageSearchResult {
+  message_id: string;
+  conversation_id: string;
+  message_snippet: string;
+  message_timestamp: string;
+  contact_id: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+  conversation_status: string;
+}
+
+export interface MessageSearchResponse {
+  results: MessageSearchResult[];
+  query: string;
+  total: number;
+}
+
+// ============================================================================
 // CATEGORIES / TAGS
 // ============================================================================
 

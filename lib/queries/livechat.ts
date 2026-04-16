@@ -14,6 +14,7 @@ import type {
   ContactFilters,
   ConversationFilters,
   LivechatTabStatusCounts,
+  MessageSearchResult,
 } from '@/types/livechat';
 import type { QuickReplyTemplate } from '@/types/database-helpers';
 
@@ -329,6 +330,40 @@ export async function getConversationsWithContact(
   });
 
   return result as ConversationWithContact[];
+}
+
+/**
+ * Busca mensagens por conteúdo dentro de um tenant via RPC (pg_trgm + GIN index).
+ * Query mínima: 3 caracteres. Tenant isolation via JOIN conversations.
+ */
+export async function searchMessagesByContent(
+  tenantId: string,
+  query: string,
+  limit = 20,
+  offset = 0
+): Promise<MessageSearchResult[]> {
+  if (query.trim().length < 3) return [];
+
+  const supabase = await createClient();
+
+  const { data, error } = await (supabase as any).rpc('search_messages_by_content', {
+    p_tenant_id: tenantId,
+    p_query:     query.trim(),
+    p_limit:     limit,
+    p_offset:    offset,
+  });
+
+  if (error) {
+    console.error('[searchMessagesByContent] RPC error:', {
+      message: error.message,
+      code: (error as { code?: string }).code,
+      tenantId,
+      query,
+    });
+    throw error;
+  }
+
+  return (data || []) as MessageSearchResult[];
 }
 
 /**

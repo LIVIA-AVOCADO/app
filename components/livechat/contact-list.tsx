@@ -7,9 +7,11 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ContactItem } from './contact-item';
+import { MessageSearchResultItem } from './message-search-result-item';
 import { TagSelector } from '@/components/tags/tag-selector';
-import { Search, MessageCircle, BellOff, Star } from 'lucide-react';
+import { Search, MessageCircle, BellOff, Star, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useMessageSearch } from '@/hooks/use-message-search';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
 import { MutedContactsList } from './muted-contacts-list';
 import type {
@@ -54,6 +56,14 @@ export function ContactList({
   tabStatusCounts,
 }: ContactListProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const isMessageSearch = searchQuery.trim().length >= 3;
+
+  const {
+    results: messageSearchResults,
+    isLoading: isMessageSearchLoading,
+    isError: isMessageSearchError,
+  } = useMessageSearch({ tenantId, query: searchQuery, enabled: isMessageSearch });
+
   const [statusFilter, setStatusFilter] = useState<
     'ia' | 'manual' | 'closed' | 'muted' | 'important'
   >('ia');
@@ -283,7 +293,7 @@ export function ContactList({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar contato..."
+            placeholder="Buscar contato ou mensagem…"
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-9"
@@ -426,6 +436,47 @@ export function ContactList({
               />
             </div>
           ))
+        )}
+
+        {/* Resultados de busca em mensagens */}
+        {isMessageSearch && (
+          <>
+            <Separator className="my-2" />
+            <div className="pb-1">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Mensagens encontradas
+              </span>
+            </div>
+
+            {isMessageSearchLoading && (
+              <div className="flex items-center justify-center py-6 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <span className="text-sm">Buscando mensagens…</span>
+              </div>
+            )}
+
+            {isMessageSearchError && !isMessageSearchLoading && (
+              <div className="text-center py-4 text-sm text-destructive">
+                Erro ao buscar mensagens
+              </div>
+            )}
+
+            {!isMessageSearchLoading && !isMessageSearchError && messageSearchResults.length === 0 && (
+              <div className="text-center py-4 text-sm text-muted-foreground">
+                Nenhuma mensagem encontrada
+              </div>
+            )}
+
+            {!isMessageSearchLoading && messageSearchResults.map((result) => (
+              <MessageSearchResultItem
+                key={result.message_id}
+                result={result}
+                query={searchQuery.trim()}
+                isSelected={selectedConversationId === result.conversation_id}
+                onActivate={handleCardActivate}
+              />
+            ))}
+          </>
         )}
       </div>
     </div>
