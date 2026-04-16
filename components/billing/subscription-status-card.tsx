@@ -11,6 +11,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import type { SubscriptionStatus } from '@/types/stripe';
 
@@ -66,6 +76,7 @@ export function SubscriptionStatusCard({
   onRevertToStripe,
 }: SubscriptionStatusCardProps) {
   const [loadingPortal, setLoadingPortal] = useState(false);
+  const [confirmRevert, setConfirmRevert] = useState(false);
   const badge = getStatusBadge(status);
   const isActive = status === 'active' || status === 'trialing';
   const isPastDue = status === 'past_due';
@@ -178,19 +189,38 @@ export function SubscriptionStatusCard({
                     </Button>
                   )}
                   {onRevertToStripe && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={onRevertToStripe}
-                      disabled={isRevertingToStripe}
-                    >
-                      {isRevertingToStripe ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <CreditCard className="h-4 w-4 mr-2" />
-                      )}
-                      Manter cobrança no cartão
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConfirmRevert(true)}
+                        disabled={isRevertingToStripe}
+                      >
+                        {isRevertingToStripe ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <CreditCard className="h-4 w-4 mr-2" />
+                        )}
+                        Manter cobrança no cartão
+                      </Button>
+
+                      <AlertDialog open={confirmRevert} onOpenChange={setConfirmRevert}>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Manter cobrança no cartão?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Sua assinatura voltará a ser renovada automaticamente no cartão na data de vencimento. O PIX gerado anteriormente não será mais necessário.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={onRevertToStripe}>
+                              Confirmar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
                   )}
                 </>
               )}
