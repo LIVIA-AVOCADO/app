@@ -13,6 +13,7 @@ import { useRealtimeConversation } from '@/lib/hooks/use-realtime-conversation';
 import { useChatScroll } from '@/lib/hooks/use-chat-scroll';
 import { useTypingPresence } from '@/lib/hooks/use-typing-presence';
 import { useSendMessage } from '@/lib/hooks/use-send-message';
+import { useScrollToMessage } from '@/lib/hooks/use-scroll-to-message';
 import { getMessageDayLabel } from '@/lib/utils/date-helpers';
 import type { Conversation, Tag } from '@/types/database-helpers';
 import type { ConversationChannel, ConversationWithContact, MessageWithSender } from '@/types/livechat';
@@ -105,6 +106,8 @@ export function ConversationView({
     onTempConfirmed: replaceTempMessage,
     onTempFailed: (tempId) => updateMessageStatus(tempId, 'failed'),
   });
+
+  const { scrollToMessage } = useScrollToMessage({ loadOlderMessages });
 
   const handleRetry = useCallback(
     (failedId: string, content: string) => {
@@ -243,7 +246,7 @@ export function ConversationView({
                     }
 
                     return (
-                      <div key={message.id}>
+                      <div key={message.id} data-message-id={message.id}>
                         {firstOfDay.has(message.id) && (
                           <DateSeparator label={getMessageDayLabel(message.timestamp)} />
                         )}
@@ -254,6 +257,7 @@ export function ConversationView({
                           isNew={!initialMessageIds.has(message.id)}
                           onRetry={handleRetry}
                           onReply={conversation.status !== 'closed' ? setReplyToMessage : undefined}
+                          onQuotedClick={scrollToMessage}
                         />
                       </div>
                     );

@@ -17,9 +17,10 @@ interface MessageItemProps {
   isNew?: boolean;
   onRetry?: (messageId: string, content: string) => void;
   onReply?: (message: MessageWithSender) => void;
+  onQuotedClick?: (messageId: string) => void;
 }
 
-export function MessageItem({ message, conversationId, tenantId, isNew = false, onRetry, onReply }: MessageItemProps) {
+export function MessageItem({ message, conversationId, tenantId, isNew = false, onRetry, onReply, onQuotedClick }: MessageItemProps) {
   const isCustomer = message.sender_type === 'customer';
   const isAttendant = message.sender_type === 'attendant';
   const isIA = message.sender_type === 'ai';
@@ -79,7 +80,11 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
         >
           {/* Bubble da mensagem citada (reply) */}
           {message.quotedMessage && (
-            <QuotedBubble quoted={message.quotedMessage} isCustomer={isCustomer} />
+            <QuotedBubble
+              quoted={message.quotedMessage}
+              isCustomer={isCustomer}
+              onQuotedClick={onQuotedClick}
+            />
           )}
 
           {/* Header: Nome do remetente (não mostrar para IA) */}
@@ -166,9 +171,10 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
 interface QuotedBubbleProps {
   quoted: QuotedMessagePreview;
   isCustomer: boolean;
+  onQuotedClick?: (messageId: string) => void;
 }
 
-function QuotedBubble({ quoted, isCustomer }: QuotedBubbleProps) {
+function QuotedBubble({ quoted, isCustomer, onQuotedClick }: QuotedBubbleProps) {
   const senderLabel =
     quoted.sender_type === 'customer'
       ? 'Cliente'
@@ -176,11 +182,22 @@ function QuotedBubble({ quoted, isCustomer }: QuotedBubbleProps) {
         ? 'IA'
         : quoted.senderUser?.full_name || 'Atendente';
 
+  const isClickable = !!onQuotedClick;
+
   return (
-    <div className={cn(
-      'mb-1.5 rounded-md px-2.5 py-1.5 border-l-2 bg-black/5 dark:bg-white/5 cursor-default',
-      isCustomer ? 'border-blue-400' : 'border-muted-foreground/50'
-    )}>
+    <div
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onClick={isClickable ? () => onQuotedClick(quoted.id) : undefined}
+      onKeyDown={isClickable ? (e) => e.key === 'Enter' && onQuotedClick(quoted.id) : undefined}
+      className={cn(
+        'mb-1.5 rounded-md px-2.5 py-1.5 border-l-2 bg-black/5 dark:bg-white/5 transition-colors',
+        isCustomer ? 'border-blue-400' : 'border-muted-foreground/50',
+        isClickable
+          ? 'cursor-pointer hover:bg-black/10 dark:hover:bg-white/10'
+          : 'cursor-default'
+      )}
+    >
       <p className={cn(
         'text-[11px] font-semibold mb-0.5',
         isCustomer ? 'text-blue-600' : 'text-muted-foreground'
