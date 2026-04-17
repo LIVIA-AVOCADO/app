@@ -33,6 +33,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing conversationId' }, { status: 400 });
   }
 
+  const before = request.nextUrl.searchParams.get('before');
+  const limitParam = request.nextUrl.searchParams.get('limit');
+  const limit = limitParam ? Math.min(parseInt(limitParam), 100) : 50;
+
   // Valida que a conversa pertence ao tenant (segurança multi-tenant)
   const { data: conv } = await supabase
     .from('conversations')
@@ -46,7 +50,7 @@ export async function GET(request: NextRequest) {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  let query = (supabase as any)
     .from('messages')
     .select(`
       *,
@@ -68,7 +72,13 @@ export async function GET(request: NextRequest) {
     `)
     .eq('conversation_id', conversationId)
     .order('timestamp', { ascending: false })
-    .limit(50);
+    .limit(limit);
+
+  if (before) {
+    query = query.lt('timestamp', before);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

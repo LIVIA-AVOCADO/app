@@ -4,11 +4,10 @@
  * useMessagesCache — Cache in-memory de mensagens para navegação client-side
  *
  * Design decisions:
- * - Supabase client direto (sem passar pelo Next.js API route):
- *   browser → Supabase = 1 round trip
- *   browser → Next.js → Supabase = 2 round trips (overhead desnecessário)
- *   RLS do Supabase garante isolamento de tenant, igual ao que fazem
- *   useRealtimeConversations e useRealtimeMessages.
+ * - Fetch via Next.js API route (/api/livechat/messages):
+ *   browser → Next.js → Supabase
+ *   Garante compatibilidade com redes restritivas (ISPs com proxy/firewall)
+ *   e valida tenant server-side antes de acessar o banco.
  *
  * - Deduplicação via inflight Map: hover prefetch e clique simultâneo
  *   compartilham a mesma Promise — zero fetches duplicados.
@@ -20,7 +19,6 @@
  */
 
 import { useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import type { MessageWithSender } from '@/types/livechat';
 
 interface CacheEntry {
@@ -34,35 +32,11 @@ const CACHE_TTL_MS = 30_000;
 const messagesCache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<MessageWithSender[]>>();
 
-// Singleton do Supabase client (evita recriar a cada chamada)
-let _supabase: ReturnType<typeof createClient> | null = null;
-function getSupabase() {
-  if (!_supabase) _supabase = createClient();
-  return _supabase;
-}
-
-/**
- * Busca mensagens diretamente no Supabase (sem API route).
- * RLS garante que o usuário só vê mensagens do próprio tenant.
- */
-async function fetchMessagesFromSupabase(conversationId: string): Promise<MessageWithSender[]> {
-  const { data, error } = await getSupabase()
-    .from('messages')
-    .select(`
-      *,
-      senderUser:users!messages_sender_user_id_fkey(
-        id,
-        full_name,
-        avatar_url
-      )
-    `)
-    .eq('conversation_id', conversationId)
-    .order('timestamp', { ascending: false })
-    .limit(50);
-
-  if (error) throw error;
-  // Reverter para ordem cronológica (mais antigas primeiro)
-  return ((data || []) as MessageWithSender[]).reverse();
+async function fetchMessagesFromApi(conversationId: string): Promise<MessageWithSender[]> {
+  const res = await fetch(`/api/livechat/messages?conversationId=${conversationId}`);
+  if (!res.ok) throw new Error(`Failed to fetch messages: ${res.status}`);
+  const { messages } = await res.json();
+  return messages as MessageWithSender[];
 }
 
 /**
@@ -82,7 +56,7 @@ export async function fetchLivechatMessagesFresh(
   conversationId: string
 ): Promise<MessageWithSender[]> {
   invalidateMessagesCache(conversationId);
-  return fetchMessagesFromSupabase(conversationId);
+  return fetchMessagesFromApi(conversationId);
 }
 
 /**
@@ -93,23 +67,15 @@ export async function fetchOlderMessages(
   beforeTimestamp: string,
   limit = 30
 ): Promise<MessageWithSender[]> {
-  const { data, error } = await getSupabase()
-    .from('messages')
-    .select(`
-      *,
-      senderUser:users!messages_sender_user_id_fkey(
-        id,
-        full_name,
-        avatar_url
-      )
-    `)
-    .eq('conversation_id', conversationId)
-    .lt('timestamp', beforeTimestamp)
-    .order('timestamp', { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-  return ((data || []) as MessageWithSender[]).reverse();
+  const params = new URLSearchParams({
+    conversationId,
+    before: beforeTimestamp,
+    limit: String(limit),
+  });
+  const res = await fetch(`/api/livechat/messages?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch older messages: ${res.status}`);
+  const { messages } = await res.json();
+  return messages as MessageWithSender[];
 }
 
 export function useMessagesCache() {
@@ -143,7 +109,7 @@ export function useMessagesCache() {
     if (existing) return existing;
 
     // 3. Inicia novo fetch e registra como in-flight
-    const promise = fetchMessagesFromSupabase(conversationId)
+    const promise = fetchMessagesFromApi(conversationId)
       .then((messages) => {
         setCache(conversationId, messages);
         return messages;
