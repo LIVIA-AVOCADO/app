@@ -50,41 +50,38 @@ export async function GET(request: NextRequest) {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase as any)
-    .from('messages')
-    .select(`
-      *,
-      senderUser:users!messages_sender_user_id_fkey(
-        id,
-        full_name,
-        avatar_url
-      ),
-      quotedMessage:messages!messages_quoted_message_id_fkey(
-        id,
-        content,
-        sender_type,
-        senderUser:users!messages_sender_user_id_fkey(
-          id,
-          full_name,
-          avatar_url
-        )
-      )
-    `)
-    .eq('conversation_id', conversationId)
-    .order('timestamp', { ascending: false })
-    .limit(limit);
+  const db = supabase as any;
 
-  if (before) {
-    query = query.lt('timestamp', before);
+  function buildQuery(includeQuotedMessage: boolean) {
+    const select = includeQuotedMessage
+      ? `*,
+         senderUser:users!messages_sender_user_id_fkey(id, full_name, avatar_url),
+         quotedMessage:messages!messages_quoted_message_id_fkey(
+           id, content, sender_type,
+           senderUser:users!messages_sender_user_id_fkey(id, full_name, avatar_url)
+         )`
+      : `*, senderUser:users!messages_sender_user_id_fkey(id, full_name, avatar_url)`;
+
+    let q = db.from('messages').select(select)
+      .eq('conversation_id', conversationId)
+      .order('timestamp', { ascending: false })
+      .limit(limit);
+
+    if (before) q = q.lt('timestamp', before);
+    return q;
   }
 
-  const { data, error } = await query;
+  let { data, error } = await buildQuery(true);
+
+  // FK de quoted_message pode não existir em produção — fallback sem ela
+  if (error) {
+    ({ data, error } = await buildQuery(false));
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Reverter para ordem cronológica (mais antigas primeiro)
   const messages = (data || []).reverse();
 
   return NextResponse.json({ messages });
