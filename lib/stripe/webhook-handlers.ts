@@ -386,12 +386,20 @@ export async function handleSubscriptionUpdated(
     canceled: 'canceled',
   };
 
+  // Skip update for transient Stripe statuses (e.g. 'incomplete' while payment is confirming).
+  // Applying them would corrupt our DB — the subscription will settle to a mapped status shortly.
+  const mappedStatus = statusMap[subscription.status];
+  if (!mappedStatus) {
+    logStripeEvent('customer.subscription.updated', eventId, tenantId, 'skipped');
+    return;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabaseAdmin as any)
     .from('tenants')
     .update({
       stripe_subscription_id: subscription.id,
-      subscription_status: statusMap[subscription.status] || 'inactive',
+      subscription_status: mappedStatus,
       subscription_current_period_end: periodEnd,
       subscription_cancel_at_period_end: subscription.cancel_at_period_end,
     })
@@ -482,6 +490,21 @@ export async function handleSubscriptionDeleted(
       customerId,
       eventId,
     });
+    return;
+  }
+
+  // When the user migrates to PIX, the MP webhook sets subscription_status = 'active'
+  // and then cancels the Stripe subscription. Stripe fires customer.subscription.deleted,
+  // but we must NOT overwrite the active status that PIX already set.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: tenantCheck } = await (supabaseAdmin as any)
+    .from('tenants')
+    .select('subscription_provider')
+    .eq('id', tenantId)
+    .single();
+
+  if (tenantCheck?.subscription_provider === 'pix_manual') {
+    logStripeEvent('customer.subscription.deleted', eventId, tenantId, 'skipped');
     return;
   }
 
