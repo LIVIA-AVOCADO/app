@@ -202,8 +202,11 @@ async function handleSubscriptionApproved(
     ? new Date(tenant.subscription_current_period_end)
     : hoje;
 
-  // Se o period_end já passou (ou não existe), o novo período começa de hoje
-  const baseParaCalculo = currentPeriodEnd < hoje ? hoje : currentPeriodEnd;
+  // past_due: Stripe already advanced period_end to the next month even though payment failed.
+  // Use today as base so PIX payment covers the overdue month, not the one after it.
+  // active+pix_manual: current period is already covered by Stripe — PIX pays the next cycle.
+  const isPastDue = tenant.subscription_status === 'past_due';
+  const baseParaCalculo = isPastDue || currentPeriodEnd < hoje ? hoje : currentPeriodEnd;
   const proximoVencimento = calcularProximoVencimento(billingDay, baseParaCalculo);
 
   // Atualiza tenant — reseta cancel_at_period_end pois o PIX foi pago
