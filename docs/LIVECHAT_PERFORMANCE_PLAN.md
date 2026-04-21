@@ -42,6 +42,7 @@
 | ✅ **PRONTO** | Performance otimizada (debounce + memo) |
 | ✅ **PRONTO** | Infinite Scroll + Virtualização implementados |
 | ✅ **COMPLETO** | Fase 0, 1, 2 e 3 - 100% operacionais |
+| ✅ **PRONTO** | Cache L1/L2/L3 + prefetch batched de 100 conversas (2026-04-20) |
 | ⬜ **PENDENTE** | Refatoração de componentes (opcional) |
 
 ### 🎯 Benefícios Imediatos Ativos
@@ -140,6 +141,8 @@ Com a execução do SQL e o código implementado, **o sistema já está** com:
 | 2 | Infinite Scroll + Virtualização | ✅ Concluído | 5/5 |
 | 3 | Otimizações Performance | ✅ Concluído | 3/3 |
 | 4 | Refatorar Componentes | ⬜ Pendente | 0/2 |
+| 5 | Navegação Client-Side | ✅ Concluído | — |
+| 6 | Cache L1/L2/L3 + Prefetch Batched | ✅ Concluído | 2026-04-20 |
 
 **Legenda:** ⬜ Pendente | 🔄 Em progresso | ✅ Concluído | ❌ Bloqueado
 
@@ -1181,6 +1184,82 @@ export function useRealtimeConversations(tenantId: string) {
   }, [tenantId, queryClient, supabase]);
 }
 ```
+
+---
+
+## Fase 6: Cache L1/L2/L3 + Prefetch Batched (2026-04-20)
+
+**Status:** ✅ Implementado  
+**Objetivo:** Tornar cliques em conversas instantâneos, mesmo após F5, prefetchando as mensagens das 100 conversas mais recentes em background logo após o carregamento do livechat.
+
+### Problema raiz
+
+O cache anterior (`use-messages-cache.ts`) usava apenas memória (Map, TTL 30 s). Após F5 ou em uma nova aba, o cache era perdido e cada clique forçava um fetch à API.
+
+### Arquitetura do novo cache
+
+```
+Clique numa conversa
+  │
+  ▼
+L1 — Map em memória (TTL 5 min)  ←── hit instantâneo, sobrevive re-mounts
+  │ miss
+  ▼
+L2 — localStorage (TTL 30 min, últimas 30 msgs por conversa)  ←── sobrevive F5 / nova aba
+  │ miss
+  ▼
+L3 — fetch /api/livechat/messages  ←── fonte de verdade
+  │
+  └─► popula L2 e L1 (próximo acesso = hit)
+```
+
+### Prefetch batched ao montar o livechat
+
+```
+mount LivechatContent
+  │
+  ▼
+ordena conversas:  manual (ia_active=false) primeiro  →  last_message_at DESC
+  │
+  ▼
+top 100 ids  →  prefetchConversationsBatched(ids)
+  │
+  ├── lote 1 (5 conversas)  ──→  Promise.allSettled  (paralelo)
+  ├── aguarda 300 ms
+  ├── lote 2 (5 conversas)  ──→  Promise.allSettled
+  ├── aguarda 300 ms
+  ├── ...
+  └── lote 20 (5 conversas)
+```
+
+Cada lote usa `fetchAndCacheCore`, que respeita L1/L2 — conversas já em cache são puladas automaticamente. O `useEffect` de mount retorna `abort()` como cleanup, cancelando lotes pendentes se o componente desmontar.
+
+### Priorização de prefetch
+
+Conversas **manuais** (`ia_active=false`) têm prioridade máxima porque:
+- São as que o operador humano gerencia ativamente
+- Cliques são mais frequentes nesses itens
+- Resposta lenta nelas tem maior impacto percebido
+
+### Eviction do localStorage
+
+Quando `localStorage.setItem` lança `QuotaExceededError`, o código remove a entrada mais antiga (menor `storedAt`) e tenta novamente. Se ainda falhar, ignora silenciosamente (best-effort).
+
+### Impacto esperado
+
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| 1º clique numa conversa (já prefetchada, memória) | ~200-400 ms | ~0 ms |
+| 1º clique após F5 (conversa no LS) | ~200-400 ms | ~0 ms |
+| 1º clique após F5 (fora do LS) | ~200-400 ms | ~200-400 ms |
+| TTL de cache | 30 s memória | 5 min memória / 30 min localStorage |
+
+### Arquivos alterados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `lib/hooks/use-messages-cache.ts` | L2 localStorage, `lsGet/lsSet/lsDelete/lsEvict`, `fetchAndCacheCore` module-level, `prefetchConversationsBatched` exportada |
+| `components/livechat/livechat-content.tsx` | Remove `PREFETCH_COUNT = 5`; substitui `forEach prefetch` pelo batched de até 100; abort no cleanup |
 
 ---
 
