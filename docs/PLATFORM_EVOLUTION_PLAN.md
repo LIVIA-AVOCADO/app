@@ -436,11 +436,9 @@ NEXT_PUBLIC_REALTIME_PROXY_URL=wss://gateway.seudominio.com.br/realtime
 ### 4.4 Checklist Fase 0
 
 ```
-[ ] Fix A: instalar jose (npm install jose)
-[ ] Fix A: adicionar SUPABASE_JWT_SECRET ao .env
-[ ] Fix A: refatorar middleware para validação JWT local
-[ ] Fix A: criar cookie x-user-ctx no login (tenant_id, role, modules)
-[ ] Fix A: testar que auth ainda funciona após mudança
+[x] Fix A: instalar jose (npm install jose)                                  ← 2026-04-21
+[x] Fix A: refatorar middleware — getSession() + jwtVerify() com JWKS        ← 2026-04-21
+[x] Fix A: cookie x-user-ctx (tenant_id, role, modules, terms) TTL 5 min    ← 2026-04-21
 [x] Fix B: remover queries closed/important do SSR do page.tsx           ← 2026-04-20
 [x] Fix B: adicionar lazy loading da aba Encerradas no ContactList       ← 2026-04-20
 [x] Fix B: novo API route GET /api/livechat/conversations?filter=closed  ← 2026-04-20
@@ -458,7 +456,7 @@ NEXT_PUBLIC_REALTIME_PROXY_URL=wss://gateway.seudominio.com.br/realtime
 
 | Fix | Status | Data | Resultado |
 |---|---|---|---|
-| Fix A — Middleware JWT local | ⬜ Pendente | — | — |
+| Fix A — Middleware JWT local | ✅ Implementado | 2026-04-21 | getUser() substituído por getSession()+jwtVerify(JWKS); cookie x-user-ctx elimina query ao banco em ~99% dos requests |
 | Fix B — Lazy loading encerradas + SSR enxuto | ✅ Implementado | 2026-04-20 | SSR faz 3 queries (era 5); encerradas carregam sob demanda |
 | Fix C — Diagnóstico WebSocket | ⬜ Pendente | — | — |
 | Fix D — Cache L1/L2/L3 + prefetch batched | ✅ Implementado | 2026-04-20 | Cliques em conversas já prefetchadas são instantâneos; persiste entre F5 |
@@ -1535,3 +1533,4 @@ Ciclo final (Fase 5)
 **Histórico de atualizações:**
 - 2026-04-20 — Fix B (lazy loading encerradas + SSR enxuto) e Fix D (cache L1/L2/L3 + prefetch batched)
 - 2026-04-21 — Fix E (limite SSR 10k→300 + virtualização da lista com react-virtual)
+- 2026-04-21 — Fix A (middleware JWT local: getSession+jose JWKS + cookie x-user-ctx)

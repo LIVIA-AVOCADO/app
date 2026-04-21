@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { canAccessRoute } from '@/lib/permissions';
 
 /**
@@ -13,9 +14,18 @@ import { canAccessRoute } from '@/lib/permissions';
  * 4. Permissão RBAC → redireciona para /perfil se role/módulo insuficiente
  * 5. Assinatura     → redireciona para /financeiro/recarregar se cancelada
  *
- * Cache: status da assinatura via cookie 'x-sub-status' com TTL de 5 min.
- * Role e módulos são lidos diretamente do banco (mesma query de users).
+ * Performance:
+ * - JWT verificado localmente com JWKS cacheado (jose) — zero HTTP call para Auth
+ * - Dados do usuário em cookie x-user-ctx (HTTPOnly, TTL 5 min) — zero query ao banco
+ *   na esmagadora maioria dos requests; re-busca apenas quando o cookie expira
+ * - Status da assinatura em cookie x-sub-status (HTTPOnly, TTL 5 min) — já existia
  */
+
+// JWKS cacheado no escopo do módulo — jose refaz o fetch automaticamente quando expira.
+// Primeira request do servidor busca o endpoint; as demais verificam localmente (~0 ms).
+const SUPABASE_JWKS = createRemoteJWKSet(
+  new URL(`${process.env.NEXT_PUBLIC_SUPABASE_URL!}/auth/v1/.well-known/jwks.json`)
+);
 
 const PUBLIC_ROUTES = [
   '/login',
@@ -29,6 +39,29 @@ const PUBLIC_ROUTES = [
 const TENANT_EXEMPT_ROUTES = ['/aguardando-acesso', '/perfil', '/onboarding'];
 
 const SUBSCRIPTION_CACHE_TTL_SECONDS = 300;
+const USER_CTX_CACHE_TTL_SECONDS = 300;
+const USER_CTX_COOKIE = 'x-user-ctx';
+
+/** Dados do usuário cacheados no cookie HTTPOnly para evitar query ao banco. */
+interface UserCtx {
+  uid: string;
+  tid: string | null;   // tenant_id
+  role: string;
+  mods: string[];       // modules
+  terms: string | null; // terms_accepted_at
+}
+
+function parseUserCtx(raw: string): UserCtx | null {
+  try {
+    return JSON.parse(atob(raw)) as UserCtx;
+  } catch {
+    return null;
+  }
+}
+
+function serializeUserCtx(ctx: UserCtx): string {
+  return btoa(JSON.stringify(ctx));
+}
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
@@ -75,7 +108,6 @@ export async function middleware(request: NextRequest) {
 }
 
 async function handleDashboardMiddleware(request: NextRequest, pathname: string) {
-
   let response = NextResponse.next();
 
   const supabase = createServerClient(
@@ -90,9 +122,7 @@ async function handleDashboardMiddleware(request: NextRequest, pathname: string)
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          response = NextResponse.next({
-            request,
-          });
+          response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -101,52 +131,81 @@ async function handleDashboardMiddleware(request: NextRequest, pathname: string)
     }
   );
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  // ── 1. Auth: JWT verificado localmente ───────────────────────────────────
+  // getSession() lê o token dos cookies sem HTTP call (ao contrário de getUser()).
+  // jwtVerify() valida assinatura e expiração localmente com JWKS cacheado.
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (authError || !user) {
-    const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+  if (!session?.access_token) {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: userData } = await (supabase as any)
-    .from('users')
-    .select('tenant_id, terms_accepted_at, role, modules')
-    .eq('id', user.id)
-    .single();
+  try {
+    await jwtVerify(session.access_token, SUPABASE_JWKS);
+  } catch {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
 
-  // 2. Aceite de termos
-  const hasAcceptedTerms = !!userData?.terms_accepted_at;
-  if (!hasAcceptedTerms && pathname !== '/aceitar-termos') {
+  const userId = session.user.id;
+
+  // ── 2. User context: cookie HTTPOnly, TTL 5 min ──────────────────────────
+  // Elimina a query ao banco em cada request.
+  // Cache miss (primeira visita ou expirado): 1 query → cookie setado por 5 min.
+  const cachedRaw = request.cookies.get(USER_CTX_COOKIE)?.value;
+  const cached = cachedRaw ? parseUserCtx(cachedRaw) : null;
+
+  let userCtx: UserCtx;
+
+  if (cached?.uid === userId) {
+    userCtx = cached;
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: dbUser } = await (supabase as any)
+      .from('users')
+      .select('tenant_id, terms_accepted_at, role, modules')
+      .eq('id', userId)
+      .single();
+
+    userCtx = {
+      uid: userId,
+      tid: dbUser?.tenant_id ?? null,
+      role: dbUser?.role ?? 'user',
+      mods: (dbUser?.modules as string[]) ?? [],
+      terms: dbUser?.terms_accepted_at ?? null,
+    };
+
+    response.cookies.set(USER_CTX_COOKIE, serializeUserCtx(userCtx), {
+      maxAge: USER_CTX_CACHE_TTL_SECONDS,
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
+
+  // ── 3. Aceite de termos ──────────────────────────────────────────────────
+  if (!userCtx.terms && pathname !== '/aceitar-termos') {
     return NextResponse.redirect(new URL('/aceitar-termos', request.url));
   }
 
-  const hasTenant = !!userData?.tenant_id;
-
-  if (!hasTenant && !isTenantExemptRoute(pathname)) {
-    const waitingUrl = new URL('/aguardando-acesso', request.url);
-    return NextResponse.redirect(waitingUrl);
+  // ── 4. Tenant ────────────────────────────────────────────────────────────
+  if (!userCtx.tid && !isTenantExemptRoute(pathname)) {
+    return NextResponse.redirect(new URL('/aguardando-acesso', request.url));
   }
 
-  if (hasTenant && pathname.startsWith('/aguardando-acesso')) {
-    const livechatUrl = new URL('/livechat', request.url);
-    return NextResponse.redirect(livechatUrl);
+  if (userCtx.tid && pathname.startsWith('/aguardando-acesso')) {
+    return NextResponse.redirect(new URL('/livechat', request.url));
   }
 
-  if (!hasTenant) {
+  if (!userCtx.tid) {
     return response;
   }
 
-  // 4. RBAC: verifica role e módulos do usuário
-  const userRole    = userData?.role    ?? 'user';
-  const userModules = userData?.modules ?? [];
-  if (!canAccessRoute(userRole, userModules, pathname)) {
+  // ── 5. RBAC ──────────────────────────────────────────────────────────────
+  if (!canAccessRoute(userCtx.role, userCtx.mods, pathname)) {
     return NextResponse.redirect(new URL('/perfil', request.url));
   }
 
+  // ── 6. Assinatura (cookie x-sub-status, sem mudança) ────────────────────
   const cachedStatus = request.cookies.get('x-sub-status')?.value;
   const cachedPeriodEnd = request.cookies.get('x-sub-period-end')?.value;
 
@@ -164,7 +223,7 @@ async function handleDashboardMiddleware(request: NextRequest, pathname: string)
     const { data: tenant } = await adminClient
       .from('tenants')
       .select('subscription_status, subscription_current_period_end')
-      .eq('id', userData!.tenant_id)
+      .eq('id', userCtx.tid)
       .single();
 
     subscriptionStatus = tenant?.subscription_status || 'inactive';
@@ -187,8 +246,7 @@ async function handleDashboardMiddleware(request: NextRequest, pathname: string)
   }
 
   if (subscriptionStatus === 'canceled' || subscriptionStatus === 'inactive') {
-    const rechargeUrl = new URL('/financeiro/recarregar', request.url);
-    return NextResponse.redirect(rechargeUrl);
+    return NextResponse.redirect(new URL('/financeiro/recarregar', request.url));
   }
 
   if (subscriptionStatus === 'past_due') {
