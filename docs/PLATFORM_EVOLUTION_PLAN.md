@@ -448,6 +448,7 @@ NEXT_PUBLIC_REALTIME_PROXY_URL=wss://gateway.seudominio.com.br/realtime
 [ ] Fix C: diagnosticar endpoint WS no DevTools
 [ ] Fix C: implementar WS proxy Go (se necessário)
 [ ] Fix C: configurar NEXT_PUBLIC_REALTIME_PROXY_URL (se necessário)
+[x] Fix D: cache L1/L2/L3 + prefetch batched de 100 conversas            ← 2026-04-20
 [ ] Validar: medir tempo de carregamento inicial antes e depois
 ```
 
@@ -458,11 +459,16 @@ NEXT_PUBLIC_REALTIME_PROXY_URL=wss://gateway.seudominio.com.br/realtime
 | Fix A — Middleware JWT local | ⬜ Pendente | — | — |
 | Fix B — Lazy loading encerradas + SSR enxuto | ✅ Implementado | 2026-04-20 | SSR faz 3 queries (era 5); encerradas carregam sob demanda |
 | Fix C — Diagnóstico WebSocket | ⬜ Pendente | — | — |
+| Fix D — Cache L1/L2/L3 + prefetch batched | ✅ Implementado | 2026-04-20 | Cliques em conversas já prefetchadas são instantâneos; persiste entre F5 |
 
 **Arquivos alterados no Fix B:**
 - `app/(dashboard)/livechat/page.tsx` — remove `closedConvsResult`, `importantConvsResult` e lógica de merge
 - `components/livechat/contact-list.tsx` — lazy load com fetch ao clicar em "Encerradas", estados de loading/error/retry
 - `app/api/livechat/conversations/route.ts` — novo endpoint `GET ?filter=closed&limit=300`
+
+**Arquivos alterados no Fix D:**
+- `lib/hooks/use-messages-cache.ts` — L1 memory 5 min, L2 localStorage 30 min (últimas 30 msgs), `prefetchConversationsBatched` com lotes de 5 / 300 ms delay / abort support
+- `components/livechat/livechat-content.tsx` — prefetch de até 100 conversas priorizando manuais (ia_active=false), cleanup via abort no unmount
 
 ---
 
