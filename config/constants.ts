@@ -57,13 +57,14 @@ export const MAX_TOP_QUICK_REPLIES = 3;
 export const DEFAULT_PAGE_SIZE = 20;
 
 /**
- * Limite de conversas pedido na carga inicial do livechat (SSR).
- * O PostgREST do Supabase usa ~1000 linhas por defeito se não houver .limit();
- * tenants com mais conversas (ex.: 1600 em manual) ficavam truncados e o contador
- * da aba manual batia perto de 1000 menos silenciados (~986).
- * Ajuste também "Max rows" em Supabase → Settings → API se a API cortar abaixo deste valor.
+ * Limite de conversas carregadas no SSR inicial do livechat.
+ * Cobre a grande maioria dos tenants em produção. Conversas além deste limite
+ * chegam automaticamente via Realtime conforme recebem novas mensagens.
+ * Os contadores de abas (IA / Manual / Encerradas) vêm da RPC
+ * livechat_conversation_status_counts — sem limite de PostgREST — e continuam
+ * precisos independente deste valor.
  */
-export const LIVECHAT_INITIAL_CONVERSATIONS_LIMIT = 10_000;
+export const LIVECHAT_INITIAL_CONVERSATIONS_LIMIT = 300;
 
 /**
  * Número máximo de tags exibidas antes de mostrar "+N mais"

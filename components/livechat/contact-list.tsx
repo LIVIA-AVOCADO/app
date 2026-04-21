@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -95,6 +96,9 @@ export function ContactList({
       .catch(() => setClosedError(true))
       .finally(() => setClosedLoading(false));
   }, [statusFilter, closedLoaded, closedLoading, conversations]);
+
+  // Ref do container de scroll — necessário para o virtualizer calcular visibilidade
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Debounce de hover: só dispara prefetch após 150ms para evitar falsos positivos
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -268,6 +272,15 @@ export function ContactList({
     (c) => !c.ia_active && c.status !== 'closed' && c.has_unread
   ).length;
 
+  // Virtualizer — renderiza apenas os ~10-15 itens visíveis no scroll em vez de todos.
+  // measureElement ajusta automaticamente após o primeiro render real de cada item.
+  const virtualizer = useVirtualizer({
+    count: filteredConversations.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 120,
+    overscan: 5,
+  });
+
   // Limpar seleção ao mudar filtros (sem SSR — só atualiza a URL)
   const clearSelection = () => {
     if (selectedConversationId) {
@@ -435,7 +448,10 @@ export function ContactList({
         </div>
       )}
 
-      <div className={`scrollbar-themed flex-1 overflow-y-auto p-4 space-y-2 scroll-smooth ${statusFilter === 'muted' ? 'hidden' : ''}`}>
+      <div
+        ref={listRef}
+        className={`scrollbar-themed flex-1 overflow-y-auto p-4 scroll-smooth ${statusFilter === 'muted' ? 'hidden' : ''}`}
+      >
         {/* Feedback de carregamento lazy da aba Encerradas */}
         {statusFilter === 'closed' && closedLoading && (
           <div className="flex items-center justify-center py-6 text-muted-foreground">
@@ -474,24 +490,49 @@ export function ContactList({
             )}
           </div>
         ) : (
-          filteredConversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              onMouseEnter={() => handleHoverEnter(conversation.id)}
-              onMouseLeave={handleHoverLeave}
-            >
-              <ContactItem
-                conversation={conversation}
-                isSelected={selectedConversationId === conversation.id}
-                onActivate={handleCardActivate}
-                onMarkUnread={handleMarkUnread}
-                onClose={handleCloseConversation}
-                onTagToggle={handleCardTagToggle}
-                onToggleImportant={handleToggleImportant}
-                allTags={allTags}
-              />
-            </div>
-          ))
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const conversation = filteredConversations[virtualRow.index];
+              if (!conversation) return null;
+              return (
+                <div
+                  key={conversation.id}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                    paddingBottom: '0.5rem',
+                  }}
+                >
+                  <div
+                    onMouseEnter={() => handleHoverEnter(conversation.id)}
+                    onMouseLeave={handleHoverLeave}
+                  >
+                    <ContactItem
+                      conversation={conversation}
+                      isSelected={selectedConversationId === conversation.id}
+                      onActivate={handleCardActivate}
+                      onMarkUnread={handleMarkUnread}
+                      onClose={handleCloseConversation}
+                      onTagToggle={handleCardTagToggle}
+                      onToggleImportant={handleToggleImportant}
+                      allTags={allTags}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
 
         {/* Resultados de busca em mensagens */}

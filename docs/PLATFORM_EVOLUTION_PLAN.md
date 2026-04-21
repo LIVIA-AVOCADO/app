@@ -449,6 +449,8 @@ NEXT_PUBLIC_REALTIME_PROXY_URL=wss://gateway.seudominio.com.br/realtime
 [ ] Fix C: implementar WS proxy Go (se necessário)
 [ ] Fix C: configurar NEXT_PUBLIC_REALTIME_PROXY_URL (se necessário)
 [x] Fix D: cache L1/L2/L3 + prefetch batched de 100 conversas            ← 2026-04-20
+[x] Fix E: LIVECHAT_INITIAL_CONVERSATIONS_LIMIT 10.000 → 300             ← 2026-04-21
+[x] Fix E: virtualização da lista com @tanstack/react-virtual             ← 2026-04-21
 [ ] Validar: medir tempo de carregamento inicial antes e depois
 ```
 
@@ -460,6 +462,7 @@ NEXT_PUBLIC_REALTIME_PROXY_URL=wss://gateway.seudominio.com.br/realtime
 | Fix B — Lazy loading encerradas + SSR enxuto | ✅ Implementado | 2026-04-20 | SSR faz 3 queries (era 5); encerradas carregam sob demanda |
 | Fix C — Diagnóstico WebSocket | ⬜ Pendente | — | — |
 | Fix D — Cache L1/L2/L3 + prefetch batched | ✅ Implementado | 2026-04-20 | Cliques em conversas já prefetchadas são instantâneos; persiste entre F5 |
+| Fix E — Limite SSR + virtualização da lista | ✅ Implementado | 2026-04-21 | SSR serializa 300 registros (era 10k); DOM mantém ~15 nós independente do volume |
 
 **Arquivos alterados no Fix B:**
 - `app/(dashboard)/livechat/page.tsx` — remove `closedConvsResult`, `importantConvsResult` e lógica de merge
@@ -469,6 +472,10 @@ NEXT_PUBLIC_REALTIME_PROXY_URL=wss://gateway.seudominio.com.br/realtime
 **Arquivos alterados no Fix D:**
 - `lib/hooks/use-messages-cache.ts` — L1 memory 5 min, L2 localStorage 30 min (últimas 30 msgs), `prefetchConversationsBatched` com lotes de 5 / 300 ms delay / abort support
 - `components/livechat/livechat-content.tsx` — prefetch de até 100 conversas priorizando manuais (ia_active=false), cleanup via abort no unmount
+
+**Arquivos alterados no Fix E:**
+- `config/constants.ts` — `LIVECHAT_INITIAL_CONVERSATIONS_LIMIT` 10.000 → 300; comentário atualizado explicando que contadores vêm da RPC (sem limite)
+- `components/livechat/contact-list.tsx` — virtualização com `@tanstack/react-virtual`; renderiza ~15 itens visíveis em vez de todos; `measureElement` auto-ajusta altura; todas as features mantidas (lazy load, busca, muted, importantes, hover prefetch)
 
 ---
 
@@ -1523,4 +1530,8 @@ Ciclo final (Fase 5)
 
 ---
 
-*Documento criado em 2026-04-20. Atualizar status das fases conforme implementação avança.*
+*Documento criado em 2026-04-20. Última atualização: 2026-04-21.*
+
+**Histórico de atualizações:**
+- 2026-04-20 — Fix B (lazy loading encerradas + SSR enxuto) e Fix D (cache L1/L2/L3 + prefetch batched)
+- 2026-04-21 — Fix E (limite SSR 10k→300 + virtualização da lista com react-virtual)
