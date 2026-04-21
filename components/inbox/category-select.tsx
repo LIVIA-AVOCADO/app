@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { TagBadge } from './tag-badge';
+import { TagBadge } from '@/components/shared/tag-badge';
 import { toast } from 'sonner';
 import type { Tag } from '@/types/database-helpers';
 

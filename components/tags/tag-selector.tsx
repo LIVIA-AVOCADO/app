@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { TagBadge } from '@/components/livechat/tag-badge';
+import { TagBadge } from '@/components/shared/tag-badge';
 import { toast } from 'sonner';
 import type { Tag } from '@/types/database-helpers';
 import { TagTypeSection } from './tag-type-section';

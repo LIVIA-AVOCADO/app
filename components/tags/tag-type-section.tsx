@@ -2,7 +2,7 @@
 
 import { Tag, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { TagBadge } from '@/components/livechat/tag-badge';
+import { TagBadge } from '@/components/shared/tag-badge';
 import type { Tag as TagType } from '@/types/database-helpers';
 import type { TagSelectorMode } from './tag-selector';
 

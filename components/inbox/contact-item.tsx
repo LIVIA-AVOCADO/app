@@ -24,7 +24,7 @@ import {
 } from '@/lib/utils/contact-helpers';
 import type { ConversationWithContact } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
-import { TagBadge } from './tag-badge';
+import { TagBadge } from '@/components/shared/tag-badge';
 import { MoreVertical, BellOff, XCircle, Tag as TagIcon, Check, Star, MessageSquare } from 'lucide-react';
 import {
   DropdownMenuSub,

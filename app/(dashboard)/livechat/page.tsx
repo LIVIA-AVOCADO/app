@@ -5,8 +5,8 @@ import {
   getMessages,
   getAllTags,
   getLivechatTabStatusCounts,
-} from '@/lib/queries/livechat';
-import { LivechatContent } from '@/components/livechat/livechat-content';
+} from '@/lib/queries/inbox';
+import { LivechatContent } from '@/components/inbox/livechat-content';
 import { LIVECHAT_INITIAL_CONVERSATIONS_LIMIT } from '@/config/constants';
 
 interface LivechatPageProps {

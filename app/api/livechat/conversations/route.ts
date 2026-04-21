@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getConversationsWithContact } from '@/lib/queries/livechat';
+import { getConversationsWithContact } from '@/lib/queries/inbox';
 
 /**
  * GET /api/livechat/conversations?filter=closed&limit=300&offset=0

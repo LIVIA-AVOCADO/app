@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { searchMessagesByContent } from '@/lib/queries/livechat';
+import { searchMessagesByContent } from '@/lib/queries/inbox';
 import { z } from 'zod';
 
 const searchParamsSchema = z.object({

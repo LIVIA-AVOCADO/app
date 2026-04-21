@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import { getConversationsWithContact } from '@/lib/queries/livechat';
+import { getConversationsWithContact } from '@/lib/queries/inbox';
 import type { IConversationRepository } from './interfaces/IConversationRepository';
 import type { ConversationWithContact, ConversationFilters } from '@/types/livechat';
 import type { Contact } from '@/types/database-helpers';

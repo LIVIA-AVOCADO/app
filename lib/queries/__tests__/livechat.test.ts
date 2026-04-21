@@ -11,7 +11,7 @@ import {
   getQuickReplies,
   getContact,
   getLivechatTabStatusCounts,
-} from '../livechat';
+} from '../inbox';
 
 const mockCreateClient = vi.mocked(createClient);
 

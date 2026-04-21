@@ -16,7 +16,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
-import { TagBadge } from './tag-badge';
+import { TagBadge } from '@/components/shared/tag-badge';
 import { toast } from 'sonner';
 import type { Tag } from '@/types/database-helpers';
 
