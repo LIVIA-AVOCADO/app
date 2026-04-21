@@ -13,7 +13,7 @@ import { ConversationView } from './conversation-view';
 import { CustomerDataPanel } from './customer-data-panel';
 import { MessagesSkeleton } from './messages-skeleton';
 import { useRealtimeConversations } from '@/lib/hooks/use-realtime-conversations';
-import { useMessagesCache } from '@/lib/hooks/use-messages-cache';
+import { useMessagesCache, prefetchConversationsBatched } from '@/lib/hooks/use-messages-cache';
 import { createClient } from '@/lib/supabase/client';
 import type {
   ConversationWithContact,
@@ -22,7 +22,7 @@ import type {
 } from '@/types/livechat';
 import type { Tag } from '@/types/database-helpers';
 
-const PREFETCH_COUNT = 5;
+const PREFETCH_LIMIT = 100;
 const PANEL_PINNED_KEY = 'livechat:panel:pinned';
 
 interface LivechatContentProps {
@@ -98,12 +98,22 @@ export function LivechatContent({
   // Estado visual do botão 👤 no header
   const isPanelActive = isPanelOpen || isPanelPinned;
 
-  // Prefetch silencioso das primeiras N conversas ao montar
+  // Prefetch silencioso das primeiras 100 conversas ao montar.
+  // Prioridade: manual (ia_active=false) primeiro, depois por last_message_at DESC.
   useEffect(() => {
-    const toPreFetch = initialConversations
-      .slice(0, PREFETCH_COUNT)
-      .filter((c) => c.id !== initialSelectedConvId);
-    toPreFetch.forEach((c) => prefetch(c.id));
+    const sorted = [...initialConversations]
+      .filter((c) => c.id !== initialSelectedConvId)
+      .sort((a, b) => {
+        const aManual = !a.ia_active ? 0 : 1;
+        const bManual = !b.ia_active ? 0 : 1;
+        if (aManual !== bManual) return aManual - bManual;
+        return (b.last_message_at ?? '').localeCompare(a.last_message_at ?? '');
+      })
+      .slice(0, PREFETCH_LIMIT)
+      .map((c) => c.id);
+
+    const abort = prefetchConversationsBatched(sorted);
+    return abort;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
