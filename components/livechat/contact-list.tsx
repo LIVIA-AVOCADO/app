@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -58,6 +58,12 @@ export function ContactList({
   const [searchQuery, setSearchQuery] = useState('');
   const isMessageSearch = searchQuery.trim().length >= 3;
 
+  // Encerradas são carregadas sob demanda ao clicar na aba (lazy)
+  const [closedConversations, setClosedConversations] = useState<ConversationWithContact[]>([]);
+  const [closedLoading, setClosedLoading] = useState(false);
+  const [closedLoaded, setClosedLoaded] = useState(false);
+  const [closedError, setClosedError] = useState(false);
+
   const {
     results: messageSearchResults,
     isLoading: isMessageSearchLoading,
@@ -67,6 +73,28 @@ export function ContactList({
   const [statusFilter, setStatusFilter] = useState<
     'ia' | 'manual' | 'closed' | 'muted' | 'important'
   >('ia');
+
+  // Carrega encerradas ao entrar na aba pela primeira vez
+  useEffect(() => {
+    if (statusFilter !== 'closed' || closedLoaded || closedLoading) return;
+
+    setClosedLoading(true);
+    setClosedError(false);
+
+    fetch('/api/livechat/conversations?filter=closed&limit=300')
+      .then((res) => {
+        if (!res.ok) throw new Error(`${res.status}`);
+        return res.json();
+      })
+      .then(({ conversations: closed }: { conversations: ConversationWithContact[] }) => {
+        // Exclui ids já presentes na lista ativa (ex.: conversa encerrada nesta sessão)
+        const activeIds = new Set(conversations.map((c) => c.id));
+        setClosedConversations(closed.filter((c) => !activeIds.has(c.id)));
+        setClosedLoaded(true);
+      })
+      .catch(() => setClosedError(true))
+      .finally(() => setClosedLoading(false));
+  }, [statusFilter, closedLoaded, closedLoading, conversations]);
 
   // Debounce de hover: só dispara prefetch após 150ms para evitar falsos positivos
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -164,8 +192,17 @@ export function ContactList({
     [showOnlyUnread, statusFilter, onConversationClick]
   );
 
+  // Na aba Encerradas: usa a lista lazy + conversas ativas já encerradas nesta sessão
+  const allConversationsForFilter =
+    statusFilter === 'closed'
+      ? [
+          ...conversations.filter((c) => c.status === 'closed'),
+          ...closedConversations,
+        ]
+      : conversations;
+
   // Filtros
-  const filteredConversations = conversations.filter((conversation) => {
+  const filteredConversations = allConversationsForFilter.filter((conversation) => {
     const displayName = getContactDisplayName(
       conversation.contact.name,
       conversation.contact.phone
@@ -399,6 +436,25 @@ export function ContactList({
       )}
 
       <div className={`scrollbar-themed flex-1 overflow-y-auto p-4 space-y-2 scroll-smooth ${statusFilter === 'muted' ? 'hidden' : ''}`}>
+        {/* Feedback de carregamento lazy da aba Encerradas */}
+        {statusFilter === 'closed' && closedLoading && (
+          <div className="flex items-center justify-center py-6 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            <span className="text-sm">Carregando encerradas…</span>
+          </div>
+        )}
+        {statusFilter === 'closed' && closedError && !closedLoading && (
+          <div className="text-center py-4 text-sm text-destructive">
+            Erro ao carregar conversas encerradas.{' '}
+            <button
+              className="underline"
+              onClick={() => { setClosedLoaded(false); setClosedError(false); }}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
         {filteredConversations.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground animate-in fade-in-0 duration-300">
             {searchQuery ? (

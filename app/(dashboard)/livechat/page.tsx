@@ -59,23 +59,12 @@ export default async function LivechatPage({
     );
   }
 
-  // Três queries paralelas para conversas:
-  // 1. Ativas (ia + manual) — sujeitas ao Max Rows do PostgREST, mas são as mais recentes
-  // 2. Encerradas separadas — query dedicada garantindo que não sejam cortadas pela janela
-  // 3. Importantes — query dedicada para garantir que todas estejam carregadas mesmo se antigas
-  // Todas correm em paralelo com tags e contagem RPC.
-  const [conversationsResult, closedConvsResult, importantConvsResult, allTagsResult, tabCountsResult] = await Promise.allSettled([
+  // Duas queries paralelas — conversas ativas + metadados.
+  // Encerradas são carregadas client-side quando o usuário clica na aba (lazy).
+  // Importantes já estão incluídas nas ativas; o contador vem da RPC abaixo.
+  const [conversationsResult, allTagsResult, tabCountsResult] = await Promise.allSettled([
     getConversationsWithContact(tenantId, {
       limit: LIVECHAT_INITIAL_CONVERSATIONS_LIMIT,
-    }),
-    getConversationsWithContact(tenantId, {
-      includeClosedConversations: true,
-      status: 'closed',
-      limit: 500,
-    }),
-    getConversationsWithContact(tenantId, {
-      isImportant: true,
-      limit: 500,
     }),
     getAllTags(neurocoreId, tenantId),
     getLivechatTabStatusCounts(tenantId),
@@ -90,23 +79,7 @@ export default async function LivechatPage({
     throw allTagsResult.reason;
   }
 
-  // Mescla ativas + encerradas + importantes, dedupando por id (ativa tem precedência)
-  const activeConvs = conversationsResult.value;
-  const closedConvs = closedConvsResult.status === 'fulfilled' ? closedConvsResult.value : [];
-  if (closedConvsResult.status === 'rejected') {
-    console.warn('[livechat] closed conversations query failed:', closedConvsResult.reason);
-  }
-  const importantConvs = importantConvsResult.status === 'fulfilled' ? importantConvsResult.value : [];
-  if (importantConvsResult.status === 'rejected') {
-    console.warn('[livechat] important conversations query failed:', importantConvsResult.reason);
-  }
-  const activeIds = new Set(activeConvs.map((c) => c.id));
-  const allLoadedIds = new Set([...activeConvs, ...closedConvs].map((c) => c.id));
-  const conversations = [
-    ...activeConvs,
-    ...closedConvs.filter((c) => !activeIds.has(c.id)),
-    ...importantConvs.filter((c) => !allLoadedIds.has(c.id)),
-  ];
+  const conversations = conversationsResult.value;
 
   const allTags = allTagsResult.value;
   const tabStatusCounts = tabCountsResult.status === 'fulfilled' ? tabCountsResult.value : null;
