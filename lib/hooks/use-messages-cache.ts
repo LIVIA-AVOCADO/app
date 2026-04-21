@@ -86,7 +86,8 @@ function lsEvict(): void {
   }
   if (entries.length === 0) return;
   entries.sort((a, b) => a.storedAt - b.storedAt);
-  localStorage.removeItem(entries[0].key);
+  const oldest = entries[0];
+  if (oldest) localStorage.removeItem(oldest.key);
 }
 
 function lsSet(conversationId: string, messages: MessageWithSender[]): void {
