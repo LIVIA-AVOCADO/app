@@ -7,6 +7,74 @@
 
 ---
 
+## ⚠️ Diretrizes Críticas de Deploy e Migração
+
+> Estas regras se aplicam a **todas as fases** e devem ser respeitadas antes de qualquer
+> commit, deploy ou mudança de configuração em produção.
+
+### D-001 — Deploy automático: cada commit no `main` vai direto para produção
+
+O repositório `livia_dev_01` está conectado à Vercel com deploy automático na branch `main`.
+Isso significa que **qualquer push impacta usuários reais imediatamente**.
+
+Regras obrigatórias:
+- Nunca commitar código incompleto em arquivos que afetam rotas ativas (middleware, livechat, APIs)
+- Toda alteração deve passar por `npm run build` localmente antes do commit
+- Features em andamento que afetam fluxo de produção devem usar feature flags ou ficar em branch separada até estar 100% pronta
+- Commits de documentação e de código Go (repositório separado) **não afetam** a Vercel
+
+### D-002 — n8n é o único processador de mensagens hoje — nunca desligar sem validação completa
+
+O fluxo atual é:
+```
+Canal (Evolution/Meta) → webhook → n8n → processa TUDO → Supabase
+```
+
+O n8n processa: recebimento, roteamento, IA, gravação de mensagens, status, envio.
+**Se o n8n cair, nenhuma mensagem chega ao sistema.**
+
+Regras obrigatórias:
+- O n8n só sai do caminho de inbound quando o Go Gateway estiver **validado em produção**
+  com volume real por no mínimo 48h sem erros
+- Durante toda a Fase 2, o n8n continua ativo como fallback — basta re-apontar o webhook
+  da Evolution/Meta de volta para o n8n para fazer rollback em segundos
+- Salvar e documentar as URLs de webhook do n8n antes de qualquer mudança de roteamento
+
+### D-003 — livia-gateway é um repositório separado — zero risco para o Next.js
+
+O Go Message Gateway será desenvolvido e deployado em um repositório independente
+(`livia-gateway`), rodando na VPN Hostinger. Ele **não compartilha** código, deploy
+pipeline ou dependências com o repositório Next.js.
+
+Consequência: todo o desenvolvimento da Fase 2 pode ser feito sem nenhum commit
+no `livia_dev_01`. O Next.js só é tocado no último passo (quando o envio outbound
+migra de n8n para Go), e mesmo assim de forma incremental.
+
+### D-004 — Shadow Mode é obrigatório antes de qualquer cutover
+
+Antes de o Go Gateway processar qualquer mensagem real:
+1. Ele deve rodar em **shadow mode**: recebe o webhook, loga, mas **não age**
+2. O n8n continua recebendo o mesmo webhook em paralelo (dual-write)
+3. Só avança para o próximo passo após validar logs por no mínimo 24h
+
+Nunca pular o shadow mode, mesmo que os testes locais estejam passando.
+
+### D-005 — Rollback deve ser possível em menos de 60 segundos
+
+Para cada passo da migração, o rollback deve ser:
+- **Documentado** antes de executar o passo
+- **Testado** (saber exatamente o que clicar para reverter)
+- **Rápido**: re-apontar webhook no painel da Evolution/Meta é suficiente para
+  voltar ao n8n em qualquer ponto da Fase 2
+
+### D-006 — Credenciais nunca em código ou documentação pública
+
+A seção 6.7 contém exemplos de variáveis de ambiente com valores reais de referência.
+Esses valores **não devem** ser commitados no repositório real do `livia-gateway`.
+Usar `.env` local + secrets do servidor (ou vault) para todas as credenciais.
+
+---
+
 ## Índice
 
 1. [Contexto e Visão Geral](#1-contexto-e-visão-geral)
