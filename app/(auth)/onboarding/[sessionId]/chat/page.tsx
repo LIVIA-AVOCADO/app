@@ -17,7 +17,7 @@ export default async function OnboardingChatPage({ params }: PageProps) {
   const session = await getSession(sessionId, user.id);
 
   if (!session) redirect('/onboarding');
-  if (session.status === 'active') redirect('/livechat');
+  if (session.status === 'active') redirect('/inbox');
 
   const { data: userData } = await supabase
     .from('users')

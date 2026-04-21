@@ -190,7 +190,7 @@ export function ContactList({
       if (onConversationClick) {
         onConversationClick(conversationId);
       } else {
-        window.history.pushState(null, '', `/livechat?conversation=${conversationId}`);
+        window.history.pushState(null, '', `/inbox?conversation=${conversationId}`);
       }
     },
     [showOnlyUnread, statusFilter, onConversationClick]
@@ -284,7 +284,7 @@ export function ContactList({
   // Limpar seleção ao mudar filtros (sem SSR — só atualiza a URL)
   const clearSelection = () => {
     if (selectedConversationId) {
-      window.history.pushState(null, '', '/livechat');
+      window.history.pushState(null, '', '/inbox');
     }
   };
 

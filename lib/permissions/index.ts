@@ -134,7 +134,7 @@ const ROUTE_PERMISSIONS: Array<{ pattern: string; permission: RoutePermission }>
   { pattern: '/gerenciar-usuarios', permission: { moduleKey: MODULE_KEYS.GERENCIAR_USUARIOS } },
   { pattern: '/financeiro',         permission: { moduleKey: MODULE_KEYS.FINANCEIRO } },
   { pattern: '/relatorios',         permission: { moduleKey: MODULE_KEYS.RELATORIOS } },
-  { pattern: '/livechat',           permission: { moduleKey: MODULE_KEYS.LIVECHAT } },
+  { pattern: '/inbox',              permission: { moduleKey: MODULE_KEYS.LIVECHAT } },
   { pattern: '/crm',                permission: { moduleKey: MODULE_KEYS.CRM } },
   { pattern: '/knowledge-base',     permission: { moduleKey: MODULE_KEYS.KNOWLEDGE_BASE } },
   { pattern: '/neurocore',          permission: { moduleKey: MODULE_KEYS.KNOWLEDGE_BASE } },

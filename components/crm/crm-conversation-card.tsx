@@ -68,7 +68,7 @@ export function CRMConversationCard({ conversation }: CRMConversationCardProps) 
   );
 
   const handleClick = () => {
-    router.push(`/livechat?conversation=${conversation.id}`);
+    router.push(`/inbox?conversation=${conversation.id}`);
   };
 
   return (

@@ -18,7 +18,7 @@ export function SidebarAutoCollapseWrapper({
   children: React.ReactNode;
 }) {
   // Auto-collapse sidebar quando estiver na rota /livechat
-  useSidebarAutoCollapse(['/livechat']);
+  useSidebarAutoCollapse(['/inbox']);
 
   return children;
 }

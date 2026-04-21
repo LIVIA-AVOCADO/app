@@ -7,11 +7,11 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Livechat — usuário autenticado', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/livechat');
+    await page.goto('/inbox');
   });
 
   test('carrega a página sem redirecionar para login', async ({ page }) => {
-    await expect(page).toHaveURL(/\/livechat/);
+    await expect(page).toHaveURL(/\/inbox/);
   });
 
   test('exibe a lista de conversas (ou estado vazio)', async ({ page }) => {

@@ -64,7 +64,7 @@ function isPublicRoute(pathname: string): boolean {
 function isDashboardRoute(pathname: string): boolean {
   return (
     pathname.startsWith('/financeiro') ||
-    pathname.startsWith('/livechat') ||
+    pathname.startsWith('/inbox') ||
     pathname.startsWith('/crm') ||
     pathname.startsWith('/knowledge-base') ||
     pathname.startsWith('/neurocore') ||
@@ -182,7 +182,7 @@ async function handleDashboardMiddleware(request: NextRequest, pathname: string)
   }
 
   if (userCtx.tid && pathname.startsWith('/aguardando-acesso')) {
-    return NextResponse.redirect(new URL('/livechat', request.url));
+    return NextResponse.redirect(new URL('/inbox', request.url));
   }
 
   if (!userCtx.tid) {

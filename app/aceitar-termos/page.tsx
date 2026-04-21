@@ -20,7 +20,7 @@ export default function AceitarTermosPage() {
         setError('Não foi possível registrar o aceite. Tente novamente.');
         return;
       }
-      window.location.href = '/livechat';
+      window.location.href = '/inbox';
     } catch {
       setError('Erro de conexão. Tente novamente.');
     } finally {

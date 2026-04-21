@@ -65,7 +65,7 @@ export function LoginForm() {
         return;
       }
 
-      router.push('/livechat');
+      router.push('/inbox');
       router.refresh();
     } catch (_err) {
       setError('Erro ao fazer login. Tente novamente.');

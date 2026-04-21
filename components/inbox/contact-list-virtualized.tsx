@@ -261,7 +261,7 @@ export function ContactListVirtualized({
                       if (onConversationClick) {
                         onConversationClick(conversation.id);
                       } else {
-                        router.push(`/livechat?conversation=${conversation.id}`);
+                        router.push(`/inbox?conversation=${conversation.id}`);
                       }
                     }}
                   />

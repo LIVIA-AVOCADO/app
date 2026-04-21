@@ -165,7 +165,7 @@ export function LivechatContent({
         setTimeout(() => {
           setSelectedConvId(undefined);
           setCurrentMessages(null);
-          window.history.pushState(null, '', '/livechat');
+          window.history.pushState(null, '', '/inbox');
         }, 600);
       }
     },
@@ -187,7 +187,7 @@ export function LivechatContent({
       setTimeout(() => {
         setSelectedConvId(undefined);
         setCurrentMessages(null);
-        window.history.pushState(null, '', '/livechat');
+        window.history.pushState(null, '', '/inbox');
       }, 800);
     },
     [selectedConvId, activeConversation, patchAllConversationsForContact]
@@ -210,7 +210,7 @@ export function LivechatContent({
 
       setSelectedConvId(conversationId);
       setIsLoadingMessages(true);
-      window.history.pushState(null, '', `/livechat?conversation=${conversationId}`);
+      window.history.pushState(null, '', `/inbox?conversation=${conversationId}`);
 
       // Otimistic: zera has_unread localmente sem esperar o Realtime (evita badge preso)
       updateConversation(conversationId, { has_unread: false, unread_count: 0 });

@@ -18,7 +18,7 @@ export default async function OnboardingChannelPage({ params }: PageProps) {
   const session = await getSession(sessionId, user.id);
 
   if (!session) redirect('/onboarding');
-  if (session.status === 'active') redirect('/livechat');
+  if (session.status === 'active') redirect('/inbox');
 
   // Já conectado → vai direto para review
   if (session.payload?.channel?.connection_status === 'connected') {

@@ -9,7 +9,7 @@ export default async function LoginPage() {
 
   // Se já estiver logado, redireciona para livechat
   if (user) {
-    redirect('/livechat');
+    redirect('/inbox');
   }
 
   return (

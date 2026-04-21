@@ -38,7 +38,7 @@ export function ReviewLayout({ session }: ReviewLayoutProps) {
       }
 
       setStatus('done');
-      setTimeout(() => router.push('/livechat'), 1200);
+      setTimeout(() => router.push('/inbox'), 1200);
     } catch {
       setErrorMsg('Erro de conexão. Tente novamente.');
       setStatus('error');

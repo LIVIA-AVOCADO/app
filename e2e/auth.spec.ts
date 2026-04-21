@@ -52,8 +52,8 @@ test.describe('Página de Login', () => {
 });
 
 test.describe('Redirecionamentos não autenticados', () => {
-  test('redireciona /livechat → /login quando não autenticado', async ({ page }) => {
-    await page.goto('/livechat');
+  test('redireciona /inbox → /login quando não autenticado', async ({ page }) => {
+    await page.goto('/inbox');
     await expect(page).toHaveURL(/\/login/, { timeout: 8_000 });
   });
 

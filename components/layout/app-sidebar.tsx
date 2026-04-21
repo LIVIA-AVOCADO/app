@@ -78,7 +78,7 @@ export function AppSidebar({
         <div className="flex h-14 items-center justify-between px-2 gap-2 group-data-[collapsible=icon]:hidden">
           <SidebarTrigger />
           <Link
-            href="/livechat"
+            href="/inbox"
             className="flex-1 flex items-center justify-center font-bold text-sidebar-foreground"
           >
             <Image
@@ -96,7 +96,7 @@ export function AppSidebar({
         {/* Layout quando COLAPSADO: Logo no topo, Toggle embaixo */}
         <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center py-3 gap-3">
           <Link
-            href="/livechat"
+            href="/inbox"
             className="flex items-center font-bold text-sidebar-foreground"
           >
             <Image

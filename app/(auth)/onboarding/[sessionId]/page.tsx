@@ -18,7 +18,7 @@ export default async function OnboardingWizardPage({ params }: PageProps) {
 
   if (!session) redirect('/onboarding');
 
-  if (session.status === 'active') redirect('/livechat');
+  if (session.status === 'active') redirect('/inbox');
 
   if (session.status === 'awaiting_channel') {
     redirect(`/onboarding/${sessionId}/channel`);

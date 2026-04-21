@@ -19,7 +19,7 @@ export default async function AguardandoAcessoPage() {
     .single();
 
   if (userData?.tenant_id) {
-    redirect('/livechat');
+    redirect('/inbox');
   }
 
   return (

@@ -19,7 +19,7 @@ export default async function OnboardingPage() {
     .eq('id', user.id)
     .single();
 
-  if (userData?.tenant_id) redirect('/livechat');
+  if (userData?.tenant_id) redirect('/inbox');
 
   const [templatesByNiche, latestSession] = await Promise.all([
     getActiveTemplates(),

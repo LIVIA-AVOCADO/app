@@ -55,7 +55,7 @@ export const navItems: NavItem[] = [
   },
   {
     title:     'Livechat',
-    url:       '/livechat',
+    url:       '/inbox',
     icon:      MessageSquare,
     moduleKey: MODULE_KEYS.LIVECHAT,
   },

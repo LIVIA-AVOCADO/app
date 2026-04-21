@@ -40,7 +40,7 @@ export function SidebarToggleHeader() {
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-6" />
       <Link
-        href="/livechat"
+        href="/inbox"
         className="flex items-center font-bold text-foreground"
       >
         <Image

@@ -41,7 +41,7 @@ export async function GET(request: Request) {
 
   if (existingUser) {
     if (existingUser.tenant_id) {
-      return NextResponse.redirect(new URL('/livechat', origin));
+      return NextResponse.redirect(new URL('/inbox', origin));
     }
     return NextResponse.redirect(new URL('/aguardando-acesso', origin));
   }

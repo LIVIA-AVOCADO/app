@@ -81,7 +81,7 @@ describe('CRMConversationCard', () => {
     it('navega para /livechat?conversation=<id> ao clicar', () => {
       render(<CRMConversationCard conversation={buildConversation({ id: 'conv-abc' }) as any} />);
       fireEvent.click(screen.getByText('João Silva'));
-      expect(mockPush).toHaveBeenCalledWith('/livechat?conversation=conv-abc');
+      expect(mockPush).toHaveBeenCalledWith('/inbox?conversation=conv-abc');
     });
   });
 });

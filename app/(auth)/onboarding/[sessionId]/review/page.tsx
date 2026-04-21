@@ -18,7 +18,7 @@ export default async function OnboardingReviewPage({ params }: PageProps) {
 
   if (!session) redirect('/onboarding');
 
-  if (session.status === 'active') redirect('/livechat');
+  if (session.status === 'active') redirect('/inbox');
   if (session.status === 'failed') redirect(`/onboarding/${sessionId}`);
 
   return <ReviewLayout session={session} />;
