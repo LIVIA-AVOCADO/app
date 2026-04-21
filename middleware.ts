@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { canAccessRoute } from '@/lib/permissions';
 
 /**
@@ -15,17 +14,12 @@ import { canAccessRoute } from '@/lib/permissions';
  * 5. Assinatura     → redireciona para /financeiro/recarregar se cancelada
  *
  * Performance:
- * - JWT verificado localmente com JWKS cacheado (jose) — zero HTTP call para Auth
+ * - getSession() lê sessão dos cookies sem HTTP call (getUser() chamava o servidor sempre)
  * - Dados do usuário em cookie x-user-ctx (HTTPOnly, TTL 5 min) — zero query ao banco
  *   na esmagadora maioria dos requests; re-busca apenas quando o cookie expira
  * - Status da assinatura em cookie x-sub-status (HTTPOnly, TTL 5 min) — já existia
  */
 
-// JWKS cacheado no escopo do módulo — jose refaz o fetch automaticamente quando expira.
-// Primeira request do servidor busca o endpoint; as demais verificam localmente (~0 ms).
-const SUPABASE_JWKS = createRemoteJWKSet(
-  new URL(`${process.env.NEXT_PUBLIC_SUPABASE_URL!}/auth/v1/.well-known/jwks.json`)
-);
 
 const PUBLIC_ROUTES = [
   '/login',
@@ -131,18 +125,13 @@ async function handleDashboardMiddleware(request: NextRequest, pathname: string)
     }
   );
 
-  // ── 1. Auth: JWT verificado localmente ───────────────────────────────────
-  // getSession() lê o token dos cookies sem HTTP call (ao contrário de getUser()).
-  // jwtVerify() valida assinatura e expiração localmente com JWKS cacheado.
+  // ── 1. Auth: sessão lida dos cookies sem HTTP call ───────────────────────
+  // getSession() lê o token dos cookies localmente (ao contrário de getUser() que
+  // sempre faz uma chamada HTTP ao servidor Supabase). A validade real do token é
+  // verificada pelo Supabase quando qualquer chamada de API é executada.
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (!session?.access_token) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  try {
-    await jwtVerify(session.access_token, SUPABASE_JWKS);
-  } catch {
+  if (!session?.user) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
