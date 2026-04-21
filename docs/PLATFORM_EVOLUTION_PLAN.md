@@ -605,15 +605,38 @@ lib/
 ### 5.3 Checklist Fase 1
 
 ```
-[ ] Criar alias @/inbox → components/inbox no tsconfig
-[ ] Renomear components/livechat → components/inbox
-[ ] Renomear lib/queries/livechat.ts → lib/queries/inbox.ts
-[ ] Atualizar todos os imports (codemod ou find-replace)
-[ ] Mover componentes genéricos para components/shared/
-[ ] Atualizar middleware.ts (nova rota /inbox)
-[ ] Atualizar referências de /livechat → /inbox nas rotas
-[ ] Testar que nada quebrou (npm run build)
+[ ] Criar alias @/inbox → components/inbox no tsconfig       ← não necessário (@/* já cobre)
+[x] Renomear components/livechat → components/inbox          ← 2026-04-21
+[x] Renomear lib/queries/livechat.ts → lib/queries/inbox.ts  ← 2026-04-21
+[x] Atualizar todos os imports (codemod ou find-replace)      ← 2026-04-21
+[x] Mover componentes genéricos para components/shared/       ← 2026-04-21 (tag-badge)
+[x] Atualizar middleware.ts (nova rota /inbox)                 ← 2026-04-21
+[x] Atualizar referências de /livechat → /inbox nas rotas     ← 2026-04-21
+[x] Testar que nada quebrou (npm run build)                    ← 2026-04-21
 ```
+
+### 5.4 Status Fase 1
+
+| Passo | Status | Data | Detalhe |
+|---|---|---|---|
+| 1a — Renomear components/livechat + lib/queries/livechat | ✅ Concluído | 2026-04-21 | 41 arquivos renomeados via `git mv`; tag-badge extraído para `components/shared/` |
+| 1b — Renomear rota /livechat → /inbox | ✅ Concluído | 2026-04-21 | Redirect 301 em `next.config.ts`; 28 arquivos atualizados; middleware, permissions, nav, auth/onboarding, e2e |
+
+**Arquivos alterados no Passo 1a:**
+- `components/livechat/` → `components/inbox/` (31 arquivos, git mv preserva histórico)
+- `lib/queries/livechat.ts` → `lib/queries/inbox.ts`
+- `components/livechat/tag-badge.tsx` → `components/shared/tag-badge.tsx`
+- Imports atualizados em: `app/(dashboard)/livechat/page.tsx`, `components/tags/*`, `app/api/livechat/*`, `lib/repositories/*`
+
+**Arquivos alterados no Passo 1b:**
+- `next.config.ts` — redirect 301 `/livechat` e `/livechat/:path*` → `/inbox`
+- `app/(dashboard)/inbox/` — rota movida de `livechat/`
+- `middleware.ts` — `isDashboardRoute` e redirect de tenant: `/livechat` → `/inbox`
+- `lib/permissions/index.ts` — padrão de rota `/inbox`
+- `components/layout/*` — hrefs atualizados
+- `app/(auth)/*`, `app/auth/callback/route.ts` — redirects pós-login atualizados
+- `components/inbox/livechat-content.tsx`, `contact-list.tsx` — `history.pushState` URLs
+- `components/crm/crm-conversation-card.tsx` — URL de deep link para conversa
 
 ---
 
@@ -868,24 +891,93 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 ### 6.8 Checklist Fase 2
 
 ```
-[ ] Criar repositório livia-gateway
-[ ] Implementar config/config.go (lê e valida env vars)
+[x] Criar repositório livia-gateway                                          ← 2026-04-21
+[x] Implementar config/config.go (PORT, LOG_LEVEL, SHADOW_MODE, N8N_WEBHOOK_URL)  ← 2026-04-21
 [ ] Implementar gateway/normalizer.go (Evolution + Meta → MessageEvent)
 [ ] Implementar gateway/dedup.go (LRU cache)
 [ ] Implementar integrations/supabase.go (REST client)
 [ ] Implementar gateway/persister.go (grava mensagem + contato + conversa)
-[ ] Implementar handlers/evolution.go (webhook receiver)
+[x] Implementar handlers/evolution.go (shadow mode + forward para n8n)       ← 2026-04-21
 [ ] Implementar handlers/ws_proxy.go (WebSocket proxy)
-[ ] Implementar handlers/health.go
-[ ] Deploy na VPN Hostinger (Docker ou binário)
-[ ] Migração Passo 1: apontar 1 instância Evolution para Go
-[ ] Validar logs e mensagens recebidas
+[x] Implementar handlers/health.go                                            ← 2026-04-21
+[x] Deploy na VPS Hostinger (Docker Swarm + Traefik)                         ← 2026-04-21
+[~] Migração Passo 1: apontar 1 instância Evolution para Go      ← BLOQUEADO (ver 6.9)
+[ ] Validar logs e mensagens recebidas por 24h
 [ ] Implementar ura/ (engine + strategies)
 [ ] Migração Passo 2: Go persiste diretamente
 [ ] Migração Passo 3: Go assume todas as instâncias
 [ ] Implementar integrations/n8n.go (para rota AI)
 [ ] Implementar handlers/outbound.go (recebe de Next.js)
 [ ] Atualizar Next.js: envio de mensagem humana → Go Gateway (não n8n)
+```
+
+### 6.9 Status Fase 2 — Passo 1 (Shadow Mode)
+
+#### O que foi feito (2026-04-21)
+
+| Item | Status | Detalhe |
+|---|---|---|
+| Repositório `livia-gateway` criado | ✅ | https://github.com/FrankMarcelino/livia-gateway |
+| Estrutura Go inicial | ✅ | `config/`, `handlers/`, `logger/`, `main.go` |
+| Shadow mode com forward para n8n | ✅ | Gateway recebe → faz forward para n8n → loga → retorna 200 |
+| Dockerfile (multi-stage, Alpine) | ✅ | Imagem final ~24MB |
+| `stack.yaml` para Docker Swarm + Traefik | ✅ | Deploy via `docker stack deploy` |
+| DNS `livia-gw.online24por7.ai` | ✅ | CNAME → manager01.online24por7.ai (DNS only) |
+| Imagem compilada na VPS | ✅ | `docker build -t livia-gateway:latest .` |
+| Stack deployada no Swarm | ✅ | `livia-gateway_app` 1/1 replica rodando |
+| HTTPS via Traefik + Let's Encrypt | ✅ | `https://livia-gw.online24por7.ai/health` respondendo |
+| Teste manual do webhook | ✅ | curl POST confirmou logs + n8n_forward_ok:true |
+| Configurar webhook Evolution → gateway | ⏸️ PARADO | Ver abaixo |
+
+#### ⏸️ Onde paramos — Bloqueio na configuração do webhook da Evolution
+
+**Problema:** A UI da Evolution API v2.3.6 não permite adicionar um segundo webhook — só existe um campo de URL.
+
+**Solução adotada:** Em vez de dual-webhook, a estratégia é trocar o webhook da Evolution para apontar diretamente para o gateway. O gateway faz forward automático para o n8n antes de qualquer processamento. Isso é exatamente o caminho de migração correto (Passo 1 → 2 → 3).
+
+```
+ANTES:  Evolution → n8n (direto)
+AGORA:  Evolution → livia-gateway → n8n (forward) + log
+PASSO 3: Evolution → livia-gateway (processa diretamente, para de fazer forward)
+```
+
+**Bloqueio atual:** Para trocar o webhook via API REST da Evolution é preciso:
+1. A URL base do painel: `https://wsapilocal2.ligeira.net/`
+2. O nome exato da instância (obtido via `GET /instance/fetchInstances`)
+3. A API key global da Evolution (não confirmada ainda)
+
+**Próximo passo quando retornar:**
+
+```bash
+# 1. Listar instâncias e descobrir o nome exato
+curl -s https://wsapilocal2.ligeira.net/instance/fetchInstances \
+  -H "apikey: SUA_API_KEY"
+
+# 2. Atualizar o webhook da instância
+curl -s -X PUT https://wsapilocal2.ligeira.net/webhook/set/NOME_DA_INSTANCIA \
+  -H "apikey: SUA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://livia-gw.online24por7.ai/webhook/evolution",
+    "webhook_by_events": false,
+    "webhook_base64": false,
+    "events": ["MESSAGES_UPSERT","MESSAGES_UPDATE","CONNECTION_UPDATE","SEND_MESSAGE"]
+  }'
+
+# 3. Verificar logs do gateway em tempo real
+docker service logs livia-gateway_app -f
+
+# 4. Critério de sucesso: aparece no log para cada mensagem recebida:
+# {"msg":"evolution: webhook recebido","n8n_forward_ok":true,"event":"messages.upsert"}
+```
+
+**Rollback imediato se algo der errado:**
+```bash
+# Basta trocar a URL de volta para o n8n via API
+curl -s -X PUT https://wsapilocal2.ligeira.net/webhook/set/NOME_DA_INSTANCIA \
+  -H "apikey: SUA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://acesse.ligeiratelecom.com.br/webhook/dev_first_integrator_001_dev"}'
 ```
 
 ---
@@ -1603,3 +1695,5 @@ Ciclo final (Fase 5)
 - 2026-04-21 — Fix E (limite SSR 10k→300 + virtualização da lista com react-virtual)
 - 2026-04-21 — Fix A (middleware: getSession + cookie x-user-ctx elimina HTTP calls)
 - 2026-04-21 — Fix C (diagnóstico WebSocket: Kaspersky proxia WS, sem bloqueio de ISP)
+- 2026-04-21 — Fase 1 concluída: components/inbox + /inbox route + redirect 301 + components/shared
+- 2026-04-21 — Fase 2 Passo 1 iniciado: livia-gateway deployado em shadow mode na VPS (bloqueado na config do webhook Evolution)
