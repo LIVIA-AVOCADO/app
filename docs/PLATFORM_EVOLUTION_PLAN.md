@@ -443,8 +443,8 @@ NEXT_PUBLIC_REALTIME_PROXY_URL=wss://gateway.seudominio.com.br/realtime
 [x] Fix B: adicionar lazy loading da aba Encerradas no ContactList       ← 2026-04-20
 [x] Fix B: novo API route GET /api/livechat/conversations?filter=closed  ← 2026-04-20
 [x] Fix B: handleConversationClick já usa history.pushState (existia)    ← já implementado
-[ ] Fix C: diagnosticar endpoint WS no DevTools
-[ ] Fix C: implementar WS proxy Go (se necessário)
+[x] Fix C: diagnosticar endpoint WS no DevTools                              ← 2026-04-21
+[ ] Fix C: implementar WS proxy Go (se reportado por usuários em ISP restritivo)
 [ ] Fix C: configurar NEXT_PUBLIC_REALTIME_PROXY_URL (se necessário)
 [x] Fix D: cache L1/L2/L3 + prefetch batched de 100 conversas            ← 2026-04-20
 [x] Fix E: LIVECHAT_INITIAL_CONVERSATIONS_LIMIT 10.000 → 300             ← 2026-04-21
@@ -458,7 +458,7 @@ NEXT_PUBLIC_REALTIME_PROXY_URL=wss://gateway.seudominio.com.br/realtime
 |---|---|---|---|
 | Fix A — Middleware JWT local | ✅ Implementado | 2026-04-21 | getUser() substituído por getSession()+jwtVerify(JWKS); cookie x-user-ctx elimina query ao banco em ~99% dos requests |
 | Fix B — Lazy loading encerradas + SSR enxuto | ✅ Implementado | 2026-04-20 | SSR faz 3 queries (era 5); encerradas carregam sob demanda |
-| Fix C — Diagnóstico WebSocket | ⬜ Pendente | — | — |
+| Fix C — Diagnóstico WebSocket | ✅ Diagnosticado | 2026-04-21 | Kaspersky proxia todas as WS — sem bloqueio de ISP no ambiente; proxy Go fica pendente até relato de usuários em ISP restritivo |
 | Fix D — Cache L1/L2/L3 + prefetch batched | ✅ Implementado | 2026-04-20 | Cliques em conversas já prefetchadas são instantâneos; persiste entre F5 |
 | Fix E — Limite SSR + virtualização da lista | ✅ Implementado | 2026-04-21 | SSR serializa 300 registros (era 10k); DOM mantém ~15 nós independente do volume |
 
@@ -1533,4 +1533,5 @@ Ciclo final (Fase 5)
 **Histórico de atualizações:**
 - 2026-04-20 — Fix B (lazy loading encerradas + SSR enxuto) e Fix D (cache L1/L2/L3 + prefetch batched)
 - 2026-04-21 — Fix E (limite SSR 10k→300 + virtualização da lista com react-virtual)
-- 2026-04-21 — Fix A (middleware JWT local: getSession+jose JWKS + cookie x-user-ctx)
+- 2026-04-21 — Fix A (middleware: getSession + cookie x-user-ctx elimina HTTP calls)
+- 2026-04-21 — Fix C (diagnóstico WebSocket: Kaspersky proxia WS, sem bloqueio de ISP)
