@@ -1,15 +1,16 @@
 /**
  * API Route: Send Message
  *
- * NOVA ABORDAGEM: Salvar no banco PRIMEIRO, depois chamar n8n de forma assíncrona
  * POST /api/n8n/send-message
  *
  * Fluxo:
- * 1. Validar auth + tenant
- * 2. Inserir mensagem no Supabase com status='pending'
- * 3. Retornar sucesso imediatamente (Realtime atualiza UI)
- * 4. Chamar n8n em background (atualiza status para 'sent' ou 'failed')
- * 5. PAUSAR IA automaticamente quando atendente envia mensagem
+ * 1. Valida auth + tenant
+ * 2. Insere mensagem no Supabase com status='pending'
+ * 3. Roteia pelo provider do canal:
+ *    - Evolution → Go Gateway /send (direto, sem n8n)
+ *    - Meta / outros → n8n (caminho legado, preservado)
+ * 4. Atualiza status para 'sent' ou 'failed'
+ * 5. Pausa IA automaticamente se estava ativa
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -17,13 +18,14 @@ import { createClient } from '@/lib/supabase/server';
 import { callN8nWebhook } from '@/lib/n8n/client';
 
 const N8N_SEND_MESSAGE_WEBHOOK = process.env.N8N_SEND_MESSAGE_WEBHOOK!;
-const N8N_PAUSE_IA_WEBHOOK = process.env.N8N_PAUSE_IA_WEBHOOK!;
+const N8N_PAUSE_IA_WEBHOOK     = process.env.N8N_PAUSE_IA_WEBHOOK!;
+const GATEWAY_SEND_URL         = process.env.GATEWAY_SEND_URL; // https://livia-gw.online24por7.ai/send
+const GATEWAY_API_KEY          = process.env.GATEWAY_API_KEY;
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // 1. Parse payload primeiro (validação rápida)
     const body = await request.json();
     const { conversationId, content, tenantId, quotedMessageId } = body;
 
@@ -34,16 +36,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Autenticação + Validação em PARALELO (query única otimizada)
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 3. QUERY ÚNICA: Buscar conversa + validar tenant + buscar ia_active
-    // Isso substitui 2 queries separadas (users + conversations)
+    // Busca conversa + valida tenant
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select('id, tenant_id, contact_id, channel_id, ia_active')
@@ -52,24 +51,20 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (convError || !conversation) {
-      console.error('[send-message] Conversation not found:', convError);
       return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 });
     }
 
     if (!conversation.contact_id || !conversation.channel_id) {
-      console.error('[send-message] Incomplete conversation data:', conversation);
       return NextResponse.json({ error: 'Conversa incompleta (sem contact ou channel)' }, { status: 400 });
     }
 
-    // Garantir tipos não-null após validação
-    const contactId = conversation.contact_id;
-    const channelId = conversation.channel_id;
+    const contactId  = conversation.contact_id;
+    const channelId  = conversation.channel_id;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const iaActive = (conversation as any).ia_active;
+    const iaActive   = (conversation as any).ia_active;
 
-    // 4. Buscar dados da mensagem citada (se houver reply)
+    // Dados da mensagem citada (reply)
     let quotedData: { externalId: string | null; content: string; fromMe: boolean } | null = null;
-
     if (quotedMessageId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: quotedMsg } = await (supabase as any)
@@ -77,25 +72,24 @@ export async function POST(request: NextRequest) {
         .select('external_message_id, content, sender_type')
         .eq('id', quotedMessageId)
         .single();
-
       if (quotedMsg) {
         quotedData = {
           externalId: quotedMsg.external_message_id ?? null,
-          content: quotedMsg.content ?? '',
-          fromMe: quotedMsg.sender_type !== 'customer',
+          content:    quotedMsg.content ?? '',
+          fromMe:     quotedMsg.sender_type !== 'customer',
         };
       }
     }
 
-    // 5. Inserir mensagem no banco ANTES de chamar n8n
+    // Insere mensagem como 'pending' antes de qualquer envio
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messageData: any = {
       conversation_id: conversationId,
-      content: content.trim(),
-      sender_type: 'attendant',
-      sender_user_id: user.id,
-      status: 'pending', // N8N vai atualizar para sent/failed/read
-      timestamp: new Date().toISOString(),
+      content:         content.trim(),
+      sender_type:     'attendant',
+      sender_user_id:  user.id,
+      status:          'pending',
+      timestamp:       new Date().toISOString(),
       ...(quotedMessageId ? { quoted_message_id: quotedMessageId } : {}),
     };
 
@@ -107,225 +101,228 @@ export async function POST(request: NextRequest) {
 
     if (insertError || !message) {
       console.error('[send-message] Error inserting message:', insertError);
-      return NextResponse.json(
-        { error: 'Erro ao salvar mensagem' },
-        { status: 500 }
+      return NextResponse.json({ error: 'Erro ao salvar mensagem' }, { status: 500 });
+    }
+
+    console.error(`[send-message] ✅ DB insert ${Date.now() - startTime}ms (id: ${message.id.slice(0, 8)})`);
+
+    // Detecta provider do canal para rotear o envio
+    const channelInfo = await resolveChannelInfo(supabase, channelId, tenantId);
+
+    if (channelInfo?.isEvolution && GATEWAY_SEND_URL) {
+      await sendViaGateway(message.id, channelInfo, contactId, content.trim(), quotedData, supabase);
+    } else {
+      // Meta / outros: caminho legado via n8n
+      await sendToN8nAsync(
+        message.id, conversationId, content.trim(), tenantId,
+        user.id, contactId, channelId, quotedData
       );
     }
 
-    const dbTime = Date.now() - startTime;
-    console.error(`[send-message] ✅ DB operations took ${dbTime}ms (message: ${message.id.slice(0, 8)})`);
-
-    // 5. Chamar n8n com AWAIT
-    // IMPORTANTE: Em Vercel (serverless), Promises sem AWAIT podem não executar
-    // porque o contexto é terminado após retornar a response.
-    // SOLUÇÃO: Usar AWAIT para garantir execução, mas com timeout curto
-    console.error(`[send-message] 🚀 Starting n8n call for message ${message.id.slice(0, 8)}...`);
-
-    // AWAIT da chamada n8n para garantir que execute em ambiente serverless
-    await sendToN8nAsync(
-      message.id,
-      conversationId,
-      content.trim(),
-      tenantId,
-      user.id,
-      contactId,
-      channelId,
-      quotedData
-    );
-
-    // 6. Pausar IA automaticamente quando atendente envia mensagem
-    // Só pausa se a IA estiver ativa
+    // Pausa IA automaticamente
     if (iaActive) {
-      console.error(`[send-message] 🤖 IA is active, pausing automatically...`);
       await pauseIAAsync(conversationId, tenantId, user.id, supabase);
-    } else {
-      console.error(`[send-message] 🤖 IA already paused, skipping...`);
     }
 
-    // 7. Retornar sucesso
-    // Realtime do Supabase já notificou o cliente sobre a nova mensagem
-    const totalTime = Date.now() - startTime;
-    console.error(`[send-message] ⏱️ Total response time: ${totalTime}ms`);
+    console.error(`[send-message] ⏱️ Total ${Date.now() - startTime}ms`);
 
-    return NextResponse.json({
-      success: true,
-      message: {
-        id: message.id,
-        status: 'pending',
-      },
-    });
+    return NextResponse.json({ success: true, message: { id: message.id, status: 'pending' } });
 
   } catch (error) {
     console.error('[send-message] Unexpected error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-/**
- * Função auxiliar para chamar n8n em background
- * N8N é responsável por atualizar o status da mensagem
- */
-async function sendToN8nAsync(
-  messageId: string,
-  conversationId: string,
-  content: string,
-  tenantId: string,
-  userId: string,
-  contactId: string,
+// ─── Resolução do canal ───────────────────────────────────────────────────────
+
+interface ChannelInfo {
+  isEvolution:      boolean;
+  evolutionBaseUrl: string;
+  evolutionApiKey:  string;
+  instanceName:     string;
+}
+
+async function resolveChannelInfo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
   channelId: string,
+  tenantId: string,
+): Promise<ChannelInfo | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: channel } = await (supabase as any)
+      .from('channels')
+      .select('config_json, external_api_url, instance_company_name, provider_external_channel_id')
+      .eq('id', channelId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (!channel) return null;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cfg = channel.config_json as Record<string, any> | null;
+
+    const evolutionBaseUrl = cfg?.evolution_api_url ?? channel.external_api_url ?? '';
+    const evolutionApiKey  = cfg?.evolution_api_key ?? channel.provider_external_channel_id ?? '';
+    const instanceName     = cfg?.instance_name ?? channel.instance_company_name ?? '';
+
+    if (!evolutionBaseUrl || !instanceName) return null;
+
+    return { isEvolution: true, evolutionBaseUrl, evolutionApiKey, instanceName };
+  } catch {
+    return null;
+  }
+}
+
+// ─── Envio via Go Gateway (Evolution) ────────────────────────────────────────
+
+async function sendViaGateway(
+  messageId: string,
+  channel: ChannelInfo,
+  contactId: string,
+  content: string,
+  quotedData: { externalId: string | null; content: string; fromMe: boolean } | null,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+) {
+  const msgId = messageId.slice(0, 8);
+  try {
+    // Busca o telefone do contato
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: contact } = await (supabase as any)
+      .from('contacts')
+      .select('external_identification_contact, phone')
+      .eq('id', contactId)
+      .single();
+
+    const number = contact?.external_identification_contact ?? contact?.phone ?? '';
+    if (!number) {
+      console.error(`[gateway-send] ❌ ${msgId}: número do contato não encontrado`);
+      await updateMessageStatus(messageId, 'failed', null, supabase);
+      return;
+    }
+
+    const payload: Record<string, unknown> = {
+      evolutionBaseUrl: channel.evolutionBaseUrl,
+      evolutionApiKey:  channel.evolutionApiKey,
+      instanceName:     channel.instanceName,
+      number,
+      text: content,
+    };
+
+    if (quotedData?.externalId) {
+      payload.quotedExternalId = quotedData.externalId;
+      payload.quotedFromMe     = quotedData.fromMe;
+      payload.quotedContent    = quotedData.content;
+    }
+
+    console.error(`[gateway-send] 🚀 ${msgId} → ${channel.instanceName}`);
+
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), 15000);
+
+    const res = await fetch(GATEWAY_SEND_URL!, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${GATEWAY_API_KEY ?? ''}`,
+      },
+      body:   JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[gateway-send] ❌ ${msgId}: gateway ${res.status}`, text);
+      await updateMessageStatus(messageId, 'failed', null, supabase);
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await res.json() as any;
+    const externalId = data?.key?.id ?? null;
+
+    console.error(`[gateway-send] ✅ ${msgId}: sent, external_id=${externalId}`);
+    await updateMessageStatus(messageId, 'sent', externalId, supabase);
+
+  } catch (err) {
+    console.error(`[gateway-send] 💥 ${msgId}:`, err);
+    await updateMessageStatus(messageId, 'failed', null, supabase);
+  }
+}
+
+// ─── Envio via n8n (Meta / caminho legado) ───────────────────────────────────
+
+async function sendToN8nAsync(
+  messageId: string, conversationId: string, content: string,
+  tenantId: string, userId: string, contactId: string, channelId: string,
   quotedData?: { externalId: string | null; content: string; fromMe: boolean } | null
 ) {
-  const n8nStartTime = Date.now();
   const msgId = messageId.slice(0, 8);
-
   try {
-    console.error(`[n8n-async] 📞 Calling n8n webhook for message ${msgId}...`);
-    console.error(`[n8n-async] 🔗 Webhook: ${process.env.N8N_BASE_URL}${N8N_SEND_MESSAGE_WEBHOOK}`);
-
+    console.error(`[n8n-async] 🚀 ${msgId} → n8n`);
     const result = await callN8nWebhook(
       N8N_SEND_MESSAGE_WEBHOOK,
       {
-        messageId, // n8n usará para atualizar status
-        conversationId,
-        contactId,
-        channelId,
-        content,
-        tenantId,
-        userId,
-        // Dados da mensagem citada (reply) — usados pelo N8N para montar
-        // quoted.key (Evolution API) ou context.message_id (WhatsApp Cloud API)
+        messageId, conversationId, contactId, channelId, content, tenantId, userId,
         ...(quotedData ? {
           quotedExternalId: quotedData.externalId,
-          quotedContent: quotedData.content,
-          quotedFromMe: quotedData.fromMe,
+          quotedContent:    quotedData.content,
+          quotedFromMe:     quotedData.fromMe,
         } : {}),
       },
-      { timeout: 15000 } // 15s — N8N pode levar até 10s em workflows complexos
+      { timeout: 15000 }
     );
-
-    const n8nTime = Date.now() - n8nStartTime;
-
-    if (result.success) {
-      console.error(`[n8n-async] ✅ N8N responded successfully in ${n8nTime}ms`);
-      console.error(`[n8n-async] 📊 Response data:`, JSON.stringify(result.data));
-      // N8N é responsável por atualizar status='sent' e external_message_id
-    } else {
-      console.error(`[n8n-async] ❌ N8N failed after ${n8nTime}ms:`, result.error);
-
-      // Timeout ≠ falha de entrega: AbortController.abort() cancela o fetch no
-      // nosso lado, mas o N8N já recebeu o request e continua processando.
-      // Deixar como 'pending' — N8N atualizará para 'sent' via Realtime.
-      // Só marcar 'failed' em erros reais (conexão recusada, N8N offline).
+    if (!result.success) {
       const isTimeout = result.error?.includes('timeout');
-      if (isTimeout) {
-        console.error(`[n8n-async] ⏱️ Timeout — keeping status as 'pending', N8N may still deliver`);
-      } else {
-        console.error(`[n8n-async] 🔄 Real error — updating message status to 'failed'`);
-        await updateMessageStatus(messageId, 'failed');
+      console.error(`[n8n-async] ❌ ${msgId}:`, result.error);
+      if (!isTimeout) {
+        // N8n não chegou a receber: marcamos failed (n8n não atualizará o status)
+        const supabase = await createClient();
+        await updateMessageStatus(messageId, 'failed', null, supabase);
       }
     }
-  } catch (error) {
-    const n8nTime = Date.now() - n8nStartTime;
-    console.error(`[n8n-async] 💥 Exception after ${n8nTime}ms:`, error);
-    console.error(`[n8n-async] 🔄 Attempting to update message status to 'failed'...`);
-    await updateMessageStatus(messageId, 'failed');
-  }
-}
-
-/**
- * Atualiza status da mensagem (fallback se n8n falhar)
- */
-async function updateMessageStatus(messageId: string, status: 'sent' | 'failed') {
-  try {
+  } catch (err) {
+    console.error(`[n8n-async] 💥 ${msgId}:`, err);
     const supabase = await createClient();
-    await supabase
-      .from('messages')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ status } as any) // Type assertion temporário até regenerar types do Supabase
-      .eq('id', messageId);
-  } catch (error) {
-    console.error('Error updating message status:', error);
+    await updateMessageStatus(messageId, 'failed', null, supabase);
   }
 }
 
-/**
- * Pausa IA automaticamente quando atendente envia mensagem
- */
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+async function updateMessageStatus(
+  messageId: string,
+  status: 'sent' | 'failed',
+  externalMessageId: string | null,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const update: any = { status };
+    if (externalMessageId) update.external_message_id = externalMessageId;
+    await supabase.from('messages').update(update).eq('id', messageId);
+  } catch (err) {
+    console.error('[send-message] Error updating message status:', err);
+  }
+}
+
 async function pauseIAAsync(
-  conversationId: string,
-  tenantId: string,
-  userId: string,
+  conversationId: string, tenantId: string, userId: string,
   supabase: Awaited<ReturnType<typeof createClient>>
 ) {
-  const pauseStartTime = Date.now();
-  const convId = conversationId.slice(0, 8);
-
   try {
-    console.error(`[pause-ia-auto] 📞 Calling n8n webhook for conversation ${convId}...`);
-
-    // Chamar webhook n8n para pausar IA
     const result = await callN8nWebhook(
       N8N_PAUSE_IA_WEBHOOK,
-      {
-        conversationId,
-        tenantId,
-        userId,
-        reason: 'Pausado automaticamente - Atendente assumiu a conversa',
-      },
-      { timeout: 5000 } // 5 segundos timeout
+      { conversationId, tenantId, userId, reason: 'Pausado automaticamente - Atendente assumiu a conversa' },
+      { timeout: 5000 }
     );
-
-    const pauseTime = Date.now() - pauseStartTime;
-
-    if (result.success) {
-      console.error(`[pause-ia-auto] ✅ IA paused successfully in ${pauseTime}ms`);
-    } else {
-      console.error(`[pause-ia-auto] ⚠️ N8N failed after ${pauseTime}ms:`, result.error);
-
-      // Fallback: Fazer UPDATE direto no banco
-      console.error(`[pause-ia-auto] 🔄 Using fallback: direct database update`);
-
+    if (!result.success) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updateData: any = {
-        ia_active: false,
-        pause_notes: 'Pausado automaticamente - Atendente assumiu a conversa',
-      };
-
-      const { error: updateError } = await supabase
-        .from('conversations')
-        .update(updateData)
-        .eq('id', conversationId);
-
-      if (updateError) {
-        console.error(`[pause-ia-auto] ❌ Fallback failed:`, updateError);
-      } else {
-        console.error(`[pause-ia-auto] ✅ Fallback succeeded`);
-      }
+      await supabase.from('conversations').update({ ia_active: false, pause_notes: 'Pausado automaticamente - Atendente assumiu a conversa' } as any).eq('id', conversationId);
     }
-  } catch (error) {
-    const pauseTime = Date.now() - pauseStartTime;
-    console.error(`[pause-ia-auto] 💥 Exception after ${pauseTime}ms:`, error);
-
-    // Tentar fallback mesmo em caso de exceção
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updateData: any = {
-        ia_active: false,
-        pause_notes: 'Pausado automaticamente - Atendente assumiu a conversa',
-      };
-
-      await supabase
-        .from('conversations')
-        .update(updateData)
-        .eq('id', conversationId);
-
-      console.error(`[pause-ia-auto] ✅ Fallback succeeded after exception`);
-    } catch (fallbackError) {
-      console.error(`[pause-ia-auto] ❌ Fallback also failed:`, fallbackError);
-    }
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabase.from('conversations').update({ ia_active: false } as any).eq('id', conversationId);
   }
 }
