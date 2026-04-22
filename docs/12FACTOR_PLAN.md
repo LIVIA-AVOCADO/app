@@ -264,21 +264,21 @@ um plano de ação ordenado por **impacto × esforço**.
 
 ## Plano de Ação — Ordenado por Impacto × Esforço
 
-### Prioridade 1 — Segurança Imediata (hoje, < 30 min)
+### Prioridade 1 — Segurança Imediata ✅ Concluída em 2026-04-22
 
 Ações que eliminam risco de segurança com esforço mínimo.
 
 ```
-[ ] 1.1 — Remover PAT do git remote
-    git remote set-url origin git@github.com:FrankMarcelino/livia_dev_01.git
+[x] 1.1 — Remover PAT do git remote                                   ← 2026-04-22
+    git remote set-url origin https://github.com/FrankMarcelino/livia_dev_01.git
     Impacto: elimina vazamento de credencial  |  Esforço: 5 min
 
-[ ] 1.2 — Restaurar .env.local.example
-    Recriar arquivo com todas as variáveis (valores fictícios)
+[x] 1.2 — Restaurar .env.local.example                                ← 2026-04-22
+    Recriado com 21 variáveis, valores fictícios e comentários de origem
     Impacto: previne perda de referência  |  Esforço: 15 min
 
-[ ] 1.3 — Documentar variáveis de ambiente
-    Criar docs/ENV_VARS.md com mapa completo de todas as vars
+[x] 1.3 — Documentar variáveis de ambiente                            ← 2026-04-22
+    docs/ENV_VARS.md: mapa completo Next.js + gateway + Evolution + n8n
     Impacto: base para staging e onboarding  |  Esforço: 30 min
 ```
 
@@ -497,12 +497,12 @@ Só faz sentido após o produto ter usuários suficientes para justificar o cust
 ## Próximos Passos Imediatos (ordem exata)
 
 ```
-1. [ ] Remover PAT do git remote (segurança — 5 min)
-2. [ ] Configurar rotação de logs no Docker daemon (risco operacional — 10 min)
+1. [x] Remover PAT do git remote                              ← 2026-04-22
+2. [x] Restaurar .env.local.example + docs/ENV_VARS.md        ← 2026-04-22
 3. [ ] Redeploy Evolution com DATABASE_CONNECTION_URI correto (desbloqueio Fase 2 — 30 min)
 4. [ ] Configurar webhook Evolution → livia-gateway (Fase 2 Passo 1 — 30 min)
-5. [ ] Instalar Uptime Kuma na VPS (observabilidade — 1h)
-6. [ ] Restaurar .env.local.example (documentação — 15 min)
+5. [ ] Configurar rotação de logs no Docker daemon (risco operacional — 10 min)
+6. [ ] Instalar Uptime Kuma na VPS (observabilidade — 1h)
 ```
 
 ---
