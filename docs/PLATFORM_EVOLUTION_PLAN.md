@@ -892,29 +892,30 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 
 ```
 [x] Criar repositório livia-gateway                                          ← 2026-04-21
-[x] Implementar config/config.go (PORT, LOG_LEVEL, SHADOW_MODE, N8N_WEBHOOK_URL)  ← 2026-04-21
+[x] Implementar config/config.go (PORT, LOG_LEVEL, SHADOW_MODE, N8N_WEBHOOK_URL, GATEWAY_API_KEY)  ← 2026-04-21/22
 [ ] Implementar gateway/normalizer.go (Evolution + Meta → MessageEvent)
 [ ] Implementar gateway/dedup.go (LRU cache)
 [ ] Implementar integrations/supabase.go (REST client)
 [ ] Implementar gateway/persister.go (grava mensagem + contato + conversa)
 [x] Implementar handlers/evolution.go (shadow mode + forward para n8n)       ← 2026-04-21
+[x] Implementar handlers/outbound.go (POST /send → Evolution API direta)     ← 2026-04-22
 [ ] Implementar handlers/ws_proxy.go (WebSocket proxy)
 [x] Implementar handlers/health.go                                            ← 2026-04-21
 [x] Deploy na VPS Hostinger (Docker Swarm + Traefik)                         ← 2026-04-21
 [x] Fix banco Evolution (evolution_user + stack yaml corrigido)               ← 2026-04-22
-[x] Migração Passo 1: instância livia-test criada com webhook → gateway       ← 2026-04-22
-[~] Validar logs por 24h (em andamento — iniciado 2026-04-22)
+[x] Migração Passo 1: instância livia-test + Signum criadas com webhook → gateway  ← 2026-04-22
+[x] Validação parcial gateway (inbound + outbound via IA confirmados)         ← 2026-04-22
+[x] Atualizar Next.js: envio manual Evolution → Go Gateway (não n8n)         ← 2026-04-22
+[~] Validar envio manual via gateway em uso real (aguardando teste + vars Vercel)
 [ ] Implementar ura/ (engine + strategies)
 [ ] Migração Passo 2: Go persiste diretamente
 [ ] Migração Passo 3: Go assume todas as instâncias
 [ ] Implementar integrations/n8n.go (para rota AI)
-[ ] Implementar handlers/outbound.go (recebe de Next.js)
-[ ] Atualizar Next.js: envio de mensagem humana → Go Gateway (não n8n)
 ```
 
-### 6.9 Status Fase 2 — Passo 1 (Shadow Mode)
+### 6.9 Status Fase 2 — Validação Parcial do Gateway
 
-#### O que foi feito (2026-04-21)
+#### ✅ Passo 1 Concluído — 2026-04-22
 
 | Item | Status | Detalhe |
 |---|---|---|
@@ -923,57 +924,60 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 | Shadow mode com forward para n8n | ✅ | Gateway recebe → faz forward para n8n → loga → retorna 200 |
 | Dockerfile (multi-stage, Alpine) | ✅ | Imagem final ~24MB |
 | `stack.yaml` para Docker Swarm + Traefik | ✅ | Deploy via `docker stack deploy` |
-| DNS `livia-gw.online24por7.ai` | ✅ | CNAME → manager01.online24por7.ai (DNS only) |
-| Imagem compilada na VPS | ✅ | `docker build -t livia-gateway:latest .` |
+| DNS `livia-gw.online24por7.ai` | ✅ | CNAME → manager01.online24por7.ai |
 | Stack deployada no Swarm | ✅ | `livia-gateway_app` 1/1 replica rodando |
 | HTTPS via Traefik + Let's Encrypt | ✅ | `https://livia-gw.online24por7.ai/health` respondendo |
-| Teste manual do webhook | ✅ | curl POST confirmou logs + n8n_forward_ok:true |
-| Instância livia-test + webhook → gateway | ✅ Concluído | Evolution nova (`livia.wsapi.online24por7.ai`) — shadow mode ativo |
+| Fix banco Evolution (`evolution_user`) | ✅ | DB `evolution` em `livia_postgres` com usuário dedicado |
+| Nova Evolution (`livia.wsapi.online24por7.ai`) | ✅ | Deployada, instâncias respondendo |
+| Instância `Signum - 11 9 3618 8134` conectada | ✅ | Criada via LIVIA UI, status `open` |
+| Webhook instâncias → gateway | ✅ | `POST /webhook/evolution` recebendo |
+| Forward gateway → n8n | ✅ | `n8n_forward_ok:true` em todos os eventos |
+| **Inbound** (mensagens recebidas) | ✅ **Validado** | `messages.upsert` chega no gateway e n8n processa |
+| **Outbound IA** (agente IA envia) | ✅ **Validado** | n8n chama Evolution diretamente — funciona |
+| **Outbound manual** (atendente envia) | ✅ **Implementado** | Next.js → Gateway `/send` → Evolution API |
 
-#### ✅ Passo 1 Concluído — 2026-04-22
-
-**O que foi feito:**
-
-1. **Fix banco da Evolution** — a instância `evolution_v2` usava `livia_postgres` (senha diferente
-   do esperado). Solução: criado usuário dedicado `evolution_user` com senha correta, stack yaml
-   reescrito em `/root/stacks/evolution_v2.yaml` e redeploy realizado. Evolution passou a responder
-   normalmente (`fetchInstances` retorna 200).
-
-2. **Instância de teste criada** — `livia-test` criada diretamente na nova Evolution
-   (`https://livia.wsapi.online24por7.ai`) com webhook apontando para o gateway:
+#### Fluxo atual validado
 
 ```
-FLUXO ATUAL:
-  Evolution (livia-test) → livia-gateway (shadow mode) → n8n (forward) + log
+INBOUND:
+  WhatsApp → Evolution (nova) → livia-gateway (shadow) → n8n (forward) → Supabase
+                                                         ↑
+                                                  loga + n8n_forward_ok:true
+
+OUTBOUND IA:
+  n8n workflow → Evolution API direta (sem gateway) → WhatsApp  ✅
+
+OUTBOUND MANUAL (Evolution):
+  Frontend → Next.js /api/n8n/send-message → Gateway POST /send → Evolution → WhatsApp
+  (Meta ainda vai via n8n — sem mudança)
 ```
 
-3. **Shadow mode confirmado** — logs do gateway mostram:
-```json
-{"event":"connection.update","instance":"livia-test","n8n_forward_ok":true}
-```
+#### Correções realizadas em 2026-04-22
 
-**Próximo passo — validação 24h:**
+1. **Fix banco Evolution** — `evolution_user` dedicado em `livia_postgres`, stack yaml corrigido
+2. **Fix webhook URL** — gateway estava apontando para `livia-wh.online24por7.ai` (n8n vazio); corrigido para `acesse.ligeiratelecom.com.br` (n8n produção)
+3. **Fix `AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES`** — evolution_v2 stack: `false→true` para popular campo `apikey` no payload do webhook
+4. **Multi-instance Evolution** — LIVIA UI + API routes refatoradas para suportar credenciais por canal (`config_json.evolution_api_url/key`)
+5. **Outbound handler** — `handlers/outbound.go` no gateway; Next.js roteia Evolution → gateway, Meta → n8n
 
+#### Próximos passos
+
+1. **Vars Vercel necessárias** para ativar envio manual via gateway:
+   ```
+   GATEWAY_SEND_URL = https://livia-gw.online24por7.ai/send
+   GATEWAY_API_KEY  = gw-9f3e2b1a-c4d5-6e7f-8a9b-0c1d2e3f4a5b
+   ```
+2. **Testar envio manual** — abrir conversa Signum na LIVIA, digitar mensagem e verificar entrega
+3. **Migração Passo 2** — Go persiste mensagens diretamente (sem n8n no inbound)
+
+**Rollback inbound (se necessário):**
 ```bash
-# Monitorar logs em tempo real
-ssh vps-livia "docker service logs livia-gateway_app -f"
-
-# Critério de sucesso: cada mensagem recebida aparece como:
-# {"msg":"evolution: webhook recebido","event":"messages.upsert","n8n_forward_ok":true}
-```
-
-**Rollback imediato (se necessário):**
-```bash
-# Deletar instância livia-test ou trocar webhook via API
-curl -s -X PUT https://livia.wsapi.online24por7.ai/webhook/set/livia-test \
+# Trocar webhook da instância de volta para n8n direto
+curl -s -X POST https://livia.wsapi.online24por7.ai/webhook/set/Signum%20-%2011%209%203618%208134 \
   -H "apikey: 29eb9af8-0aa5-4352-9e54-96b0f2a0e545" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://livia-wh.online24por7.ai/webhook/dev_first_integrator_001_dev"}'
+  -d '{"webhook":{"enabled":true,"url":"https://acesse.ligeiratelecom.com.br/webhook/dev_first_integrator_001_dev","byEvents":false,"base64":true,"events":["MESSAGES_UPSERT","CONNECTION_UPDATE"]}}'
 ```
-
-**Nota:** a Evolution principal (`wsapilocal2.ligeira.net`) com instâncias de produção
-**não foi tocada**. A validação está ocorrendo na instância separada `livia.wsapi.online24por7.ai`
-com a instância `livia-test`.
 
 ---
 
@@ -1692,4 +1696,6 @@ Ciclo final (Fase 5)
 - 2026-04-21 — Fix C (diagnóstico WebSocket: Kaspersky proxia WS, sem bloqueio de ISP)
 - 2026-04-21 — Fase 1 concluída: components/inbox + /inbox route + redirect 301 + components/shared
 - 2026-04-21 — Fase 2 Passo 1 iniciado: livia-gateway deployado em shadow mode na VPS
-- 2026-04-22 — Fase 2: fix banco Evolution (evolution_user + stack yaml); instância livia-test criada com webhook → gateway; shadow mode confirmado nos logs
+- 2026-04-22 — Fase 2: fix banco Evolution; nova Evolution deployada; Signum conectada via LIVIA UI
+- 2026-04-22 — Fase 2: inbound validado (messages.upsert → gateway → n8n); outbound IA validado
+- 2026-04-22 — Fase 2: handlers/outbound.go implementado; send-message roteia Evolution → gateway
