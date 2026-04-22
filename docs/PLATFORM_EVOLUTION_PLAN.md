@@ -962,13 +962,24 @@ OUTBOUND MANUAL (Evolution):
 
 #### Próximos passos
 
-1. **Vars Vercel necessárias** para ativar envio manual via gateway:
-   ```
-   GATEWAY_SEND_URL = https://livia-gw.online24por7.ai/send
-   GATEWAY_API_KEY  = gw-9f3e2b1a-c4d5-6e7f-8a9b-0c1d2e3f4a5b
-   ```
-2. **Testar envio manual** — abrir conversa Signum na LIVIA, digitar mensagem e verificar entrega
+1. ✅ Vars Vercel adicionadas (`GATEWAY_SEND_URL`, `GATEWAY_API_KEY`) — redeploy feito
+2. ✅ Envio manual testado e funcionando via gateway
 3. **Migração Passo 2** — Go persiste mensagens diretamente (sem n8n no inbound)
+
+#### ⏸️ PONTO DE RETOMADA — Passo 2
+
+**O que falta para iniciar:**
+- Exportar workflow n8n `dev_first_integrator_001_dev` (inbound MESSAGES_UPSERT)
+  para entender exatamente quais tabelas/campos são gravados
+- Com esse mapa, implementar em Go:
+  - `gateway/normalizer.go` — converte payload Evolution → MessageEvent
+  - `gateway/dedup.go` — LRU cache de IDs externos (evita duplicatas)
+  - `integrations/supabase.go` — cliente HTTP para Supabase REST API
+  - `gateway/persister.go` — grava mensagem + contato + conversa
+- Estratégia: **dual-write** (Go grava + n8n também grava em paralelo) por 24h
+  para comparar e validar antes de tirar o n8n do caminho de inbound
+
+**Rollback sempre disponível:** trocar webhook Evolution de volta para n8n direto em < 60s
 
 **Rollback inbound (se necessário):**
 ```bash
