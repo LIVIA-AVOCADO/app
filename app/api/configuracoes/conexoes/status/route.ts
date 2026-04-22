@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
 import { getConnectionState, fetchInstance } from '@/lib/evolution/client';
-import { mapConnectionState } from '@/lib/evolution/utils';
+import { mapConnectionState, credsFromConfigJson } from '@/lib/evolution/utils';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthenticatedTenant();
@@ -49,9 +49,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const creds = credsFromConfigJson(channel.config_json);
     const [stateRes, instanceInfo] = await Promise.allSettled([
-      getConnectionState(instanceName),
-      fetchInstance(instanceName),
+      getConnectionState(instanceName, creds),
+      fetchInstance(instanceName, creds),
     ]);
 
     const rawState = stateRes.status === 'fulfilled'

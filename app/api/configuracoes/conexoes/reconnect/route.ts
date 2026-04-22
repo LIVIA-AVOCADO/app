@@ -13,6 +13,7 @@ import { z } from 'zod/v4';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
 import { connectInstance } from '@/lib/evolution/client';
+import { credsFromConfigJson } from '@/lib/evolution/utils';
 import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
 
 const bodySchema = z.object({
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const qr = await connectInstance(instanceName);
+    const qr = await connectInstance(instanceName, credsFromConfigJson(channel?.config_json));
 
     await admin
       .from('channels')

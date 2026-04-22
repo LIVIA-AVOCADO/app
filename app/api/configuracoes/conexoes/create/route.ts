@@ -16,6 +16,7 @@ import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
 
 const EVOLUTION_BASE = process.env.EVOLUTION_API_BASE_URL!;
 const EVOLUTION_KEY  = process.env.EVOLUTION_API_KEY!;
+const EVOLUTION_CREDS = { baseUrl: EVOLUTION_BASE, apiKey: EVOLUTION_KEY };
 
 const bodySchema = z.object({
   name: z.string().min(1, { message: 'Nome do canal é obrigatório' }).max(60),
@@ -110,8 +111,8 @@ export async function POST(request: NextRequest) {
 
   // Aplica configurações na instância Evolution em paralelo
   await Promise.all([
-    configureInstanceWebhook(instanceName),
-    configureInstanceSettings(instanceName),
+    configureInstanceWebhook(instanceName, EVOLUTION_CREDS),
+    configureInstanceSettings(instanceName, EVOLUTION_CREDS),
   ]);
 
   // Insere canal no banco
@@ -120,6 +121,7 @@ export async function POST(request: NextRequest) {
     instance_id_api:   instanceIdApi,
     webhook_url:       webhookUrl,
     evolution_api_url: EVOLUTION_BASE,
+    evolution_api_key: EVOLUTION_KEY,
     settings: {
       reject_call:       true,
       msg_call:          'No momento só consigo falar por mensagens...',
@@ -154,7 +156,7 @@ export async function POST(request: NextRequest) {
 
   // Busca QR code
   try {
-    const qr = await connectInstance(instanceName);
+    const qr = await connectInstance(instanceName, EVOLUTION_CREDS);
     return NextResponse.json({
       channelId:        channel.id,
       instanceName,

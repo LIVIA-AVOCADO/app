@@ -14,6 +14,7 @@ import { z } from 'zod/v4';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
 import { logoutInstance } from '@/lib/evolution/client';
+import { credsFromConfigJson } from '@/lib/evolution/utils';
 import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
 
 const bodySchema = z.object({
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await logoutInstance(instanceName);
+    await logoutInstance(instanceName, credsFromConfigJson(channel?.config_json));
 
     await admin
       .from('channels')

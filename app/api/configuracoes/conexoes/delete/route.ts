@@ -11,10 +11,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedTenant } from '@/lib/auth/get-authenticated-tenant';
+import { credsFromConfigJson } from '@/lib/evolution/utils';
 import { MODULE_KEYS, isSuperAdmin } from '@/lib/permissions';
-
-const EVOLUTION_BASE = process.env.EVOLUTION_API_BASE_URL!;
-const EVOLUTION_KEY  = process.env.EVOLUTION_API_KEY!;
 
 const bodySchema = z.object({
   channelId: z.string().uuid(),
@@ -57,10 +55,11 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Remove da Evolution (ignora 404 — instância pode já não existir)
+  const creds = credsFromConfigJson(channel.config_json);
   try {
-    const res = await fetch(`${EVOLUTION_BASE}/instance/delete/${encodeURIComponent(instanceName)}`, {
+    const res = await fetch(`${creds.baseUrl}/instance/delete/${encodeURIComponent(instanceName)}`, {
       method:  'DELETE',
-      headers: { apikey: EVOLUTION_KEY },
+      headers: { apikey: creds.apiKey },
     });
     if (!res.ok && res.status !== 404) {
       const text = await res.text();
