@@ -901,8 +901,9 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 [ ] Implementar handlers/ws_proxy.go (WebSocket proxy)
 [x] Implementar handlers/health.go                                            ← 2026-04-21
 [x] Deploy na VPS Hostinger (Docker Swarm + Traefik)                         ← 2026-04-21
-[~] Migração Passo 1: apontar 1 instância Evolution para Go      ← BLOQUEADO (ver 6.9)
-[ ] Validar logs e mensagens recebidas por 24h
+[x] Fix banco Evolution (evolution_user + stack yaml corrigido)               ← 2026-04-22
+[x] Migração Passo 1: instância livia-test criada com webhook → gateway       ← 2026-04-22
+[~] Validar logs por 24h (em andamento — iniciado 2026-04-22)
 [ ] Implementar ura/ (engine + strategies)
 [ ] Migração Passo 2: Go persiste diretamente
 [ ] Migração Passo 3: Go assume todas as instâncias
@@ -927,58 +928,52 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 | Stack deployada no Swarm | ✅ | `livia-gateway_app` 1/1 replica rodando |
 | HTTPS via Traefik + Let's Encrypt | ✅ | `https://livia-gw.online24por7.ai/health` respondendo |
 | Teste manual do webhook | ✅ | curl POST confirmou logs + n8n_forward_ok:true |
-| Configurar webhook Evolution → gateway | ⏸️ PARADO | Ver abaixo |
+| Instância livia-test + webhook → gateway | ✅ Concluído | Evolution nova (`livia.wsapi.online24por7.ai`) — shadow mode ativo |
 
-#### ⏸️ Onde paramos — Bloqueio na configuração do webhook da Evolution
+#### ✅ Passo 1 Concluído — 2026-04-22
 
-**Problema:** A UI da Evolution API v2.3.6 não permite adicionar um segundo webhook — só existe um campo de URL.
+**O que foi feito:**
 
-**Solução adotada:** Em vez de dual-webhook, a estratégia é trocar o webhook da Evolution para apontar diretamente para o gateway. O gateway faz forward automático para o n8n antes de qualquer processamento. Isso é exatamente o caminho de migração correto (Passo 1 → 2 → 3).
+1. **Fix banco da Evolution** — a instância `evolution_v2` usava `livia_postgres` (senha diferente
+   do esperado). Solução: criado usuário dedicado `evolution_user` com senha correta, stack yaml
+   reescrito em `/root/stacks/evolution_v2.yaml` e redeploy realizado. Evolution passou a responder
+   normalmente (`fetchInstances` retorna 200).
+
+2. **Instância de teste criada** — `livia-test` criada diretamente na nova Evolution
+   (`https://livia.wsapi.online24por7.ai`) com webhook apontando para o gateway:
 
 ```
-ANTES:  Evolution → n8n (direto)
-AGORA:  Evolution → livia-gateway → n8n (forward) + log
-PASSO 3: Evolution → livia-gateway (processa diretamente, para de fazer forward)
+FLUXO ATUAL:
+  Evolution (livia-test) → livia-gateway (shadow mode) → n8n (forward) + log
 ```
 
-**Bloqueio atual:** Para trocar o webhook via API REST da Evolution é preciso:
-1. A URL base do painel: `https://wsapilocal2.ligeira.net/`
-2. O nome exato da instância (obtido via `GET /instance/fetchInstances`)
-3. A API key global da Evolution (não confirmada ainda)
+3. **Shadow mode confirmado** — logs do gateway mostram:
+```json
+{"event":"connection.update","instance":"livia-test","n8n_forward_ok":true}
+```
 
-**Próximo passo quando retornar:**
+**Próximo passo — validação 24h:**
 
 ```bash
-# 1. Listar instâncias e descobrir o nome exato
-curl -s https://wsapilocal2.ligeira.net/instance/fetchInstances \
-  -H "apikey: SUA_API_KEY"
+# Monitorar logs em tempo real
+ssh vps-livia "docker service logs livia-gateway_app -f"
 
-# 2. Atualizar o webhook da instância
-curl -s -X PUT https://wsapilocal2.ligeira.net/webhook/set/NOME_DA_INSTANCIA \
-  -H "apikey: SUA_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://livia-gw.online24por7.ai/webhook/evolution",
-    "webhook_by_events": false,
-    "webhook_base64": false,
-    "events": ["MESSAGES_UPSERT","MESSAGES_UPDATE","CONNECTION_UPDATE","SEND_MESSAGE"]
-  }'
-
-# 3. Verificar logs do gateway em tempo real
-docker service logs livia-gateway_app -f
-
-# 4. Critério de sucesso: aparece no log para cada mensagem recebida:
-# {"msg":"evolution: webhook recebido","n8n_forward_ok":true,"event":"messages.upsert"}
+# Critério de sucesso: cada mensagem recebida aparece como:
+# {"msg":"evolution: webhook recebido","event":"messages.upsert","n8n_forward_ok":true}
 ```
 
-**Rollback imediato se algo der errado:**
+**Rollback imediato (se necessário):**
 ```bash
-# Basta trocar a URL de volta para o n8n via API
-curl -s -X PUT https://wsapilocal2.ligeira.net/webhook/set/NOME_DA_INSTANCIA \
-  -H "apikey: SUA_API_KEY" \
+# Deletar instância livia-test ou trocar webhook via API
+curl -s -X PUT https://livia.wsapi.online24por7.ai/webhook/set/livia-test \
+  -H "apikey: 29eb9af8-0aa5-4352-9e54-96b0f2a0e545" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://acesse.ligeiratelecom.com.br/webhook/dev_first_integrator_001_dev"}'
+  -d '{"url": "https://livia-wh.online24por7.ai/webhook/dev_first_integrator_001_dev"}'
 ```
+
+**Nota:** a Evolution principal (`wsapilocal2.ligeira.net`) com instâncias de produção
+**não foi tocada**. A validação está ocorrendo na instância separada `livia.wsapi.online24por7.ai`
+com a instância `livia-test`.
 
 ---
 
@@ -1688,7 +1683,7 @@ Ciclo final (Fase 5)
 
 ---
 
-*Documento criado em 2026-04-20. Última atualização: 2026-04-21.*
+*Documento criado em 2026-04-20. Última atualização: 2026-04-22.*
 
 **Histórico de atualizações:**
 - 2026-04-20 — Fix B (lazy loading encerradas + SSR enxuto) e Fix D (cache L1/L2/L3 + prefetch batched)
@@ -1696,4 +1691,5 @@ Ciclo final (Fase 5)
 - 2026-04-21 — Fix A (middleware: getSession + cookie x-user-ctx elimina HTTP calls)
 - 2026-04-21 — Fix C (diagnóstico WebSocket: Kaspersky proxia WS, sem bloqueio de ISP)
 - 2026-04-21 — Fase 1 concluída: components/inbox + /inbox route + redirect 301 + components/shared
-- 2026-04-21 — Fase 2 Passo 1 iniciado: livia-gateway deployado em shadow mode na VPS (bloqueado na config do webhook Evolution)
+- 2026-04-21 — Fase 2 Passo 1 iniciado: livia-gateway deployado em shadow mode na VPS
+- 2026-04-22 — Fase 2: fix banco Evolution (evolution_user + stack yaml); instância livia-test criada com webhook → gateway; shadow mode confirmado nos logs

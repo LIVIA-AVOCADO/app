@@ -306,25 +306,28 @@ Sem logs e alertas, problemas em produção ficam invisíveis.
 
 ---
 
-### Prioridade 3 — Correção da Evolution (esta semana)
+### Prioridade 3 — Correção da Evolution ✅ Concluída em 2026-04-22
 
 Desbloqueio direto do Fase 2 Passo 1 do PLATFORM_EVOLUTION_PLAN.
 
 ```
-[ ] 3.1 — Fix banco da Evolution
-    Atualizar stack yaml com DATABASE_CONNECTION_URI correta
-    (evolution_user:BTudZJDU09M3@postgres:5432/evolution)
-    Redeployar: docker stack deploy -c evolution_v2.yaml evolution_v2
-    Impacto: Evolution funcional, pronta para receber webhook  |  Esforço: 30 min
+[x] 3.1 — Fix banco da Evolution                                      ← 2026-04-22
+    Criado evolution_user:BTudZJDU09M3 no livia_postgres
+    Stack yaml /root/stacks/evolution_v2.yaml criado com URI correta
+    Redeploy: Evolution respondendo 200, fetchInstances funcional
 
-[ ] 3.2 — Configurar webhook Evolution → livia-gateway
-    GET /instance/fetchInstances para listar instâncias
-    PUT /webhook/set/{instancia} apontando para gateway
-    Impacto: shadow mode ativo, Fase 2 Passo 1 completo  |  Esforço: 30 min
+[x] 3.2 — Instância livia-test criada com webhook → livia-gateway      ← 2026-04-22
+    POST /instance/create com webhook: https://livia-gw.online24por7.ai/webhook/evolution
+    Confirmado nos logs: event=connection.update, n8n_forward_ok=true
+    Shadow mode ativo: gateway loga + faz forward para n8n
 
 [ ] 3.3 — Salvar stack yaml no repositório de infra
-    /root/stacks/evolution_v2.yaml versionado no GitHub
+    /root/stacks/evolution_v2.yaml → commit no Setup-Base-Docker-Swarm repo
     Impacto: infra reproduzível  |  Esforço: 15 min
+
+[ ] 3.4 — Validar logs por 24h (critério de sucesso do Passo 1)
+    Monitorar: docker service logs livia-gateway_app -f
+    Critério: event=messages.upsert + n8n_forward_ok=true sem erros
 ```
 
 ---
