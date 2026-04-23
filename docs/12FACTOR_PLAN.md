@@ -346,23 +346,27 @@ Desbloqueio direto do Fase 2 Passo 1 do PLATFORM_EVOLUTION_PLAN.
 Elimina o maior risco operacional: build em produção sem rollback.
 
 ```
-[ ] 4.1 — GitHub Actions: CI para livia_dev_01
-    Trigger: PR para main
-    Steps: npm ci → lint → type-check → build
+[x] 4.1 — GitHub Actions: CI para livia_dev_01                         ← 2026-04-23
+    Arquivo: .github/workflows/ci.yml
+    Trigger: PR para main + push para main
+    Steps: npm ci → lint → type-check → build (com env vars fictícias)
     Impacto: detecta quebras antes do deploy  |  Esforço: 2h
 
-[ ] 4.2 — GitHub Actions: build e push da imagem Go
+[x] 4.2 — GitHub Actions: build e push da imagem Go                    ← 2026-04-23
+    Arquivo: .github/workflows/release.yml (no repo livia-gateway)
     Trigger: push de tag v*.*.*
-    Steps: go test → docker build → push ghcr.io/frankmarcelino/livia-gateway:tag
+    Steps: go build ./... → docker build → push ghcr.io/frankmarcelino/livia-gateway:vX.X.X
+    SSH configurado na VPS (id_github) para push com escopo workflow
     Impacto: artefato imutável, rollback em segundos  |  Esforço: 3h
 
 [ ] 4.3 — Stack yaml: usar imagem versionada do registry
-    DE:  image: livia-gateway:latest
+    DE:  image: livia-gateway:latest  (build local na VPS)
     PARA: image: ghcr.io/frankmarcelino/livia-gateway:v1.0.0
+    Pré-requisito: criar primeira tag v1.0.0 para gerar imagem no ghcr.io
     Impacto: deploy reproduzível e reversível  |  Esforço: 30 min
 
 [ ] 4.4 — Branch protection em main
-    Vercel + GitHub: require PR review + CI pass antes de merge
+    GitHub: require CI pass antes de merge em main
     Impacto: elimina push acidental para produção  |  Esforço: 30 min
 ```
 
