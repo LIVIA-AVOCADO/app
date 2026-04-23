@@ -269,9 +269,11 @@ um plano de ação ordenado por **impacto × esforço**.
 Ações que eliminam risco de segurança com esforço mínimo.
 
 ```
-[x] 1.1 — Remover PAT do git remote                                   ← 2026-04-22
-    git remote set-url origin https://github.com/FrankMarcelino/livia_dev_01.git
-    Impacto: elimina vazamento de credencial  |  Esforço: 5 min
+[x] 1.1 — Remover PAT e configurar SSH no git remote                   ← 2026-04-23
+    Chave id_livia_github (ED25519) gerada e adicionada ao GitHub (FrankMarcelino)
+    git remote set-url origin git@github.com:FrankMarcelino/livia_dev_01.git
+    ~/.ssh/config: Host github.com com IdentityFile ~/.ssh/id_livia_github
+    Impacto: elimina vazamento de credencial + push sem senha  |  Esforço: 5 min
 
 [x] 1.2 — Restaurar .env.local.example                                ← 2026-04-22
     Recriado com 21 variáveis, valores fictícios e comentários de origem
