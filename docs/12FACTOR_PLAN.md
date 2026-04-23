@@ -379,10 +379,12 @@ Elimina o maior risco operacional: build em produção sem rollback.
 Previne perda de dados e garante recuperação de desastre.
 
 ```
-[ ] 5.1 — Script de backup dos volumes críticos
-    Volumes: livia_postgres_data, evolution_v2_data, rabbitmq_data
-    Frequência: diária, retenção 7 dias
-    Destino: S3/MinIO ou Backblaze B2
+[x] 5.1 — Script de backup dos volumes críticos                        ← 2026-04-23
+    Script: /root/backup.sh — pg_dump livia + sofhia + tar evolution sessions
+    Cron: /etc/cron.d/livia-backup — diário às 3h, log em /root/backups/backup.log
+    Retenção: 7 dias (limpeza automática no script)
+    Destino atual: local /root/backups/ (off-site via Backblaze B2 — backlog)
+    Testado manualmente: livia 540K, sofhia 24K, evolution 4K
     Impacto: zero perda de dados  |  Esforço: 3h
 
 [ ] 5.2 — Supabase migrations versionadas no git
