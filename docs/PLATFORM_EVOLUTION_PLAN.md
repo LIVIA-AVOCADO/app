@@ -1352,6 +1352,77 @@ channel lookup → upsert contact → CHECK is_blocked → drop (200 OK) se true
 
 ---
 
+### 6.11 Estratégia de Integração Meta Cloud API (Decisão Arquitetural)
+
+**Data da decisão:** 2026-04-23  
+**Contexto:** a plataforma opera hoje com dois fluxos inbound paralelos:
+
+```
+Baileys (Signum)  → Evolution → livia-gateway → n8n   ← gateway assumindo
+Meta Cloud API    → n8n diretamente                    ← fluxo paralelo, intacto
+```
+
+#### O que a Meta recomenda oficialmente
+
+A Meta oferece dois caminhos legítimos para a Cloud API:
+
+1. **Direto via Graph API** — App no Meta for Developers + WABA + webhooks no seu endpoint.  
+2. **Via BSP certificado** — Business Solution Provider (Twilio, Infobip, Zenvia, Take Blip...) que a Meta endossa oficialmente.
+
+**O que a Meta NÃO endossa:**
+- Bibliotecas não-oficiais (Baileys, WPPConnect) — risco real de ban de conta
+- Intermediários não-certificados como Evolution API (não é BSP)
+- Automação via multidevice/Baileys em contas de produção
+
+#### Evolution + Meta Cloud API: o que é na prática
+
+Quando Evolution é configurado no modo "Cloud API", ele vira um **proxy/adaptador**:
+
+```
+Meta webhook → Evolution → seu sistema (formato Evolution normalizado)
+Seu sistema  → Evolution → Meta Graph API (envio)
+```
+
+**Vantagens do proxy Evolution:**
+- Formato único de payload — gateway trata Baileys e Cloud API igual
+- Abstrai diferenças entre os dois tipos de conexão
+- Centraliza envio via mesmo SDK
+
+**Desvantagens do proxy Evolution:**
+- Hop desnecessário para algo que já é oficial
+- Evolution não é BSP — nenhuma certificação Meta
+- Se Evolution cair, a instância Meta também cai
+- Sem controle direto da conexão com a Meta
+- Updates do Evolution podem quebrar a integração
+
+#### Opções avaliadas
+
+| Opção | Descrição | Decisão |
+|-------|-----------|---------|
+| **A** | Meta → n8n direto (atual) | Manter enquanto MVP |
+| **B** | Meta → Evolution → livia-gateway | ❌ Rejeitado — intermediário desnecessário numa via já certificada |
+| **C** | Meta → livia-gateway diretamente (handler nativo) | ✅ Alvo de médio prazo |
+
+#### Decisão
+
+**MVP:** manter Meta → n8n direto. Não mover, não quebrar.
+
+**Médio prazo (pós-cutover Baileys):** implementar handler nativo `/webhook/meta` no gateway Go.
+O payload da Meta Cloud API é bem documentado; o parser seria análogo ao `normalizer.go` da Evolution.
+Isso elimina a dependência do Evolution para o fluxo oficial e segue a arquitetura que a Meta recomenda.
+
+**Não usar Evolution como proxy para Meta oficial** — adiciona uma peça não-certificada
+numa via que já é certificada, contra os princípios 12-factor de minimizar dependências.
+
+#### Referências para implementação futura
+
+- Webhook payload Meta: `entry[].changes[].value.messages[]`
+- Verificação de webhook: header `X-Hub-Signature-256` (HMAC-SHA256 do App Secret)
+- Envio: `POST /v18.0/{phone-number-id}/messages` com Bearer token do App
+- Documentação: developers.facebook.com/docs/whatsapp/cloud-api
+
+---
+
 ## 7. Fase 3 — Multi-Agente e URA Engine
 
 **Objetivo:** adicionar suporte a múltiplos agentes com atribuição e configuração
@@ -2075,3 +2146,5 @@ Ciclo final (Fase 5)
 - 2026-04-23 — Fase 2: análise completa dos workflows n8n (First + Master Integrator); Seção 6.10 adicionada com blueprint técnico do Passo 2
 - 2026-04-23 — Fase 2: análise do sistema is_muted (estado atual, gap de nova conversa, fix no Gateway); conceito is_blocked documentado como backlog
 - 2026-04-23 — Fase 2 Passo 2: implementação completa (normalizer, dedup, supabase client, persister, config, evolution handler, main); RPC upsert_contact_conversation criada; gateway deployado em DUAL WRITE mode
+- 2026-04-23 — Fase 2 Passo 2: dual-write validado com mensagens reais (fix tenant_id em MessageInsert); pipeline completo operacional ~500ms
+- 2026-04-23 — Decisão arquitetural: Meta Cloud API não será roteada via Evolution; handler nativo no gateway Go mapeado como alvo de médio prazo (Seção 6.11)
