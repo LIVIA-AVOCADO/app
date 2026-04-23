@@ -294,14 +294,18 @@ Sem logs e alertas, problemas em produção ficam invisíveis.
     Impacto: previne disco cheio  |  Esforço: 10 min
 
 [x] 2.2 — Uptime Kuma na VPS                                          ← 2026-04-23
-    Stack deployada: https://status.online24por7.ai
-    Pendente: criar registro DNS A no Cloudflare + configurar monitores e alertas
+    Stack deployada: https://monitor.online24por7.ai (DNS: monitor CNAME → manager01)
+    Monitores configurados: livia-gateway /health, Evolution, n8n livia+sofhia editor+webhook, Supabase (TCP 443)
+    Lição: criar DNS ANTES de deployar stack — Traefik tenta ACME imediatamente
     Impacto: falhas notificadas em < 1 min  |  Esforço: 1h
 
 [x] 2.3 — Health checks nos serviços críticos                         ← 2026-04-23
     Dockerfile livia-gateway: HEALTHCHECK wget /health (30s interval, start 10s)
     livia-gateway stack: healthcheck ativo — container reporta (healthy)
     livia + sofhia webhook: healthcheck /healthz adicionado nos stacks
+    app/api/health/route.ts: GET /api/health — verifica Supabase, retorna latência
+      Monitor Uptime Kuma: https://livia.app.online24por7.ai/api/health
+      Retorna 200 {"status":"ok","latency_ms":N} ou 503 se Supabase inacessível
     Impacto: Swarm detecta app travada, não só processo morto  |  Esforço: 2h
 ```
 
