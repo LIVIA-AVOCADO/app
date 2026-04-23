@@ -1,656 +1,476 @@
 # Database Schema - LIVIA MVP
 
-Documentação completa do schema do banco de dados Supabase.
-
-## Visão Geral
-
-O LIVIA utiliza **PostgreSQL via Supabase** com:
-- **Multi-tenancy**: Isolamento total por `tenant_id`
-- **RLS (Row Level Security)**: Todas as tabelas protegidas
-- **Realtime**: Subscriptions para updates em tempo real
-- **Base Vetorial**: pgvector para embeddings de synapses
+**Projeto:** LIVIA - Plataforma de IA Conversacional Multi-tenant
+**Data:** 2025-12-04
+**Versão:** 1.0
 
 ---
 
-## Tipos Enumerados (ENUMs)
+## 📋 Índice
 
-### `reason_type_enum`
+1. [Visão Geral](#visão-geral)
+2. [Diagrama de Relacionamentos](#diagrama-de-relacionamentos)
+3. [Tabelas Principais](#tabelas-principais)
+4. [Enums](#enums)
+5. [RLS Policies](#rls-policies)
+6. [Migrations Aplicadas](#migrations-aplicadas)
+
+---
+
+## 🎯 Visão Geral
+
+O banco de dados do LIVIA é uma arquitetura **multi-tenant** com isolamento por RLS (Row Level Security). Principais características:
+
+- **Multi-tenant:** Dados isolados por `tenant_id`
+- **Segurança:** RLS em todas as tabelas sensíveis
+- **Modular:** Separação clara entre Admin e Tenant
+- **Escalável:** Suporta múltiplos neurocores e agents
+
+---
+
+## 📊 Diagrama de Relacionamentos
+
+```mermaid
+erDiagram
+    users ||--o{ tenants : "tenant_id"
+    tenants ||--|| neurocores : "neurocore_id"
+    tenants ||--o{ contacts : "tenant_id"
+    contacts ||--o{ conversations : "contact_id"
+    conversations ||--o{ messages : "conversation_id"
+    conversations ||--o{ conversation_tags : "conversation_id"
+    tenants ||--o{ tags : "tenant_id"
+    tags ||--o{ conversation_tags : "tag_id"
+    
+    agents ||--o{ agent_prompts : "id_agent"
+    tenants ||--o{ agent_prompts : "id_tenant"
+    agent_templates ||--o{ agents : "template_id"
+    
+    tenants ||--o{ quick_reply_templates : "tenant_id"
+```
+
+---
+
+## 📦 Tabelas Principais
+
+### 1. **users** (Usuários do Sistema)
+
+Armazena todos os usuários (Super Admins, Admins, Tenants).
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID do usuário (auth.uid()) |
+| `email` | text | Email único |
+| `full_name` | text | Nome completo |
+| `role` | enum | Papel: `super_admin`, `admin`, `user` |
+| `tenant_id` | uuid | FK → tenants (NULL para super_admins) |
+| `modules` | text[] | Módulos habilitados |
+| `is_active` | boolean | Status ativo/inativo |
+| `whatsapp_number` | text | Número WhatsApp |
+| `avatar_url` | text | URL do avatar |
+| `ai_paused` | boolean | IA pausada para este usuário |
+| `last_sign_in_at` | timestamp | Último login |
+| `created_at` | timestamp | Data de criação |
+| `updated_at` | timestamp | Última atualização |
+
+**RLS:**
+- Tenants veem apenas usuários do próprio tenant
+- Super Admins veem todos
+
+---
+
+### 2. **tenants** (Inquilinos/Empresas)
+
+Representa cada empresa/cliente na plataforma.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID do tenant |
+| `name` | text | Nome da empresa |
+| `cnpj` | text | CNPJ |
+| `phone` | text | Telefone |
+| `plan` | text | Plano contratado |
+| `neurocore_id` | uuid | FK → neurocores |
+| `niche_id` | uuid | FK → niches (opcional) |
+| `is_active` | boolean | Status ativo |
+| `master_integration_active` | boolean | Integração master ativa |
+| `master_integration_url` | text | URL da integração |
+| `responsible_tech_name` | text | Responsável técnico |
+| `responsible_tech_email` | text | Email técnico |
+| `responsible_tech_whatsapp` | text | WhatsApp técnico |
+| `responsible_finance_name` | text | Responsável financeiro |
+| `responsible_finance_email` | text | Email financeiro |
+| `responsible_finance_whatsapp` | text | WhatsApp financeiro |
+| `created_at` | timestamp | Data de criação |
+| `updated_at` | timestamp | Última atualização |
+
+**RLS:**
+- Usuários veem apenas o próprio tenant
+- Super Admins veem todos
+
+---
+
+### 3. **neurocores** (Núcleos de IA)
+
+Configurações centralizadas de IA compartilhadas entre tenants.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID do neurocore |
+| `name` | text | Nome do neurocore |
+| `description` | text | Descrição |
+| `is_active` | boolean | Status ativo |
+| `created_at` | timestamp | Data de criação |
+| `updated_at` | timestamp | Última atualização |
+
+---
+
+### 4. **agents** (Agentes de IA)
+
+Agentes configurados para cada neurocore.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID do agent |
+| `name` | text | Nome do agent |
+| `type` | enum | Tipo: `agent_type_enum` |
+| `function` | enum | Função: `agent_function_enum` |
+| `template_id` | uuid | FK → agent_templates |
+| `persona` | text | Nome da persona |
+| `gender` | enum | Gênero da persona |
+| `objective` | text | Objetivo do agent |
+| `personality_tone` | text | Tom de personalidade |
+| `communication_medium` | text | Meio de comunicação |
+| `is_intent_agent` | boolean | É agent de intenção |
+| `limitations` | jsonb | Limitações do agent |
+| `instructions` | jsonb | Instruções gerais |
+| `other_instructions` | jsonb | Outras instruções |
+| `conversation_roteiro` | jsonb | Roteiro de conversação |
+| `associated_neurocores` | uuid[] | Neurocores associados |
+| `created_at` | timestamp | Data de criação |
+| `updated_at` | timestamp | Última atualização |
+
+**RLS:**
+- Tenants veem agents através de `agent_prompts`
+- Super Admins veem todos
+
+---
+
+### 5. **agent_templates** (Templates de Agents)
+
+Templates base para criação de agents (Super Admin).
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID do template |
+| `name` | text | Nome do template |
+| `type` | enum | Tipo do agent |
+| `reactive` | boolean | Modo reativo |
+| `limitations` | jsonb | Limitações padrão |
+| `instructions` | jsonb | Instruções padrão |
+| `guide_line` | jsonb | Guideline/roteiro padrão |
+| `persona_name` | text | Nome da persona |
+| `age` | text | Idade da persona |
+| `gender` | text | Gênero da persona |
+| `objective` | text | Objetivo padrão |
+| `communication` | text | Estilo de comunicação |
+| `personality` | text | Traços de personalidade |
+| `is_active` | boolean | Template ativo |
+| `created_at` | timestamp | Data de criação |
+| `updated_at` | timestamp | Última atualização |
+
+**RLS:**
+- Todos veem templates ativos (read-only)
+- Super Admins gerenciam (CRUD)
+
+---
+
+### 6. **agent_prompts** (Prompts Personalizados)
+
+Prompts personalizados por tenant para cada agent.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID do prompt |
+| `id_agent` | uuid | FK → agents |
+| `id_tenant` | uuid | FK → tenants (NULL = base) |
+| `limitations` | jsonb | Array de limitações |
+| `instructions` | jsonb | Array de instruções |
+| `guide_line` | jsonb | Estrutura de guideline |
+| `rules` | jsonb | Array de regras |
+| `others_instructions` | jsonb | Outras instruções |
+| `escape` | jsonb | Configuração de escape |
+| `fallback` | jsonb | Configuração de fallback |
+| `persona_name` | text | Nome da persona |
+| `age` | text | Idade |
+| `gender` | text | Gênero |
+| `objective` | text | Objetivo personalizado |
+| `communication` | text | Estilo de comunicação |
+| `personality` | text | Traços de personalidade |
+| `created_at` | timestamp | Data de criação |
+| `updated_at` | timestamp | Última atualização |
+
+**Constraint:**
+- `UNIQUE(id_agent, id_tenant)` - Um prompt por agent por tenant
+
+**RLS:**
+- Tenants veem seus prompts + prompts base (id_tenant = NULL)
+- Tenants editam apenas seus prompts
+- Super Admins gerenciam tudo
+
+---
+
+### 7. **contacts** (Contatos/Leads)
+
+Contatos que interagem com o sistema.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID do contato |
+| `tenant_id` | uuid | FK → tenants |
+| `name` | text | Nome do contato |
+| `whatsapp_number` | text | Número WhatsApp (único por tenant) |
+| `email` | text | Email |
+| `status` | text | Status do contato |
+| `tags` | text[] | Tags do contato |
+| `notes` | text | Notas/observações |
+| `created_at` | timestamp | Primeiro contato |
+| `updated_at` | timestamp | Última atualização |
+
+**RLS:**
+- Tenants veem apenas seus contatos
+
+---
+
+### 8. **conversations** (Conversas)
+
+Conversas entre contatos e o sistema.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID da conversa |
+| `contact_id` | uuid | FK → contacts |
+| `tenant_id` | uuid | FK → tenants |
+| `status` | enum | Status: `open`, `closed`, `archived` |
+| `last_message_at` | timestamp | Última mensagem |
+| `unread_count` | integer | Mensagens não lidas |
+| `ai_enabled` | boolean | IA habilitada |
+| `created_at` | timestamp | Início da conversa |
+| `updated_at` | timestamp | Última atualização |
+
+**RLS:**
+- Tenants veem apenas suas conversas
+
+---
+
+### 9. **messages** (Mensagens)
+
+Mensagens trocadas em conversas.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID da mensagem |
+| `conversation_id` | uuid | FK → conversations |
+| `sender_type` | enum | Tipo: `contact`, `agent`, `user` |
+| `sender_id` | uuid | ID do remetente |
+| `content` | text | Conteúdo da mensagem |
+| `media_url` | text | URL de mídia anexa |
+| `media_type` | text | Tipo de mídia |
+| `is_read` | boolean | Lida ou não |
+| `metadata` | jsonb | Metadados extras |
+| `created_at` | timestamp | Data de envio |
+
+**RLS:**
+- Tenants veem mensagens de suas conversas
+
+---
+
+### 10. **tags** (Tags de Conversas)
+
+Tags para categorização de conversas.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID da tag |
+| `tenant_id` | uuid | FK → tenants |
+| `name` | text | Nome da tag |
+| `color` | text | Cor hex (#RRGGBB) |
+| `order` | integer | Ordem de exibição |
+| `created_at` | timestamp | Data de criação |
+| `updated_at` | timestamp | Última atualização |
+
+**Migration:** `007_alter_tags_add_order_color.sql`
+
+---
+
+### 11. **conversation_tags** (Relacionamento N-N)
+
+Relaciona conversas com tags.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `conversation_id` | uuid | FK → conversations |
+| `tag_id` | uuid | FK → tags |
+| `created_at` | timestamp | Data de associação |
+
+**PK:** `(conversation_id, tag_id)`
+
+**Migration:** `006_create_conversation_tags.sql`
+
+---
+
+### 12. **quick_reply_templates** (Respostas Rápidas)
+
+Templates de respostas rápidas para usuários.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK - ID do template |
+| `tenant_id` | uuid | FK → tenants |
+| `title` | text | Título da resposta |
+| `content` | text | Conteúdo da resposta |
+| `shortcut` | text | Atalho (ex: "/ola") |
+| `category` | text | Categoria |
+| `is_active` | boolean | Ativo |
+| `created_at` | timestamp | Data de criação |
+| `updated_at` | timestamp | Última atualização |
+
+**Migration:** `005_alter_quick_reply_templates.sql`
+
+---
+
+## 🔤 Enums
+
+### **access_user_role**
 ```sql
-'pause' | 'closure'
+'super_admin' | 'admin' | 'user'
 ```
-Tipo de razão para pausar ou encerrar uma conversa.
 
-### `access_user_role`
+### **agent_type_enum**
 ```sql
-'super_admin' | 'user'
+'proactive' | 'reactive'
 ```
-- **super_admin**: Acesso total (gerencia neurocores, agents, tenants)
-- **user**: Acesso ao próprio tenant
 
-### `agent_type_enum`
+### **agent_function_enum**
 ```sql
-'reactive' | 'active'
+'attendant' | 'intention' | 'in_guard_rails' | 'observer'
 ```
-Tipo de comportamento do agente de IA.
 
-### `agent_function_enum`
+### **agent_gender_enum**
 ```sql
-'support' | 'sales' | 'after_sales' | 'research'
+'male' | 'female' | 'neutral'
 ```
-Função principal do agente.
 
-### `agent_gender_enum`
+### **conversation_status**
 ```sql
-'male' | 'female'
+'open' | 'closed' | 'archived'
 ```
-Gênero para personalidade do agente.
 
-### `contact_status_enum`
+### **sender_type**
 ```sql
-'open' | 'with_ai' | 'paused' | 'closed'
+'contact' | 'agent' | 'user'
 ```
-Estado do contato no sistema.
 
-### `conversation_status_enum`
+---
+
+## 🔐 RLS Policies
+
+### **agents**
+
+| Policy | Operation | Regra |
+|--------|-----------|-------|
+| `Tenants can view their own agents` | SELECT | Agents com prompts do tenant |
+| `Super Admins have full access to agents` | ALL | role = 'super_admin' |
+
+### **agent_prompts**
+
+| Policy | Operation | Regra |
+|--------|-----------|-------|
+| `Tenants can view their own prompts` | SELECT | id_tenant = tenant OU id_tenant IS NULL |
+| `Tenants can update their own prompts` | UPDATE | id_tenant = tenant |
+| `Tenants can insert their own prompts` | INSERT | id_tenant = tenant |
+| `Super Admins have full access to agent_prompts` | ALL | role = 'super_admin' |
+
+### **agent_templates**
+
+| Policy | Operation | Regra |
+|--------|-----------|-------|
+| `Users can view active templates` | SELECT | is_active = true |
+| `Super Admins have full access to agent_templates` | ALL | role = 'super_admin' |
+
+### **users, tenants, contacts, conversations, messages**
+
+- **Regra geral:** Usuários veem apenas dados do próprio `tenant_id`
+- **Exceção:** Super Admins veem todos os dados
+
+---
+
+## 📝 Migrations Aplicadas
+
+| # | Arquivo | Descrição |
+|---|---------|-----------|
+| 005 | `alter_quick_reply_templates.sql` | Alterações em quick replies |
+| 006 | `create_conversation_tags.sql` | Criação de tags de conversas |
+| 007 | `alter_tags_add_order_color.sql` | Adiciona ordem e cor às tags |
+| 008 | `add_ai_paused_to_users.sql` | Adiciona flag ai_paused em users |
+| 009 | `add_template_id_to_agents.sql` | Adiciona template_id e constraint UNIQUE |
+| 009a | `cleanup_agent_prompts_duplicates.sql` | Limpa duplicatas antes do constraint |
+| 010 | `add_rls_policies_agents.sql` | Adiciona RLS policies para agents |
+
+---
+
+## 🔍 Queries Úteis
+
+### Verificar RLS Habilitado
 ```sql
-'open' | 'paused' | 'closed'
+SELECT tablename, rowsecurity
+FROM pg_tables
+WHERE schemaname = 'public'
+AND tablename IN ('agents', 'agent_prompts', 'agent_templates');
 ```
-Estado da conversa.
 
-### `message_sender_type_enum`
+### Listar Todas as Policies
 ```sql
-'customer' | 'attendant' | 'ai' | 'system'
+SELECT tablename, policyname, cmd, qual
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
 ```
-- **customer**: Cliente final
-- **attendant**: Usuário interno do tenant
-- **ai**: Agente de IA
-- **system**: Mensagens automáticas do sistema
 
-### `feedback_type_enum`
+### Contar Registros por Tenant
 ```sql
-'like' | 'dislike'
+SELECT 
+  t.name as tenant,
+  COUNT(DISTINCT c.id) as contacts,
+  COUNT(DISTINCT cv.id) as conversations,
+  COUNT(DISTINCT m.id) as messages
+FROM tenants t
+LEFT JOIN contacts c ON c.tenant_id = t.id
+LEFT JOIN conversations cv ON cv.tenant_id = t.id
+LEFT JOIN messages m ON m.conversation_id = cv.id
+GROUP BY t.id, t.name;
 ```
 
-### `synapse_status_enum`
+### Verificar Agents por Tenant
 ```sql
-'draft' | 'indexing' | 'publishing' | 'error'
-```
-- **draft**: Rascunho (não publicada)
-- **indexing**: Sendo processada para vetorização
-- **publishing**: Publicada e disponível para IA
-- **error**: Erro no processamento
-
-### `feedback_process_status_enum`
-```sql
-'open' | 'in_progress' | 'closed'
+SELECT 
+  t.name as tenant,
+  a.name as agent,
+  ap.id_tenant IS NOT NULL as has_custom_prompt
+FROM tenants t
+JOIN agent_prompts ap ON ap.id_tenant = t.id
+JOIN agents a ON a.id = ap.id_agent;
 ```
 
 ---
 
-## Tabelas Principais
+## 📚 Referências
 
-### 1. `tenants` (Multi-tenancy)
-Empresas clientes do LIVIA.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| name | varchar | Nome da empresa |
-| neurocore_id | uuid | FK → neurocores |
-| niche_id | uuid | FK → niches (opcional) |
-| is_active | boolean | Tenant ativo? |
-| cnpj | varchar | UNIQUE |
-| phone | varchar | |
-| responsible_tech_* | varchar | Contato técnico |
-| responsible_finance_* | varchar | Contato financeiro |
-| plan | varchar | Plano contratado |
-| master_integration_url | varchar | |
-| master_integration_active | boolean | |
-
-**RLS**: Apenas super_admin
+- [Supabase RLS Documentation](https://supabase.com/docs/guides/auth/row-level-security)
+- [PostgreSQL JSON Types](https://www.postgresql.org/docs/current/datatype-json.html)
+- [Migration 010 - RLS Policies](file:///home/frank/projeto/supabase/migrations/010_add_rls_policies_agents.sql)
+- [Agent Templates Plan](file:///home/frank/projeto/docs/planejamento/agent-templates-implementation-plan.md)
 
 ---
 
-### 2. `users` (Usuários Internos)
-Usuários das empresas clientes.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK, FK → auth.users (Supabase Auth) |
-| tenant_id | uuid | FK → tenants |
-| full_name | varchar | |
-| email | varchar | UNIQUE |
-| whatsapp_number | varchar | |
-| role | access_user_role | 'super_admin' \| 'user' |
-| avatar_url | text | |
-| is_active | boolean | |
-| last_sign_in_at | timestamp | |
-| modules | text[] | Módulos permitidos |
-
-**RLS**:
-- User pode ver si mesmo
-- User pode ver colegas do tenant
-- User pode atualizar próprio perfil
-- Super_admin vê todos
-
----
-
-### 3. `contacts` (Clientes Finais)
-Pessoas que interagem via canais (WhatsApp, Instagram, etc).
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| tenant_id | uuid | FK → tenants |
-| channel_id | uuid | FK → channels |
-| name | varchar | |
-| phone | varchar | |
-| phone_secondary | varchar | |
-| email | varchar | |
-| country, city, zip_code | varchar | |
-| address_* | varchar | |
-| cpf, rg | varchar | |
-| last_interaction_at | timestamp | |
-| status | contact_status_enum | |
-| customer_data_extracted | jsonb | Dados extraídos pela IA |
-| tags | text[] | |
-| last_negotiation | jsonb | |
-| external_contact_id | text | ID no provedor externo |
-
-**RLS**: Acesso por tenant
-
----
-
-### 4. `conversations` (Conversas)
-Cada interação entre contact e tenant.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| contact_id | uuid | FK → contacts |
-| tenant_id | uuid | FK → tenants |
-| channel_id | uuid | FK → channels |
-| external_id | varchar | UNIQUE, ID externo |
-| status | conversation_status_enum | 'open' \| 'paused' \| 'closed' |
-| ia_active | boolean | IA está respondendo? |
-| ia_paused_by_user_id | uuid | FK → users (quem pausou IA) |
-| ia_paused_at | timestamp | Quando pausou |
-| ia_pause_reason | text | Por que pausou |
-| last_message_at | timestamp | |
-| overall_feedback_type | feedback_type_enum | |
-| overall_feedback_text | text | |
-| conversation_pause_reason_id | uuid | FK → reasons |
-| pause_notes | text | |
-| conversation_closure_reason_id | uuid | FK → reasons |
-| closure_notes | text | |
-
-**RLS**: Acesso por tenant
-
-**Lógica de Pausa/Retomada**:
-```typescript
-// Pausar IA
-conversation.ia_active = false;
-conversation.ia_paused_by_user_id = user.id;
-conversation.ia_paused_at = now();
-
-// Retomar IA
-conversation.ia_active = true;
-conversation.ia_paused_by_user_id = null;
-conversation.ia_paused_at = null;
-```
-
----
-
-### 5. `messages` (Mensagens)
-Histórico de mensagens das conversas.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| conversation_id | uuid | FK → conversations |
-| channel_id | uuid | FK → channels |
-| sender_type | message_sender_type_enum | customer \| attendant \| ai \| system |
-| sender_user_id | uuid | FK → users (se attendant) |
-| sender_agent_id | uuid | FK → agents (se ai) |
-| content | text | Conteúdo da mensagem |
-| timestamp | timestamp | |
-| feedback_type | feedback_type_enum | |
-| feedback_text | text | |
-| external_message_id | text | ID no provedor |
-
-**RLS**: Acesso baseado na conversa (que tem tenant_id)
-
-**Constraints**:
-- Se `sender_type = 'ai'` → `sender_agent_id NOT NULL`
-- Se `sender_type = 'attendant'` → `sender_user_id NOT NULL`
-
----
-
-### 6. `conversation_state_history` (Histórico de Estados)
-Rastreia todas as mudanças de estado das conversas.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| conversation_id | uuid | FK → conversations |
-| from_status | conversation_status_enum | Estado anterior |
-| to_status | conversation_status_enum | Novo estado |
-| changed_by_user_id | uuid | FK → users |
-| reason_id | uuid | FK → reasons |
-| notes | text | |
-| ia_active_before | boolean | |
-| ia_active_after | boolean | |
-| created_at | timestamp | |
-
-**RLS**: Acesso baseado na conversa
-
-**Exemplo de uso**:
-```sql
--- Registrar pausa de conversa
-INSERT INTO conversation_state_history (
-  conversation_id,
-  from_status,
-  to_status,
-  changed_by_user_id,
-  reason_id,
-  ia_active_before,
-  ia_active_after
-) VALUES (
-  '...',
-  'open',
-  'paused',
-  auth.uid(),
-  'reason-uuid',
-  true,
-  false
-);
-```
-
----
-
-### 7. `base_conhecimentos` (Bases de Conhecimento)
-Agrupamentos lógicos de synapses.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| tenant_id | uuid | FK → tenants |
-| neurocore_id | uuid | FK → neurocores |
-| name | varchar | Nome da base |
-| description | text | |
-| is_active | boolean | |
-
-**RLS**: Acesso por tenant
-
----
-
-### 8. `synapses` (Conteúdo para IA)
-Unidades de conhecimento da base.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| base_conhecimento_id | uuid | FK → base_conhecimentos |
-| tenant_id | uuid | FK → tenants |
-| title | varchar | Título |
-| content | text | **Conteúdo principal** |
-| description | text | Resumo/meta |
-| image_url | text | |
-| status | synapse_status_enum | draft \| indexing \| publishing \| error |
-| is_enabled | boolean | Ativa para uso? |
-
-**RLS**: Acesso por tenant
-
-**Fluxo de Publicação**:
-```
-1. Criar synapse (status: 'draft')
-2. Editar content
-3. Publicar → status: 'indexing'
-4. n8n processa e cria embeddings
-5. n8n atualiza status: 'publishing'
-6. IA usa synapse nas respostas
-```
-
----
-
-### 9. `synapse_embeddings` (Base Vetorial)
-Chunks e embeddings das synapses para busca semântica.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| synapse_id | uuid | FK → synapses |
-| tenant_id | uuid | FK → tenants |
-| chunk_index | integer | Ordem do chunk |
-| chunk_content | text | Texto do chunk |
-| embedding | vector(1536) | Embedding OpenAI ada-002 |
-| metadata | jsonb | Tags, contexto |
-
-**Índices**:
-- IVFFlat para busca vetorial (`embedding`)
-- B-tree para `synapse_id`
-
-**RLS**: Acesso por tenant
-
-**Exemplo de busca**:
-```sql
--- Buscar synapses mais relevantes
-SELECT
-  s.title,
-  s.content,
-  e.chunk_content,
-  1 - (e.embedding <=> query_embedding) AS similarity
-FROM synapse_embeddings e
-JOIN synapses s ON s.id = e.synapse_id
-WHERE e.tenant_id = :tenant_id
-  AND s.is_enabled = true
-  AND s.status = 'publishing'
-ORDER BY e.embedding <=> :query_embedding
-LIMIT 5;
-```
-
----
-
-### 10. `channels` (Canais de Mensageria)
-WhatsApp, Instagram, webchat, etc.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| tenant_id | uuid | FK → tenants |
-| channel_provider_id | uuid | FK → channel_providers |
-| name | varchar | Nome do canal |
-| identification_number | varchar | Número/ID |
-| instance_company_name | varchar | UNIQUE |
-| is_active | boolean | |
-| is_receiving_messages | boolean | |
-| is_sending_messages | boolean | |
-| observations | text | |
-| external_api_url | varchar | |
-| provider_external_channel_id | text | |
-| config_json | jsonb | Configurações específicas |
-| message_wait_time_fragments | integer | Tempo entre fragmentos (padrão: 8s) |
-
-**RLS**: Acesso por tenant
-
----
-
-### 11. `quick_reply_templates` (Respostas Rápidas)
-Templates de mensagens para usuários internos.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| tenant_id | uuid | FK → tenants |
-| title | varchar | Título |
-| message | text | Conteúdo |
-| category | text | Categoria (ex: "saudacao", "comercial") |
-| tags | text[] | Tags para busca |
-| icon | varchar | |
-| usage_count | integer | Contador de uso |
-| is_active | boolean | |
-
-**RLS**: Acesso por tenant
-
-**Exemplo de uso**:
-```sql
--- Buscar templates por categoria
-SELECT * FROM quick_reply_templates
-WHERE tenant_id = :tenant_id
-  AND is_active = true
-  AND category = 'comercial'
-ORDER BY usage_count DESC;
-```
-
----
-
-### 12. `feedbacks` (Feedbacks)
-Feedbacks dos usuários sobre conversas/mensagens.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| tenant_id | uuid | FK → tenants |
-| user_id | uuid | FK → users |
-| conversation_id | uuid | FK → conversations |
-| message_id | uuid | FK → messages (opcional) |
-| feedback_type | feedback_type_enum | like \| dislike |
-| feedback_text | text | |
-| feedback_status | feedback_process_status_enum | open \| in_progress \| closed |
-| super_admin_comment | text | |
-
-**RLS**: Acesso por tenant
-
----
-
-## Tabelas de Configuração (Super Admin)
-
-### `neurocores`
-Núcleos de IA configurados pelo super admin.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| name | varchar | |
-| description | text | |
-| id_subwork_n8n_neurocore | varchar | ID do subworkflow n8n |
-| is_active | boolean | |
-| associated_agents | uuid[] | Array de agent IDs |
-
-**RLS**: Apenas super_admin
-
----
-
-### `agents`
-Agentes de IA configurados.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| name | varchar | |
-| type | agent_type_enum | reactive \| active |
-| function | agent_function_enum | support \| sales \| ... |
-| gender | agent_gender_enum | |
-| persona | text | Descrição da persona |
-| personality_tone | text | |
-| communication_medium | varchar | |
-| objective | text | |
-| is_intent_agent | boolean | |
-| associated_neurocores | uuid[] | |
-| instructions | jsonb | |
-| limitations | jsonb | |
-| conversation_roteiro | jsonb | |
-| other_instructions | jsonb | |
-
-**RLS**: Apenas super_admin
-
----
-
-### `channel_providers`
-Provedores de mensageria (WhatsApp Business API, Instagram, etc).
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| name | varchar | UNIQUE |
-| description | text | |
-| channel_provider_identifier_code | text | |
-| id_subwork_n8n_master_integrator | text | |
-| api_base_config | jsonb | |
-
-**RLS**: Apenas super_admin
-
----
-
-### `niches`
-Nichos de mercado dos tenants.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| name | varchar | UNIQUE |
-| description | text | |
-
-**RLS**: Apenas super_admin
-
----
-
-### `feature_modules`
-Módulos de funcionalidades do sistema.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| key | varchar | UNIQUE |
-| name | varchar | |
-| description | text | |
-| icon | varchar | |
-
-**RLS**: Apenas super_admin
-
----
-
-### `conversation_reasons_pauses_and_closures`
-Razões pré-definidas para pausar/encerrar conversas.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| reason_type | reason_type_enum | pause \| closure |
-| neurocore_id | uuid | FK → neurocores |
-| description | text | |
-| is_active | boolean | |
-
-**RLS**: Apenas super_admin
-
----
-
-### `conversation_reactivations_settings`
-Configurações de reativação automática de conversas.
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | uuid | PK |
-| tenant_id | uuid | FK → tenants (UNIQUE) |
-| is_active | boolean | |
-| max_reactivations | integer | |
-| reactivation_time_1_minutes | integer | |
-| reactivation_time_2_minutes | integer | |
-| ... | ... | Até 5 tempos |
-| start_time | time | Horário início |
-| end_time | time | Horário fim |
-
-**RLS**: Acesso por tenant
-
----
-
-## Relacionamentos Principais
-
-```
-tenants (1) ──< (N) users
-tenants (1) ──< (N) contacts
-tenants (1) ──< (N) conversations
-tenants (1) ──< (N) channels
-tenants (1) ──< (N) base_conhecimentos
-tenants (1) ──< (N) synapses
-
-contacts (1) ──< (N) conversations
-conversations (1) ──< (N) messages
-conversations (1) ──< (N) conversation_state_history
-
-base_conhecimentos (1) ──< (N) synapses
-synapses (1) ──< (N) synapse_embeddings
-
-neurocores (1) ──< (N) tenants
-agents (N) ──> (M) neurocores (via arrays)
-```
-
----
-
-## Queries Comuns
-
-### Livechat: Buscar contatos com última mensagem
-```sql
-SELECT
-  c.*,
-  conv.id AS conversation_id,
-  conv.status AS conversation_status,
-  conv.ia_active,
-  msg.content AS last_message_content,
-  msg.timestamp AS last_message_time
-FROM contacts c
-LEFT JOIN conversations conv ON conv.contact_id = c.id
-LEFT JOIN LATERAL (
-  SELECT * FROM messages
-  WHERE conversation_id = conv.id
-  ORDER BY timestamp DESC
-  LIMIT 1
-) msg ON true
-WHERE c.tenant_id = :tenant_id
-ORDER BY msg.timestamp DESC NULLS LAST;
-```
-
-### Treinamento Neurocore: Buscar synapses usadas
-```sql
--- Buscar synapses similares à query
-SELECT
-  s.id,
-  s.title,
-  s.content,
-  e.chunk_content,
-  1 - (e.embedding <=> :query_embedding) AS similarity
-FROM synapse_embeddings e
-JOIN synapses s ON s.id = e.synapse_id
-JOIN base_conhecimentos bc ON bc.id = s.base_conhecimento_id
-WHERE bc.tenant_id = :tenant_id
-  AND s.is_enabled = true
-  AND s.status = 'publishing'
-ORDER BY similarity DESC
-LIMIT 5;
-```
-
-### Base de Conhecimento: Listar bases com contagem de synapses
-```sql
-SELECT
-  bc.*,
-  COUNT(s.id) FILTER (WHERE s.status = 'publishing') AS published_count,
-  COUNT(s.id) FILTER (WHERE s.status = 'draft') AS draft_count
-FROM base_conhecimentos bc
-LEFT JOIN synapses s ON s.base_conhecimento_id = bc.id
-WHERE bc.tenant_id = :tenant_id
-GROUP BY bc.id;
-```
-
----
-
-## Índices de Performance
-
-Além dos índices automáticos (PKs, FKs), criar:
-
-```sql
--- Busca por tenant (usado em quase todas as queries)
-CREATE INDEX contacts_tenant_id_idx ON contacts(tenant_id);
-CREATE INDEX conversations_tenant_id_idx ON conversations(tenant_id);
-CREATE INDEX messages_conversation_id_idx ON messages(conversation_id);
-
--- Ordenação temporal
-CREATE INDEX messages_timestamp_idx ON messages(timestamp DESC);
-CREATE INDEX conversations_last_message_at_idx ON conversations(last_message_at DESC);
-
--- Busca de IDs externos
-CREATE INDEX contacts_external_contact_id_idx ON contacts(external_contact_id);
-CREATE INDEX messages_external_message_id_idx ON messages(external_message_id);
-
--- Busca em arrays
-CREATE INDEX quick_reply_templates_tags_idx ON quick_reply_templates USING gin(tags);
-```
-
----
-
-## Migrações
-
-Ao adicionar novos campos ou tabelas, usar scripts em `docs/migrations/`:
-- `001_schema_improvements.sql` - Melhorias iniciais
-- `002_...` - Próximas migrações
-
-Sempre testar em ambiente de dev antes de produção!
+**Última Atualização:** 2025-12-04
+**Versão do Schema:** 1.0 (Migration 010)
