@@ -222,17 +222,31 @@ async function sendViaGateway(
     console.error(`[gateway-send] 🚀 ${msgId} → ${channel.instanceName}`);
 
     const controller = new AbortController();
-    const timeoutId  = setTimeout(() => controller.abort(), 15000);
+    const timeoutId  = setTimeout(() => controller.abort(), 30000);
 
-    const res = await fetch(GATEWAY_SEND_URL!, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${GATEWAY_API_KEY ?? ''}`,
-      },
-      body:   JSON.stringify(payload),
-      signal: controller.signal,
-    });
+    let res: Response;
+    try {
+      res = await fetch(GATEWAY_SEND_URL!, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${GATEWAY_API_KEY ?? ''}`,
+        },
+        body:   JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+        // Gateway não respondeu em 30s — não marca failed pois a mensagem
+        // pode já ter sido entregue. O Realtime trará update se confirmado.
+        console.error(`[gateway-send] ⏰ ${msgId}: timeout 30s — mantém status sent`);
+      } else {
+        console.error(`[gateway-send] 💥 ${msgId}:`, fetchErr);
+        await updateMessageStatus(messageId, 'failed', null, supabase);
+      }
+      return;
+    }
     clearTimeout(timeoutId);
 
     if (!res.ok) {

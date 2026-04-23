@@ -39,6 +39,11 @@ export function useRealtimeMessages(
 
   const supabaseRef = useRef(createClient());
 
+  // Mapeia message.id → chave estável de renderização (JSX key).
+  // Quando uma mensagem otimista (temp-xxx) é confirmada (real-uuid), a chave
+  // permanece como temp-xxx, evitando desmonte/remonte e dupla animação.
+  const stableKeyMapRef = useRef<Map<string, string>>(new Map());
+
   const channelRef = useRef<RealtimeChannel | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -49,6 +54,7 @@ export function useRealtimeMessages(
     setHasMore(initialMessages.length >= MESSAGES_PAGE_SIZE);
     isLoadingOlderRef.current = false;
     prevLastMessageAtRef.current = null;
+    stableKeyMapRef.current.clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
@@ -109,15 +115,16 @@ export function useRealtimeMessages(
 
     const newMessage: MessageWithSender = { ...payload.new, senderUser, quotedMessage };
     setMessages((prev) => {
-      // 1. Dedup por ID exato (caso normal)
+      // 1. Dedup por ID exato — replaceTempMessage já rodou antes do INSERT chegar
       const exactIdx = prev.findIndex((m) => m.id === newMessage.id);
       if (exactIdx !== -1) {
         const result = [...prev];
         result[exactIdx] = newMessage;
+        // stableKey já foi transferido por replaceTempMessage; nada a fazer
         return result;
       }
 
-      // 2. Substitui mensagem temp (otimismo verdadeiro) pelo ID real do banco
+      // 2. Substitui mensagem temp — INSERT chegou antes da resposta da API
       const tempIdx = prev.findIndex(
         (m) =>
           m.id.startsWith('temp-') &&
@@ -126,11 +133,17 @@ export function useRealtimeMessages(
           m.conversation_id === newMessage.conversation_id
       );
       if (tempIdx !== -1) {
+        const tempId = prev[tempIdx]!.id;
+        const stableKey = stableKeyMapRef.current.get(tempId) ?? tempId;
+        stableKeyMapRef.current.delete(tempId);
+        stableKeyMapRef.current.set(newMessage.id, stableKey);
         const result = [...prev];
         result[tempIdx] = newMessage;
         return result;
       }
 
+      // 3. Mensagem nova (de outro remetente)
+      stableKeyMapRef.current.set(newMessage.id, newMessage.id);
       return [...prev, newMessage];
     });
   }, []);
@@ -138,6 +151,7 @@ export function useRealtimeMessages(
   const addMessage = useCallback((message: MessageWithSender) => {
     setMessages((prev) => {
       if (prev.some((m) => m.id === message.id)) return prev;
+      stableKeyMapRef.current.set(message.id, message.id);
       return [...prev, message];
     });
   }, []);
@@ -147,6 +161,9 @@ export function useRealtimeMessages(
       setMessages((prev) => {
         const idx = prev.findIndex((m) => m.id === tempId);
         if (idx === -1) return prev; // já substituído pelo Realtime INSERT
+        const stableKey = stableKeyMapRef.current.get(tempId) ?? tempId;
+        stableKeyMapRef.current.delete(tempId);
+        stableKeyMapRef.current.set(confirmedMessage.id, stableKey);
         const next = [...prev];
         next[idx] = confirmedMessage;
         return next;
@@ -154,6 +171,10 @@ export function useRealtimeMessages(
     },
     []
   );
+
+  const getStableKey = useCallback((id: string) => {
+    return stableKeyMapRef.current.get(id) ?? id;
+  }, []);
 
   const updateMessageStatus = useCallback((id: string, status: MessageStatus) => {
     setMessages((prev) =>
@@ -294,5 +315,5 @@ export function useRealtimeMessages(
     }
   }, [conversationId, hasMore]);
 
-  return { messages, hasMore, isLoadingOlder, loadOlderMessages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage };
+  return { messages, hasMore, isLoadingOlder, loadOlderMessages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage, getStableKey };
 }

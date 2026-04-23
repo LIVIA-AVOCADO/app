@@ -64,7 +64,7 @@ export function ConversationView({
   isPanelActive,
 }: ConversationViewProps) {
   const { conversation } = useRealtimeConversation(initialConversation);
-  const { messages, hasMore, isLoadingOlder, loadOlderMessages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage } =
+  const { messages, hasMore, isLoadingOlder, loadOlderMessages, addMessage, replaceTempMessage, updateMessageStatus, removeMessage, getStableKey } =
     useRealtimeMessages(
       initialConversation.id,
       initialMessages,
@@ -246,7 +246,7 @@ export function ConversationView({
                     }
 
                     return (
-                      <div key={message.id} data-message-id={message.id}>
+                      <div key={getStableKey(message.id)} data-message-id={message.id}>
                         {firstOfDay.has(message.id) && (
                           <DateSeparator label={getMessageDayLabel(message.timestamp)} />
                         )}

@@ -49,8 +49,7 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
       className={cn(
         'flex gap-3 mb-4 group',
         isCustomer ? 'flex-row' : 'flex-row-reverse',
-        isNew && 'animate-in fade-in-0 slide-in-from-bottom-3 duration-200',
-        message.id.startsWith('temp-') && message.status === 'pending' && 'opacity-60 transition-opacity duration-300'
+        isNew && 'animate-in fade-in-0 slide-in-from-bottom-3 duration-200'
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -136,13 +135,15 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
           )}
         </div>
 
-          {/* Botão reply à direita do balão (recebidas: lado centro; enviadas: lado avatar) */}
-          {canReply && onReply && (
+          {/* Botão reply à direita do balão — sempre no DOM para layout estável.
+              Invisível para mensagens temp (sem id real) ou quando não está em hover. */}
+          {onReply && (
             <button
-              onClick={() => onReply(message)}
+              onClick={canReply ? () => onReply(message) : undefined}
+              disabled={!canReply}
               className={cn(
                 'p-1 rounded-full bg-background border border-border shadow-sm transition-opacity duration-150 text-muted-foreground hover:text-foreground flex-shrink-0',
-                isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                isHovered && canReply ? 'opacity-100' : 'opacity-0 pointer-events-none'
               )}
               title="Responder mensagem"
             >

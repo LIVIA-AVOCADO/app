@@ -959,12 +959,34 @@ OUTBOUND MANUAL (Evolution):
 3. **Fix `AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES`** — evolution_v2 stack: `false→true` para popular campo `apikey` no payload do webhook
 4. **Multi-instance Evolution** — LIVIA UI + API routes refatoradas para suportar credenciais por canal (`config_json.evolution_api_url/key`)
 5. **Outbound handler** — `handlers/outbound.go` no gateway; Next.js roteia Evolution → gateway, Meta → n8n
+6. **UX otimista + estabilidade do balão** — mensagem aparece como `sent` imediatamente; envio real ocorre em `after()` sem bloquear a resposta HTTP; corrigido resize/dupla animação do balão; timeout do gateway: 15s → 30s sem falso `failed` em AbortError (ver detalhes abaixo)
+
+#### Detalhes: UX otimista e estabilidade do balão (2026-04-22)
+
+**Fluxo de envio manual (estado atual):**
+```
+1. Usuário digita → mensagem aparece na UI imediatamente (status=sent, id=temp-xxx)
+2. POST /api/n8n/send-message → INSERT no Supabase (status='sent') → retorna {id, status} em ~150ms
+3. after() → sendViaGateway (Evolution) ou sendToN8nAsync (Meta) em background
+4. Se falha real → UPDATE messages SET status='failed' → Realtime traz para UI
+5. Se timeout (30s) → mantém status='sent' (não gera falso failed)
+```
+
+**Stable key (balão não reanima):**
+- `useRealtimeMessages` mantém um `stableKeyMapRef` que mapeia `message.id → chave de renderização`
+- Quando temp é confirmado (temp-xxx → real-uuid), a chave de renderização permanece `temp-xxx`
+- React não desmonta/remonta o componente → animação `slide-in-from-bottom` toca apenas uma vez
+
+**Layout do reply button:**
+- Botão de reply sempre presente no DOM (evita layout shift quando id muda de temp → real)
+- `opacity-0 pointer-events-none` para mensagens em voo; visível apenas no hover após confirmação
 
 #### Próximos passos
 
 1. ✅ Vars Vercel adicionadas (`GATEWAY_SEND_URL`, `GATEWAY_API_KEY`) — redeploy feito
 2. ✅ Envio manual testado e funcionando via gateway
-3. **Migração Passo 2** — Go persiste mensagens diretamente (sem n8n no inbound)
+3. ✅ UX otimista com stable key + timeout robusto implementados
+4. **Migração Passo 2** — Go persiste mensagens diretamente (sem n8n no inbound)
 
 #### ⏸️ PONTO DE RETOMADA — Passo 2
 
@@ -1710,3 +1732,4 @@ Ciclo final (Fase 5)
 - 2026-04-22 — Fase 2: fix banco Evolution; nova Evolution deployada; Signum conectada via LIVIA UI
 - 2026-04-22 — Fase 2: inbound validado (messages.upsert → gateway → n8n); outbound IA validado
 - 2026-04-22 — Fase 2: handlers/outbound.go implementado; send-message roteia Evolution → gateway
+- 2026-04-22 — Fase 2: UX otimista (status=sent imediato + after()); stable key no balão; timeout gateway 30s sem falso failed
