@@ -365,8 +365,10 @@ Elimina o maior risco operacional: build em produção sem rollback.
     Rollback agora é possível: basta trocar a tag no stack yaml
     Impacto: deploy reproduzível e reversível  |  Esforço: 30 min
 
-[ ] 4.4 — Branch protection em main
-    GitHub: require CI pass antes de merge em main
+[~] 4.4 — Branch protection em main                                   ← 2026-04-23
+    Regra criada no GitHub mas NÃO enforced — repo privado exige plano Team/Enterprise
+    CI roda em todo push/PR e indica falha visualmente (não bloqueia automaticamente)
+    Reavaliara se migrar para GitHub Team ou tornar repo público
     Impacto: elimina push acidental para produção  |  Esforço: 30 min
 ```
 
