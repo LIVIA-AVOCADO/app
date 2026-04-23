@@ -359,10 +359,10 @@ Elimina o maior risco operacional: build em produção sem rollback.
     SSH configurado na VPS (id_github) para push com escopo workflow
     Impacto: artefato imutável, rollback em segundos  |  Esforço: 3h
 
-[ ] 4.3 — Stack yaml: usar imagem versionada do registry
-    DE:  image: livia-gateway:latest  (build local na VPS)
-    PARA: image: ghcr.io/frankmarcelino/livia-gateway:v1.0.0
-    Pré-requisito: criar primeira tag v1.0.0 para gerar imagem no ghcr.io
+[x] 4.3 — Stack yaml: usar imagem versionada do registry              ← 2026-04-23
+    image: ghcr.io/frankmarcelino/livia-gateway:v1.0.0 (package público)
+    Container rodando e (healthy) com imagem do registry
+    Rollback agora é possível: basta trocar a tag no stack yaml
     Impacto: deploy reproduzível e reversível  |  Esforço: 30 min
 
 [ ] 4.4 — Branch protection em main
