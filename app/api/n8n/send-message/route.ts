@@ -13,7 +13,7 @@
  * 5. Pausa IA automaticamente se estava ativa
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { callN8nWebhook } from '@/lib/n8n/client';
 
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Insere mensagem como 'pending' antes de qualquer envio
+    // Insere mensagem como 'pending' e resolve canal em paralelo
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messageData: any = {
       conversation_id: conversationId,
@@ -93,11 +93,10 @@ export async function POST(request: NextRequest) {
       ...(quotedMessageId ? { quoted_message_id: quotedMessageId } : {}),
     };
 
-    const { data: message, error: insertError } = await supabase
-      .from('messages')
-      .insert(messageData)
-      .select('id')
-      .single();
+    const [{ data: message, error: insertError }, channelInfo] = await Promise.all([
+      supabase.from('messages').insert(messageData).select('id').single(),
+      resolveChannelInfo(supabase, channelId, tenantId),
+    ]);
 
     if (insertError || !message) {
       console.error('[send-message] Error inserting message:', insertError);
@@ -106,25 +105,30 @@ export async function POST(request: NextRequest) {
 
     console.error(`[send-message] ✅ DB insert ${Date.now() - startTime}ms (id: ${message.id.slice(0, 8)})`);
 
-    // Detecta provider do canal para rotear o envio
-    const channelInfo = await resolveChannelInfo(supabase, channelId, tenantId);
+    // Atualiza timestamps da conversa e do contato (fire-and-forget)
+    const now = new Date().toISOString();
+    void Promise.all([
+      supabase.from('conversations').update({ last_message_at: now, updated_at: now }).eq('id', conversationId),
+      supabase.from('contacts').update({ last_interaction_at: now }).eq('id', contactId),
+    ]);
 
-    if (channelInfo?.isEvolution && GATEWAY_SEND_URL) {
-      await sendViaGateway(message.id, channelInfo, contactId, content.trim(), quotedData, supabase);
-    } else {
-      // Meta / outros: caminho legado via n8n
-      await sendToN8nAsync(
-        message.id, conversationId, content.trim(), tenantId,
-        user.id, contactId, channelId, quotedData
-      );
-    }
+    // Envio e pausa de IA rodam DEPOIS da resposta (after garante execução completa no Vercel)
+    after(async () => {
+      if (channelInfo?.isEvolution && GATEWAY_SEND_URL) {
+        await sendViaGateway(message.id, channelInfo, contactId, content.trim(), quotedData, supabase);
+      } else {
+        await sendToN8nAsync(
+          message.id, conversationId, content.trim(), tenantId,
+          user.id, contactId, channelId, quotedData, supabase
+        );
+      }
+      if (iaActive) {
+        await pauseIAAsync(conversationId, tenantId, user.id, supabase);
+      }
+      console.error(`[send-message] ⏱️ after() concluído ${Date.now() - startTime}ms`);
+    });
 
-    // Pausa IA automaticamente
-    if (iaActive) {
-      await pauseIAAsync(conversationId, tenantId, user.id, supabase);
-    }
-
-    console.error(`[send-message] ⏱️ Total ${Date.now() - startTime}ms`);
+    console.error(`[send-message] ⏱️ Resposta em ${Date.now() - startTime}ms`);
 
     return NextResponse.json({ success: true, message: { id: message.id, status: 'pending' } });
 
@@ -256,7 +260,8 @@ async function sendViaGateway(
 async function sendToN8nAsync(
   messageId: string, conversationId: string, content: string,
   tenantId: string, userId: string, contactId: string, channelId: string,
-  quotedData?: { externalId: string | null; content: string; fromMe: boolean } | null
+  quotedData: { externalId: string | null; content: string; fromMe: boolean } | null | undefined,
+  supabase: Awaited<ReturnType<typeof createClient>>,
 ) {
   const msgId = messageId.slice(0, 8);
   try {
@@ -277,14 +282,11 @@ async function sendToN8nAsync(
       const isTimeout = result.error?.includes('timeout');
       console.error(`[n8n-async] ❌ ${msgId}:`, result.error);
       if (!isTimeout) {
-        // N8n não chegou a receber: marcamos failed (n8n não atualizará o status)
-        const supabase = await createClient();
         await updateMessageStatus(messageId, 'failed', null, supabase);
       }
     }
   } catch (err) {
     console.error(`[n8n-async] 💥 ${msgId}:`, err);
-    const supabase = await createClient();
     await updateMessageStatus(messageId, 'failed', null, supabase);
   }
 }
