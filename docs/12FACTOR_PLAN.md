@@ -293,14 +293,15 @@ Sem logs e alertas, problemas em produção ficam invisíveis.
     /etc/docker/daemon.json: max-size 10m, max-file 3 (10% disco, 86GB livres)
     Impacto: previne disco cheio  |  Esforço: 10 min
 
-[ ] 2.2 — Uptime Kuma na VPS
-    Monitora: /health do gateway, n8n, Supabase, Evolution
-    Alertas via Telegram ou e-mail
+[x] 2.2 — Uptime Kuma na VPS                                          ← 2026-04-23
+    Stack deployada: https://status.online24por7.ai
+    Pendente: criar registro DNS A no Cloudflare + configurar monitores e alertas
     Impacto: falhas notificadas em < 1 min  |  Esforço: 1h
 
-[ ] 2.3 — Health checks nos serviços críticos
-    Dockerfile livia-gateway: HEALTHCHECK GET /health
-    Stack yamls: healthcheck em Evolution e n8n webhook
+[x] 2.3 — Health checks nos serviços críticos                         ← 2026-04-23
+    Dockerfile livia-gateway: HEALTHCHECK wget /health (30s interval, start 10s)
+    livia-gateway stack: healthcheck ativo — container reporta (healthy)
+    livia + sofhia webhook: healthcheck /healthz adicionado nos stacks
     Impacto: Swarm detecta app travada, não só processo morto  |  Esforço: 2h
 ```
 
