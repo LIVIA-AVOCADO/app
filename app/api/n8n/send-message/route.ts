@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       content:         content.trim(),
       sender_type:     'attendant',
       sender_user_id:  user.id,
-      status:          'pending',
+      status:          'sent',
       timestamp:       new Date().toISOString(),
       ...(quotedMessageId ? { quoted_message_id: quotedMessageId } : {}),
     };
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     console.error(`[send-message] ⏱️ Resposta em ${Date.now() - startTime}ms`);
 
-    return NextResponse.json({ success: true, message: { id: message.id, status: 'pending' } });
+    return NextResponse.json({ success: true, message: { id: message.id, status: 'sent' } });
 
   } catch (error) {
     console.error('[send-message] Unexpected error:', error);

@@ -42,7 +42,7 @@ export function useSendMessage({
         sender_user_id: null,
         sender_agent_id: null,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        status: 'pending' as any,
+        status: 'sent' as any,
         timestamp: now,
         created_at: now,
         updated_at: now,
