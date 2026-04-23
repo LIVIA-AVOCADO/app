@@ -382,9 +382,11 @@ Previne perda de dados e garante recuperação de desastre.
 [x] 5.1 — Script de backup dos volumes críticos                        ← 2026-04-23
     Script: /root/backup.sh — pg_dump livia + sofhia + tar evolution sessions
     Cron: /etc/cron.d/livia-backup — diário às 3h, log em /root/backups/backup.log
-    Retenção: 7 dias (limpeza automática no script)
-    Destino atual: local /root/backups/ (off-site via Backblaze B2 — backlog)
-    Testado manualmente: livia 540K, sofhia 24K, evolution 4K
+    Retenção: 7 dias local em /root/backups/ (limpeza automática)
+    Off-site: arquivos enviados via Telegram bot (liviamonitor_bot) após cada backup
+    Alertas: ✅ sucesso ou ❌ erro enviados pelo mesmo bot
+    Uptime Kuma: notificações configuradas via Telegram (mesmo bot/chat)
+    Testado: 3 arquivos recebidos no Telegram + mensagem de confirmação
     Impacto: zero perda de dados  |  Esforço: 3h
 
 [ ] 5.2 — Supabase migrations versionadas no git
