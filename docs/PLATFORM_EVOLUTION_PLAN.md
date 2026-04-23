@@ -892,11 +892,21 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 
 ```
 [x] Criar repositório livia-gateway                                          ← 2026-04-21
-[x] Implementar config/config.go (PORT, LOG_LEVEL, SHADOW_MODE, N8N_WEBHOOK_URL, GATEWAY_API_KEY)  ← 2026-04-21/22
-[ ] Implementar gateway/normalizer.go (Evolution + Meta → MessageEvent)
-[ ] Implementar gateway/dedup.go (LRU cache)
-[ ] Implementar integrations/supabase.go (REST client)
-[ ] Implementar gateway/persister.go (grava mensagem + contato + conversa)
+[x] Implementar config/config.go                                             ← 2026-04-21/22/23
+    → PORT, LOG_LEVEL, SHADOW_MODE, N8N_WEBHOOK_URL, GATEWAY_API_KEY
+    → adicionado: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DUAL_WRITE       ← 2026-04-23
+[x] Analisar workflows n8n First Integrator + Master Integrator              ← 2026-04-23
+    → mapeamento completo: tabelas, campos, RPC, JID handling, is_muted
+[x] Criar RPC Supabase: upsert_contact_conversation                          ← 2026-04-23
+    → arquivo: supabase/migrations/20260423_upsert_contact_conversation_rpc.sql
+    → ATENÇÃO: confirmar que foi aplicada no Supabase SQL Editor
+[x] Implementar gateway/normalizer.go                                        ← 2026-04-23
+[x] Implementar gateway/dedup.go (TTL 5min, gcLoop)                         ← 2026-04-23
+[x] Implementar integrations/supabase.go (REST client)                      ← 2026-04-23
+[x] Implementar gateway/persister.go                                         ← 2026-04-23
+    → channel lookup → upsert C&C → is_muted check → insert message
+[x] Atualizar handlers/evolution.go (dual-write + goroutine persist)        ← 2026-04-23
+[x] Atualizar main.go (injeção Persister + Dedup)                           ← 2026-04-23
 [x] Implementar handlers/evolution.go (shadow mode + forward para n8n)       ← 2026-04-21
 [x] Implementar handlers/outbound.go (POST /send → Evolution API direta)     ← 2026-04-22
 [ ] Implementar handlers/ws_proxy.go (WebSocket proxy)
@@ -906,11 +916,15 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 [x] Migração Passo 1: instância livia-test + Signum criadas com webhook → gateway  ← 2026-04-22
 [x] Validação parcial gateway (inbound + outbound via IA confirmados)         ← 2026-04-22
 [x] Atualizar Next.js: envio manual Evolution → Go Gateway (não n8n)         ← 2026-04-22
-[~] Validar envio manual via gateway em uso real (aguardando teste + vars Vercel)
+[x] Rebuild imagem Docker + redeploy stack em DUAL_WRITE=true                ← 2026-04-23
+    → gateway rodando: "DUAL WRITE (Go persiste + forward → n8n em paralelo)"
+[~] Validar dual-write com mensagem real (próximo passo imediato)
+[ ] Validação dual-write: 24h comparando writes Go vs n8n (devem ser idênticos)
+[ ] Cutover Passo 2: DUAL_WRITE=false SHADOW_MODE=false (Go assume inbound)
 [ ] Implementar ura/ (engine + strategies)
-[ ] Migração Passo 2: Go persiste diretamente
 [ ] Migração Passo 3: Go assume todas as instâncias
 [ ] Implementar integrations/n8n.go (para rota AI)
+[ ] [BACKLOG] contacts.is_blocked: hard block por tenant (drop no gateway antes de write)
 ```
 
 ### 6.9 Status Fase 2 — Validação Parcial do Gateway
@@ -1004,18 +1018,79 @@ O status `'sent'` significa **"servidor recebeu"**, não **"WhatsApp entregou"**
 4. ✅ Semântica de status documentada e comentários do route.ts corrigidos
 5. **Migração Passo 2** — Go persiste mensagens diretamente (sem n8n no inbound)
 
-#### ⏸️ PONTO DE RETOMADA — Passo 2
+#### ✅ Análise n8n concluída — 2026-04-23
 
-**O que falta para iniciar:**
-- Exportar workflow n8n `dev_first_integrator_001_dev` (inbound MESSAGES_UPSERT)
-  para entender exatamente quais tabelas/campos são gravados
-- Com esse mapa, implementar em Go:
-  - `gateway/normalizer.go` — converte payload Evolution → MessageEvent
-  - `gateway/dedup.go` — LRU cache de IDs externos (evita duplicatas)
-  - `integrations/supabase.go` — cliente HTTP para Supabase REST API
-  - `gateway/persister.go` — grava mensagem + contato + conversa
-- Estratégia: **dual-write** (Go grava + n8n também grava em paralelo) por 24h
-  para comparar e validar antes de tirar o n8n do caminho de inbound
+Os workflows n8n `First Integrator` e `Master Integrator` foram analisados completamente.
+O mapa de tabelas/campos necessários para o Passo 2 está documentado na Seção 6.10.
+
+#### ✅ Implementação Passo 2 concluída — 2026-04-23
+
+Todos os arquivos Go do Passo 2 foram escritos, compilados e deployados:
+
+| Arquivo | Status |
+|---|---|
+| `supabase/migrations/20260423_upsert_contact_conversation_rpc.sql` | ✅ Criado — **confirmar aplicação no Supabase** |
+| `gateway/normalizer.go` | ✅ Implementado |
+| `gateway/dedup.go` | ✅ Implementado |
+| `integrations/supabase.go` | ✅ Implementado |
+| `gateway/persister.go` | ✅ Implementado |
+| `config/config.go` | ✅ Atualizado (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DUAL_WRITE) |
+| `handlers/evolution.go` | ✅ Atualizado (dual-write + goroutine persist) |
+| `main.go` | ✅ Atualizado (injeta Persister + Dedup) |
+| `/root/stacks/livia-gateway.yaml` | ✅ Atualizado (DUAL_WRITE=true + credenciais Supabase) |
+| Imagem Docker + redeploy | ✅ Gateway rodando em DUAL WRITE |
+
+**Estado atual do gateway (VPS):**
+```
+"mode":"DUAL WRITE (Go persiste + forward → n8n em paralelo)"
+```
+
+#### ⏸️ PONTO DE RETOMADA — Validação Dual-Write
+
+**Pré-requisito crítico:**
+```
+Confirmar que a RPC upsert_contact_conversation foi aplicada no Supabase SQL Editor.
+Arquivo: supabase/migrations/20260423_upsert_contact_conversation_rpc.sql
+Verificar: SELECT proname FROM pg_proc WHERE proname = 'upsert_contact_conversation';
+```
+
+**Próximos passos em ordem:**
+
+1. **Testar com mensagem real** — enviar WhatsApp para instância Signum e verificar logs:
+   ```bash
+   ssh vps-livia "docker service logs livia-gateway_app -f 2>&1"
+   ```
+   Esperado no log:
+   ```json
+   {"msg":"persister: mensagem persistida","external_id":"...","conversation_id":"..."}
+   ```
+
+2. **Se `persist falhou: channel lookup`** — verificar se o `apikey` está chegando no payload:
+   - O campo `body.apikey` precisa estar populado na Evolution
+   - Confirmar que `AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true` no stack da Evolution
+
+3. **Se `persist falhou: upsert contact/conv`** — RPC não foi aplicada no Supabase ainda
+
+4. **Validação 24h** — após primeiro persist bem-sucedido, deixar rodar 24h e comparar:
+   - Contagem de mensagens gravadas pelo Go vs pelo n8n para o mesmo período
+   - Verificar `external_message_id` populado corretamente
+   - Verificar `conversation_id` correto (mesma conversa que o n8n usaria)
+
+5. **Cutover** — após validação OK:
+   ```yaml
+   # /root/stacks/livia-gateway.yaml
+   - DUAL_WRITE=false   # para de fazer forward para n8n
+   - SHADOW_MODE=false  # já estava false
+   ```
+   ```bash
+   docker stack deploy -c /root/stacks/livia-gateway.yaml livia-gateway
+   ```
+
+**Rollback sempre disponível** (< 60s):
+```bash
+# Trocar para SHADOW_MODE=true + DUAL_WRITE=false no stack e redeploy
+# OU trocar webhook da Evolution de volta para n8n direto
+```
 
 **Rollback sempre disponível:** trocar webhook Evolution de volta para n8n direto em < 60s
 
@@ -1027,6 +1102,253 @@ curl -s -X POST https://livia.wsapi.online24por7.ai/webhook/set/Signum%20-%2011%
   -H "Content-Type: application/json" \
   -d '{"webhook":{"enabled":true,"url":"https://acesse.ligeiratelecom.com.br/webhook/dev_first_integrator_001_dev","byEvents":false,"base64":true,"events":["MESSAGES_UPSERT","CONNECTION_UPDATE"]}}'
 ```
+
+---
+
+### 6.10 Passo 2 — Blueprint Técnico
+
+> Resultado da análise dos workflows n8n First Integrator + Master Integrator (2026-04-23).
+> Este é o contrato exato que o Go Gateway deve replicar.
+
+#### 6.10.1 Payload Evolution (MESSAGES_UPSERT) — campos relevantes
+
+```json
+{
+  "event": "messages.upsert",
+  "instance": "nome-da-instancia",
+  "apikey": "chave-da-instancia",
+  "data": {
+    "key": {
+      "remoteJid": "558896370021@s.whatsapp.net",
+      "fromMe": false,
+      "id": "3EB0123ABC456"
+    },
+    "pushName": "João Silva",
+    "message": {
+      "conversation": "Olá, tudo bem?"
+    },
+    "messageType": "conversation",
+    "messageTimestamp": 1714000000,
+    "remoteJidAlt": "558896370021@s.whatsapp.net"
+  }
+}
+```
+
+**Regras de extração:**
+- `payload_type`: derivado de `event` — apenas `messages.upsert` com `fromMe=false` é processado
+- `external_message_id`: `data.key.id`
+- `logicalJid` (identificação do contato): preferir `data.remoteJidAlt` (@s.whatsapp.net) sobre `data.key.remoteJid` (pode ser LID @lid)
+- `phone` para contato: strip do sufixo `@s.whatsapp.net` do `logicalJid`
+- `channel_lookup_key`: `body.apikey` (não `body.instance`) — mesmo comportamento do Master Integrator
+- `content`: `data.message.conversation` (texto) ou `data.message.extendedTextMessage.text`
+
+#### 6.10.2 RPC de channel lookup
+
+```sql
+-- RPC existente: get_channel_evolution_by_instance_id(p_instance_name text)
+-- Chamada: p_instance_name = body.apikey
+-- Retorna: canal + tenant_id + channel_provider_identifier_code + api_base_config
+-- Match por: config_json->>'instance_name' OR config_json->>'instance_id_api' (OR condition)
+```
+
+Resposta relevante para o Gateway:
+- `id` → `channel_id`
+- `tenant_id`
+- `config_json` → dados da instância
+- `channel_provider_identifier_code` → identifica o provider
+
+#### 6.10.3 Fluxo completo do persister
+
+```
+1. Parse payload → identificar payload_type
+   → só processa: event="messages.upsert" + fromMe=false
+   → ignora: fromMe=true, connection.update, outros eventos
+
+2. Dedup: IsSeen(external_message_id) → drop silencioso se duplicata
+
+3. Channel lookup: RPC(p_instance_name = body.apikey) → {tenant_id, channel_id, ...}
+   → erro 500 se canal não encontrado (não pode persistir sem tenant)
+
+4. Upsert contact:
+   → chave: (tenant_id, external_identification_contact=logicalJid)
+   → campos: {name=pushName, phone=phoneStripped}
+   → retorna: contact_id, is_muted
+
+5. CHECK is_muted:
+   → se is_muted=true: log "dropped: contact muted", return 200 OK (não grava mensagem)
+   → se is_muted=false: continua
+
+6. Upsert conversation:
+   → chave: (contact_id, channel_id) WHERE status='open'
+   → se existe: UPDATE last_message_at=now(), consecutive_reactivations=0
+   → se não existe: INSERT {contact_id, channel_id, tenant_id, status='open',
+                             ia_active=false SE is_muted=true (não aplica aqui — já dropou),
+                             ia_active=<default_do_tenant>}
+   → retorna: conversation_id
+
+7. Insert message:
+   → tabela: messages
+   → campos: {
+       conversation_id,
+       sender_type: "customer",
+       content: extractContent(payload),
+       external_message_id: data.key.id,
+       tenant_id,
+       created_at: from messageTimestamp
+     }
+
+8. Log: channel_connection_log (event_type="message_received")
+```
+
+#### 6.10.4 RPC recomendada: upsert_contact_conversation
+
+Para evitar race conditions e reduzir latência, criar uma RPC Supabase que execute os passos 4-6 em uma única transação:
+
+```sql
+CREATE OR REPLACE FUNCTION upsert_contact_conversation(
+  p_tenant_id          uuid,
+  p_channel_id         uuid,
+  p_logical_jid        text,    -- external_identification_contact
+  p_phone              text,
+  p_name               text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_contact_id   uuid;
+  v_conv_id      uuid;
+  v_is_muted     boolean;
+  v_ia_active    boolean;
+BEGIN
+  -- Upsert contato
+  INSERT INTO contacts (tenant_id, external_identification_contact, phone, name)
+  VALUES (p_tenant_id, p_logical_jid, p_phone, p_name)
+  ON CONFLICT (tenant_id, external_identification_contact)
+  DO UPDATE SET
+    phone = COALESCE(EXCLUDED.phone, contacts.phone),
+    name  = COALESCE(NULLIF(EXCLUDED.name, ''), contacts.name)
+  RETURNING id, is_muted INTO v_contact_id, v_is_muted;
+
+  -- Se muted: retorna imediatamente sem tocar em conversa
+  IF v_is_muted THEN
+    RETURN jsonb_build_object(
+      'contact_id', v_contact_id,
+      'conversation_id', null,
+      'is_muted', true
+    );
+  END IF;
+
+  -- Upsert conversa aberta
+  SELECT id INTO v_conv_id
+  FROM conversations
+  WHERE contact_id = v_contact_id
+    AND channel_id = p_channel_id
+    AND status = 'open'
+  LIMIT 1;
+
+  IF v_conv_id IS NOT NULL THEN
+    UPDATE conversations SET
+      last_message_at = now(),
+      consecutive_reactivations = 0
+    WHERE id = v_conv_id;
+  ELSE
+    -- Nova conversa: herda ia_active do padrão do tenant
+    INSERT INTO conversations (tenant_id, contact_id, channel_id, status, last_message_at)
+    VALUES (p_tenant_id, v_contact_id, p_channel_id, 'open', now())
+    RETURNING id INTO v_conv_id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'contact_id', v_contact_id,
+    'conversation_id', v_conv_id,
+    'is_muted', false
+  );
+END;
+$$;
+```
+
+#### 6.10.5 Extração de conteúdo da mensagem
+
+| messageType | Campo no payload | Tratamento |
+|---|---|---|
+| `conversation` | `data.message.conversation` | texto direto |
+| `extendedTextMessage` | `data.message.extendedTextMessage.text` | texto com formatação |
+| `imageMessage` | `data.message.imageMessage.caption` | legenda da imagem |
+| `audioMessage` | — | chamar edge fn `upload-audio-message` → Supabase Storage |
+| `documentMessage` | `data.message.documentMessage.title` | nome do documento |
+| `stickerMessage` | — | conteúdo="[sticker]" |
+| outros | — | conteúdo="[mensagem não suportada]" |
+
+**Áudio no MVP:** chamar a edge function existente `upload-audio-message` (mesmo comportamento do n8n). Não reimplementar transcrição no Go.
+
+#### 6.10.6 Dual-write — estratégia de validação
+
+```
+handlers/evolution.go (modo dual-write):
+  1. Go persiste (goroutine, não bloqueia resposta)
+  2. Forward para n8n (como hoje — síncrono para garantir n8n processa)
+  3. 200 OK retornado imediatamente
+
+Comparação manual (24h):
+  - Contar mensagens gravadas pelo Go vs n8n para o mesmo período
+  - Verificar campos: external_message_id, sender_type, conversation_id, content
+  - Se divergência > 0: investigar antes de cutover
+
+Cutover:
+  - Desabilitar forward n8n no evolution.go (SHADOW_MODE=false + DUAL_WRITE=false)
+  - n8n continua recebendo apenas rota de IA (disparado pelo URA Engine)
+```
+
+#### 6.10.7 is_muted — estado atual e gap
+
+**O que já existe (implementado):**
+- `contacts.is_muted` + `muted_at` + `muted_by` + `mute_reason` no banco
+- Mute action: pausa `ia_active=false` em todas as conversas abertas do contato
+- UI filtra conversas de contatos mutados (`!contacts.is_muted` em inbox query)
+- Lista de silenciados com badge e botão de remover silêncio (reversível)
+- Unmute não reactiva IA automaticamente — decisão explícita do atendente
+
+**Gap identificado:**
+- Se contato muted fecha conversa e reabre (nova mensagem) → nova conversa nasce com `ia_active` padrão → IA pode interceptar
+- n8n não verifica `contacts.is_muted` antes de processar nova conversa
+
+**Fix no Passo 2 (Go Gateway):**
+- A RPC `upsert_contact_conversation` verifica `is_muted` antes de criar nova conversa
+- Se `is_muted=true`: drop da mensagem (200 OK, sem write) — contato não recebe atenção de ninguém
+- Comportamento consistente com o que a UI já mostra: contato mutado não aparece no inbox
+
+#### 6.10.8 is_blocked — conceito e backlog
+
+**Distinção clara:**
+
+| | Soft Mute (`is_muted`) | Hard Block (`is_blocked`) |
+|---|---|---|
+| Mensagem entra no banco | Não (Go dropa no Passo 2) | Não |
+| Visível para humanos | Não (filtrado no inbox) | Não |
+| Ativa IA | Não | Não |
+| Caso de uso | "Não quero atender agora" | Spam / abuso permanente |
+| Reversível | Sim (UI) | Sim (UI) |
+| Granularidade | Por contato + tenant | Por contato + tenant |
+
+**Migration quando virar demanda:**
+```sql
+ALTER TABLE contacts
+  ADD COLUMN is_blocked    boolean NOT NULL DEFAULT false,
+  ADD COLUMN blocked_at    timestamptz,
+  ADD COLUMN blocked_reason text;
+```
+
+**Gateway (quando implementado):**
+```
+channel lookup → upsert contact → CHECK is_blocked → drop (200 OK) se true
+                                   ↓ se false
+                               CHECK is_muted → drop se true
+                                   ↓ se false
+                               upsert conversation → insert message
+```
+
+**Status:** backlog — não implementar no Passo 2. O `is_muted` já cobre o caso de uso atual.
 
 ---
 
@@ -1736,7 +2058,7 @@ Ciclo final (Fase 5)
 
 ---
 
-*Documento criado em 2026-04-20. Última atualização: 2026-04-22.*
+*Documento criado em 2026-04-20. Última atualização: 2026-04-23.*
 
 **Histórico de atualizações:**
 - 2026-04-20 — Fix B (lazy loading encerradas + SSR enxuto) e Fix D (cache L1/L2/L3 + prefetch batched)
@@ -1750,3 +2072,6 @@ Ciclo final (Fase 5)
 - 2026-04-22 — Fase 2: handlers/outbound.go implementado; send-message roteia Evolution → gateway
 - 2026-04-22 — Fase 2: UX otimista (status=sent imediato + after()); stable key no balão; timeout gateway 30s sem falso failed
 - 2026-04-22 — Decisão: semântica de status segue padrão WhatsApp/Telegram (sent=servidor recebeu, external_message_id=canal confirmou)
+- 2026-04-23 — Fase 2: análise completa dos workflows n8n (First + Master Integrator); Seção 6.10 adicionada com blueprint técnico do Passo 2
+- 2026-04-23 — Fase 2: análise do sistema is_muted (estado atual, gap de nova conversa, fix no Gateway); conceito is_blocked documentado como backlog
+- 2026-04-23 — Fase 2 Passo 2: implementação completa (normalizer, dedup, supabase client, persister, config, evolution handler, main); RPC upsert_contact_conversation criada; gateway deployado em DUAL WRITE mode
