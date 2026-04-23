@@ -5,12 +5,21 @@
  *
  * Fluxo:
  * 1. Valida auth + tenant
- * 2. Insere mensagem no Supabase com status='pending'
- * 3. Roteia pelo provider do canal:
- *    - Evolution → Go Gateway /send (direto, sem n8n)
- *    - Meta / outros → n8n (caminho legado, preservado)
- * 4. Atualiza status para 'sent' ou 'failed'
- * 5. Pausa IA automaticamente se estava ativa
+ * 2. Insere mensagem no Supabase com status='sent' (= "LIVIA recebeu") + resolve canal em paralelo
+ * 3. Retorna {id, status:'sent'} imediatamente — cliente confirma a mensagem otimista
+ * 4. after(): roteia envio ao canal em background sem bloquear a resposta HTTP
+ *    - Evolution → Go Gateway /send
+ *    - Meta / outros → n8n (caminho legado)
+ * 5. Sucesso → UPDATE external_message_id (= "canal confirmou entrega")
+ *    Falha real → UPDATE status='failed' → Realtime avisa o cliente
+ *    Timeout (30s) → mantém 'sent'; external_message_id fica nulo (órfão detectável)
+ * 6. Pausa IA automaticamente se estava ativa
+ *
+ * Semântica de status (padrão de mercado — igual WhatsApp/Telegram):
+ *   sent                        → ✓  LIVIA recebeu e salvou
+ *   sent + external_message_id  → ✓✓ Canal confirmou entrega
+ *   read                        → ✓✓ Destinatário leu
+ *   failed                      → ✗  Falha confirmada no envio
  */
 
 import { NextRequest, NextResponse, after } from 'next/server';
@@ -81,7 +90,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Insere mensagem como 'pending' e resolve canal em paralelo
+    // Insere mensagem como 'sent' (LIVIA recebeu) e resolve canal em paralelo
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messageData: any = {
       conversation_id: conversationId,

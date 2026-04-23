@@ -981,12 +981,28 @@ OUTBOUND MANUAL (Evolution):
 - Botão de reply sempre presente no DOM (evita layout shift quando id muda de temp → real)
 - `opacity-0 pointer-events-none` para mensagens em voo; visível apenas no hover após confirmação
 
+#### Decisão de arquitetura: semântica de status (padrão de mercado)
+
+Após análise, confirmamos que o padrão adotado é o mesmo do WhatsApp/Telegram e **não deve ser alterado**:
+
+| status | external_message_id | Significado | Ícone |
+|--------|-------------------|-------------|-------|
+| `sent` | nulo | ✓ LIVIA recebeu e salvou | Check simples |
+| `sent` | preenchido | ✓✓ Canal confirmou entrega | CheckCheck |
+| `read` | qualquer | ✓✓ Destinatário leu | CheckCheck azul |
+| `failed` | nulo | ✗ Falha confirmada | AlertCircle |
+
+O status `'sent'` significa **"servidor recebeu"**, não **"WhatsApp entregou"**. O clock/pending só faria sentido em caso de falha de rede do lado do cliente — situação que não ocorre porque o INSERT no Supabase é síncrono e a resposta HTTP confirma a persistência.
+
+**Ponto de atenção (baixa prioridade):** mensagens com `status='sent'` e `external_message_id` nulo após ~60s são potencialmente órfãs (after() falhou silenciosamente). Isso é muito raro em Vercel e será resolvido naturalmente no Passo 2, quando o Go Gateway passa a preencher o `external_message_id` diretamente com muito mais confiabilidade.
+
 #### Próximos passos
 
 1. ✅ Vars Vercel adicionadas (`GATEWAY_SEND_URL`, `GATEWAY_API_KEY`) — redeploy feito
 2. ✅ Envio manual testado e funcionando via gateway
 3. ✅ UX otimista com stable key + timeout robusto implementados
-4. **Migração Passo 2** — Go persiste mensagens diretamente (sem n8n no inbound)
+4. ✅ Semântica de status documentada e comentários do route.ts corrigidos
+5. **Migração Passo 2** — Go persiste mensagens diretamente (sem n8n no inbound)
 
 #### ⏸️ PONTO DE RETOMADA — Passo 2
 
@@ -1733,3 +1749,4 @@ Ciclo final (Fase 5)
 - 2026-04-22 — Fase 2: inbound validado (messages.upsert → gateway → n8n); outbound IA validado
 - 2026-04-22 — Fase 2: handlers/outbound.go implementado; send-message roteia Evolution → gateway
 - 2026-04-22 — Fase 2: UX otimista (status=sent imediato + after()); stable key no balão; timeout gateway 30s sem falso failed
+- 2026-04-22 — Decisão: semântica de status segue padrão WhatsApp/Telegram (sent=servidor recebeu, external_message_id=canal confirmou)
