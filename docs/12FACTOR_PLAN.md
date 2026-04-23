@@ -289,8 +289,8 @@ Ações que eliminam risco de segurança com esforço mínimo.
 Sem logs e alertas, problemas em produção ficam invisíveis.
 
 ```
-[ ] 2.1 — Rotação de logs no Docker daemon
-    /etc/docker/daemon.json: max-size 50m, max-file 3
+[x] 2.1 — Rotação de logs no Docker daemon                            ← já configurado
+    /etc/docker/daemon.json: max-size 10m, max-file 3 (10% disco, 86GB livres)
     Impacto: previne disco cheio  |  Esforço: 10 min
 
 [ ] 2.2 — Uptime Kuma na VPS
@@ -321,8 +321,10 @@ Desbloqueio direto do Fase 2 Passo 1 do PLATFORM_EVOLUTION_PLAN.
     Confirmado nos logs: event=connection.update, n8n_forward_ok=true
     Shadow mode ativo: gateway loga + faz forward para n8n
 
-[ ] 3.3 — Salvar stack yaml no repositório de infra
-    /root/stacks/evolution_v2.yaml → commit no Setup-Base-Docker-Swarm repo
+[x] 3.3 — Salvar stack yaml no repositório de infra                    ← 2026-04-23
+    Todos os 4 stacks sanitizados (SEU_* placeholders) no repo Setup-Base-Docker-Swarm
+    evolution_v2.yaml + livia-gateway.yaml adicionados; livia.yaml + sofhia.yaml corrigidos
+    README reescrito sem credenciais expostas
     Impacto: infra reproduzível  |  Esforço: 15 min
 
 [ ] 3.4 — Validar logs por 24h (critério de sucesso do Passo 1)
