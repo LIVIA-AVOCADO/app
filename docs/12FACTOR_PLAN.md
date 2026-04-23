@@ -389,6 +389,16 @@ Previne perda de dados e garante recuperação de desastre.
     Testado: 3 arquivos recebidos no Telegram + mensagem de confirmação
     Impacto: zero perda de dados  |  Esforço: 3h
 
+⚠️  BACKLOG — LGPD: Backup files via Telegram
+    Situação atual: pg_dump livia/sofhia (dados pessoais de clientes) é enviado
+    diretamente ao Telegram. O Telegram não tem DPA com a empresa, os arquivos
+    transitam por servidores deles — risco de conformidade com a LGPD.
+    Solução planejada:
+      - Separar notificação (Telegram — apenas status, sem dados pessoais)
+        de armazenamento off-site (Backblaze B2 ou S3 com DPA adequado)
+      - Remover envio de arquivos do backup.sh; manter só alertas de sucesso/erro
+    Prazo: quando houver clientes reais / base ativa  |  Esforço: 2h
+
 [ ] 5.2 — Supabase migrations versionadas no git
     Criar supabase/migrations/ no livia_dev_01
     Commitar schema atual como migration 000_baseline.sql
