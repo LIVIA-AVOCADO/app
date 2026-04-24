@@ -78,6 +78,8 @@ export function LivechatContent({
   const [selectedConvId, setSelectedConvId] = useState<string | undefined>(initialSelectedConvId);
   const [currentMessages, setCurrentMessages] = useState<MessageWithSender[] | null>(initialMessages);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  // Conversa ativa que não está na lista principal (ex.: silenciadas) — buscada sob demanda
+  const [conversationOverride, setConversationOverride] = useState<ConversationWithContact | null>(null);
   /** Carregamento inicial quando há conversa ativa mas currentMessages ainda null (ex.: Realtime). */
   const [isBootstrappingMessages, setIsBootstrappingMessages] = useState(false);
 
@@ -90,9 +92,11 @@ export function LivechatContent({
     setIsPanelPinned(localStorage.getItem(PANEL_PINNED_KEY) === 'true');
   }, []);
 
-  // Conversa ativa: busca da lista Realtime (sempre fresca) com fallback ao SSR inicial
+  // Conversa ativa: lista Realtime → override (silenciadas/fora da lista) → SSR inicial
   const activeConversation = selectedConvId
-    ? (conversations.find((c) => c.id === selectedConvId) ?? initialSelectedConversation)
+    ? (conversations.find((c) => c.id === selectedConvId)
+        ?? (conversationOverride?.id === selectedConvId ? conversationOverride : null)
+        ?? initialSelectedConversation)
     : null;
 
   // Estado visual do botão 👤 no header
@@ -209,6 +213,7 @@ export function LivechatContent({
       if (conversationId === selectedConvId) return;
 
       setSelectedConvId(conversationId);
+      setConversationOverride(null);
       setIsLoadingMessages(true);
       window.history.pushState(null, '', `/inbox?conversation=${conversationId}`);
 
@@ -221,6 +226,17 @@ export function LivechatContent({
         body: JSON.stringify({ conversationId, tenantId }),
       }).catch(console.error);
 
+      // Se a conversa não está na lista (ex.: silenciada), busca dados completos sob demanda
+      const isInList = conversations.some((c) => c.id === conversationId);
+      if (!isInList) {
+        fetch(`/api/livechat/conversation?id=${conversationId}`)
+          .then((res) => res.ok ? res.json() : null)
+          .then((json) => {
+            if (json?.conversation) setConversationOverride(json.conversation);
+          })
+          .catch(console.error);
+      }
+
       try {
         const msgs = await fetchAndCache(conversationId);
         setCurrentMessages(msgs);
@@ -231,7 +247,7 @@ export function LivechatContent({
         setIsLoadingMessages(false);
       }
     },
-    [selectedConvId, tenantId, fetchAndCache, updateConversation]
+    [selectedConvId, tenantId, conversations, fetchAndCache, updateConversation]
   );
 
   // ─── Handlers do painel de dados ─────────────────────────────────────────
