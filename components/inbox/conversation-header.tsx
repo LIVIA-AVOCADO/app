@@ -18,8 +18,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Tooltip,
   TooltipContent,
@@ -81,7 +79,6 @@ export function ConversationHeader({
   const [showPauseIADialog, setShowPauseIADialog] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [showMuteDialog, setShowMuteDialog] = useState(false);
-  const [muteReasonText, setMuteReasonText] = useState('');
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
   const [activeFollowup, setActiveFollowup] = useState<ConversationFollowup | null>(initialFollowup);
   const [isCancellingFollowup, setIsCancellingFollowup] = useState(false);
@@ -125,21 +122,14 @@ export function ConversationHeader({
     }
   };
 
-  const canSubmitMute = muteReasonText.trim().length >= 10;
-
   const handleMuteConfirm = async () => {
-    if (isMuting || !canSubmitMute) return;
-    const reasonTrimmed = muteReasonText.trim();
+    if (isMuting) return;
     setIsMuting(true);
     try {
       const response = await fetch(`/api/contacts/${contactId}/mute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'mute',
-          tenantId,
-          muteReason: reasonTrimmed,
-        }),
+        body: JSON.stringify({ action: 'mute', tenantId }),
       });
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
@@ -147,9 +137,8 @@ export function ConversationHeader({
       }
       setIsMuted(true);
       setShowMuteDialog(false);
-      setMuteReasonText('');
       toast.success('Contato silenciado. As mensagens serão descartadas automaticamente.');
-      onContactMuted?.({ muteReason: reasonTrimmed });
+      onContactMuted?.({ muteReason: 'Silenciado pelo atendente' });
     } catch (error) {
       console.error('Erro ao silenciar contato:', error);
       toast.error(
@@ -439,33 +428,16 @@ export function ConversationHeader({
         }}
       />
 
-      <Dialog
-        open={showMuteDialog}
-        onOpenChange={(open) => {
-          setShowMuteDialog(open);
-          if (!open) setMuteReasonText('');
-        }}
-      >
+      <Dialog open={showMuteDialog} onOpenChange={setShowMuteDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Silenciar {displayName}?</DialogTitle>
             <DialogDescription>
-              As mensagens deste contato serão descartadas automaticamente e a IA será pausada. Você
-              pode reabrir a conversa na aba <strong>Silenciadas</strong> para ler o histórico ou
-              remover o silêncio.
+              As mensagens deste contato serão descartadas automaticamente e a IA será pausada.
+              Esta ação pode ser irreversível — só desfaça se tiver certeza.
+              Você pode ver o histórico na aba <strong>Silenciadas</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2 py-2">
-            <Label htmlFor="mute-reason">Motivo (mín. 10 caracteres)</Label>
-            <Textarea
-              id="mute-reason"
-              value={muteReasonText}
-              onChange={(e) => setMuteReasonText(e.target.value)}
-              placeholder="Ex.: Spam repetido após aviso — registrar contexto para a equipe"
-              rows={3}
-              className="resize-none"
-            />
-          </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => setShowMuteDialog(false)}>
               Cancelar
@@ -473,10 +445,10 @@ export function ConversationHeader({
             <Button
               type="button"
               variant="destructive"
-              disabled={!canSubmitMute || isMuting}
+              disabled={isMuting}
               onClick={handleMuteConfirm}
             >
-              {isMuting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Silenciar'}
+              {isMuting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sim, silenciar'}
             </Button>
           </DialogFooter>
         </DialogContent>

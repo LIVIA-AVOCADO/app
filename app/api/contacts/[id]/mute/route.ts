@@ -81,13 +81,9 @@ export async function POST(
     }
 
     if (action === 'mute') {
-      const reason = typeof muteReason === 'string' ? muteReason.trim() : '';
-      if (reason.length < 10) {
-        return NextResponse.json(
-          { error: 'Informe o motivo do silêncio com pelo menos 10 caracteres.' },
-          { status: 400 }
-        );
-      }
+      const reason = typeof muteReason === 'string' && muteReason.trim().length > 0
+        ? muteReason.trim()
+        : 'Silenciado pelo atendente';
 
       // 4a. Silenciar contato
       const { error: muteError } = await (supabase as any)
