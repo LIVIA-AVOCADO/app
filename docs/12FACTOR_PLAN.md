@@ -459,8 +459,10 @@ Reduz bugs que só aparecem em produção.
     Para ativar: clonar livia-gateway em ../livia-gateway → docker compose up
     Impacto: desenvolvimento do gateway sem acesso à VPS  |  Esforço: 3h
 
-[ ] 6.3 — n8n: instância de desenvolvimento separada
-    Novo stack sofhia-dev ou livia-dev na VPS
+[~] 6.3 — n8n: instância de desenvolvimento separada                  ← backlog
+    ⚠️  BACKLOG: retomar junto com a migração dos workflows antigos para o livia
+    Motivo: VPS com recursos limitados + workflows ainda não migrados
+    Quando retomar: criar stack livia-dev na VPS (n8n + postgres + redis)
     Impacto: testa workflows sem impactar produção  |  Esforço: 2h
 ```
 
