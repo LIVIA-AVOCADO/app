@@ -435,10 +435,21 @@ Previne perda de dados e garante recuperação de desastre.
 Reduz bugs que só aparecem em produção.
 
 ```
-[ ] 6.1 — Projeto Supabase de staging
-    Criar projeto separado para desenvolvimento
-    Configurar Vercel preview deployments com env vars de staging
-    Impacto: testa migrations e features sem risco  |  Esforço: 4h
+[~] 6.1 — Projeto Supabase de staging                                 ← 2026-04-24
+    Projeto criado: qejxaqqfdpmzahlrshws (sa-east-1)
+    CLI linkado ao staging, migrations listadas (46 local, Remote vazio)
+    Bloqueio: migrations esperam schema baseline que predates o histórico do CLI
+      Todas as 46 migrations fazem ALTER TABLE — nenhuma cria tabelas do zero
+      Para aplicar no staging precisa do schema de produção (pg_dump ou SQL Editor)
+      pg_dump via CLI falhou: produção não tem DB password configurado no CLI
+      n8n usa a DB URI da produção — não podemos resetar a senha
+    ⚠️  BACKLOG: retomar após obter senha do banco de produção (Settings → Database)
+      1. npx supabase link --project-ref wfrxwfbslhkkzkexyilx -p SENHA_PROD
+      2. npx supabase db dump --linked -f supabase/migrations/000000000000_baseline.sql
+      3. npx supabase link --project-ref qejxaqqfdpmzahlrshws -p '^c9)hJn5}rj7(k~q'
+      4. npx supabase db push --linked --include-all
+      5. Configurar Vercel preview com NEXT_PUBLIC_SUPABASE_URL do staging
+    Credenciais staging salvas: ver docs/ENV_VARS.md
 
 [ ] 6.2 — docker-compose.yml local para livia-gateway
     Stack local: gateway + postgres + redis + n8n mock
