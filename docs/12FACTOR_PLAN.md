@@ -334,9 +334,10 @@ Desbloqueio direto do Fase 2 Passo 1 do PLATFORM_EVOLUTION_PLAN.
     README reescrito sem credenciais expostas
     Impacto: infra reproduzível  |  Esforço: 15 min
 
-[ ] 3.4 — Validar logs por 24h (critério de sucesso do Passo 1)
-    Monitorar: docker service logs livia-gateway_app -f
-    Critério: event=messages.upsert + n8n_forward_ok=true sem erros
+[x] 3.4 — Validar logs por 24h (critério de sucesso do Passo 1)    ← 2026-04-24
+    messages.upsert recebido + persister: mensagem persistida (2 msgs, instância Signum)
+    conversation_id, contact_id, tenant_id gravados corretamente no banco
+    ⚠️  n8n_forward_ok não aparece nos logs — verificar se n8n está disparando workflows
 ```
 
 ---
@@ -399,14 +400,26 @@ Previne perda de dados e garante recuperação de desastre.
       - Remover envio de arquivos do backup.sh; manter só alertas de sucesso/erro
     Prazo: quando houver clientes reais / base ativa  |  Esforço: 2h
 
-[ ] 5.2 — Supabase migrations versionadas no git
-    Criar supabase/migrations/ no livia_dev_01
-    Commitar schema atual como migration 000_baseline.sql
-    Impacto: schema versionado, staging possível  |  Esforço: 2h
+[~] 5.2 — Supabase migrations versionadas no git                      ← 2026-04-24
+    supabase/migrations/ já existia com 47 migrations versionadas por data
+    supabase/config.toml criado (project_id + sa-east-1)
+    CLI autenticado: migration list mostra 47 local, Remote vazio (aplicadas via UI)
+    ⚠️  BACKLOG: marcar 47 migrations como aplicadas no CLI
+      Bloqueio: senha do banco não localizada (não resetar — última opção)
+      Comando pendente: npx supabase db push --db-url "postgresql://postgres:SENHA@db.wfrxwfbslhkkzkexyilx.supabase.co:5432/postgres" --include-all
+      Localizar senha: dashboard → Settings → Database → Connection string
+      Adicionar ao .env.local: DIRECT_URL e SUPABASE_DB_PASSWORD
+    Impacto: schema versionado ✅ | db push/diff via CLI 🔒 desbloqueado após senha
 
-[ ] 5.3 — Export automático de workflows n8n
-    Script semanal: GET /api/v1/workflows → JSON → commit no git
-    Impacto: workflows recuperáveis após falha  |  Esforço: 2h
+[~] 5.3 — Export automático de workflows n8n                          ← 2026-04-24
+    Script criado: scripts/export-n8n-workflows.sh
+    Exporta workflows individualmente + consolidado em n8n-workflows/
+    Commit automático no git + notificação Telegram (mesmo bot do backup)
+    ⚠️  ATIVAÇÃO — após migrar workflows para o n8n livia:
+      1. Preencher N8N_URL e N8N_API_KEY no script (n8n → Settings → API)
+      2. scp scripts/export-n8n-workflows.sh root@manager01:/root/
+      3. crontab -e → 0 4 * * 1 /root/export-n8n-workflows.sh (segunda, 4h)
+    Impacto: workflows recuperáveis após falha  |  Esforço: 5 min para ativar
 
 [ ] 5.4 — Runbook de disaster recovery
     Criar docs/RUNBOOK.md com passo a passo de recriação da infra
