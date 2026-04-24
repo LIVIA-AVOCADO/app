@@ -451,8 +451,12 @@ Reduz bugs que só aparecem em produção.
       5. Configurar Vercel preview com NEXT_PUBLIC_SUPABASE_URL do staging
     Credenciais staging salvas: ver docs/ENV_VARS.md
 
-[ ] 6.2 — docker-compose.yml local para livia-gateway
-    Stack local: gateway + postgres + redis + n8n mock
+[x] 6.2 — docker-compose.yml local para livia-gateway               ← 2026-04-24
+    local-dev/docker-compose.gateway.yml — dois modos via Docker profiles:
+      Modo simples: gateway + webhook-echo (aponta para staging Supabase)
+      Modo full (--profile full): + postgres + redis + n8n local (sem cloud)
+    local-dev/.env.gateway.example — todas as vars com valores de staging
+    Para ativar: clonar livia-gateway em ../livia-gateway → docker compose up
     Impacto: desenvolvimento do gateway sem acesso à VPS  |  Esforço: 3h
 
 [ ] 6.3 — n8n: instância de desenvolvimento separada

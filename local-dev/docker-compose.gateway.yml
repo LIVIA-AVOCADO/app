@@ -1,0 +1,113 @@
+version: "3.9"
+
+# Stack local para desenvolvimento do livia-gateway.
+#
+# SETUP:
+#   1. Clone o repo: git clone git@github.com:FrankMarcelino/livia-gateway.git ../livia-gateway
+#   2. Copie o env:  cp local-dev/.env.gateway.example local-dev/.env.gateway
+#   3. Preencha as vars no .env.gateway
+#
+# USO:
+#   # Modo simples — gateway aponta para Supabase staging + webhook echo local
+#   docker compose -f local-dev/docker-compose.gateway.yml up
+#
+#   # Modo completo — gateway + postgres + redis + n8n local (sem cloud)
+#   docker compose -f local-dev/docker-compose.gateway.yml --profile full up
+#
+#   # Rebuild após mudar código Go
+#   docker compose -f local-dev/docker-compose.gateway.yml up --build
+
+services:
+
+  # ── livia-gateway ──────────────────────────────────────────────────────────
+  gateway:
+    build:
+      context: ../livia-gateway        # repo clonado localmente
+      dockerfile: Dockerfile
+    image: livia-gateway:local
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.gateway
+    environment:
+      PORT: "8080"
+      LOG_LEVEL: "debug"
+      SHADOW_MODE: "true"              # seguro para dev — só loga, não persiste
+      DUAL_WRITE: "false"
+    depends_on:
+      webhook-echo:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # ── Webhook echo — recebe forwards do gateway e loga ──────────────────────
+  webhook-echo:
+    image: mendhak/http-https-echo:latest
+    ports:
+      - "8088:8080"
+    environment:
+      HTTP_PORT: "8080"
+    restart: unless-stopped
+
+  # ── Postgres local — para desenvolvimento offline ─────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["full"]
+    ports:
+      - "5433:5432"                    # 5433 para não conflitar com postgres local
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: livia_dev
+    volumes:
+      - gateway_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis local — para dedup cache (se migrar de in-memory para Redis) ─────
+  redis:
+    image: redis:7.2-alpine
+    profiles: ["full"]
+    ports:
+      - "6380:6379"                    # 6380 para não conflitar com redis local
+    command: redis-server --appendonly yes
+    volumes:
+      - gateway_redis_data:/data
+
+  # ── n8n local — para testar workflows sem afetar produção ─────────────────
+  n8n:
+    image: n8nio/n8n:2.3.2
+    profiles: ["full"]
+    ports:
+      - "5679:5678"                    # 5679 para não conflitar
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: livia_dev
+      DB_POSTGRESDB_USER: postgres
+      DB_POSTGRESDB_PASSWORD: devpassword
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: admin
+      N8N_BASIC_AUTH_PASSWORD: admindev
+      WEBHOOK_URL: "http://n8n:5678/"
+      N8N_EDITOR_BASE_URL: "http://localhost:5679/"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - gateway_n8n_data:/home/node/.n8n
+    restart: unless-stopped
+
+volumes:
+  gateway_postgres_data:
+  gateway_redis_data:
+  gateway_n8n_data:
