@@ -421,8 +421,10 @@ Previne perda de dados e garante recuperação de desastre.
       3. crontab -e → 0 4 * * 1 /root/export-n8n-workflows.sh (segunda, 4h)
     Impacto: workflows recuperáveis após falha  |  Esforço: 5 min para ativar
 
-[ ] 5.4 — Runbook de disaster recovery
-    Criar docs/RUNBOOK.md com passo a passo de recriação da infra
+[x] 5.4 — Runbook de disaster recovery                                ← 2026-04-24
+    docs/RUNBOOK.md criado — 10 seções cobrindo do zero ao serviço rodando
+    Cobre: VPS, DNS, Docker Swarm, deploy ordenado das stacks, restore de backup,
+    cron jobs, verificação final, reconexão WhatsApp, referência rápida de serviços
     Impacto: reduz MTTR de horas para minutos  |  Esforço: 3h
 ```
 
