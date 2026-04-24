@@ -21,6 +21,7 @@ export const reactivationSettingsSchema = z.object({
   }),
   max_window_message: z.string().max(2000, 'Maximo 2000 caracteres').default(''),
   reactivate_when_ia_active_false: z.boolean().default(false),
+  reactivate_only_after_first_human_message: z.boolean().default(false),
 });
 
 // Schema para um step individual

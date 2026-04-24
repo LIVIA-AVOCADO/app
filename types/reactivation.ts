@@ -34,6 +34,7 @@ export interface ReactivationSettings {
   max_window_action: ReactivationFallbackAction;
   max_window_message: string | null;
   reactivate_when_ia_active_false: boolean;
+  reactivate_only_after_first_human_message: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +78,7 @@ export interface ReactivationSettingsFormData {
   max_window_action: ReactivationFallbackAction;
   max_window_message: string;
   reactivate_when_ia_active_false: boolean;
+  reactivate_only_after_first_human_message: boolean;
 }
 
 export interface ReactivationStepFormData {

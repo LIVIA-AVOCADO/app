@@ -24,6 +24,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { ReactivationFormDataValidated } from '@/lib/validations/reactivationValidation';
 
 interface SettingsCardProps {
@@ -39,6 +40,7 @@ const fallbackActionLabels: Record<string, string> = {
 export function SettingsCard({ form }: SettingsCardProps) {
   const exhaustedAction = form.watch('settings.exhausted_action');
   const maxWindowAction = form.watch('settings.max_window_action');
+  const reactivateWhenIaFalse = form.watch('settings.reactivate_when_ia_active_false');
 
   return (
     <div className="space-y-6">
@@ -120,7 +122,7 @@ export function SettingsCard({ form }: SettingsCardProps) {
             </div>
           </div>
         </div>
-        <CardContent className="p-6">
+        <CardContent className="p-6 space-y-4">
           <FormField
             control={form.control}
             name="settings.reactivate_when_ia_active_false"
@@ -135,12 +137,44 @@ export function SettingsCard({ form }: SettingsCardProps) {
                 <FormControl>
                   <Switch
                     checked={field.value}
-                    onCheckedChange={field.onChange}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked);
+                      if (!checked) {
+                        form.setValue('settings.reactivate_only_after_first_human_message', false);
+                      }
+                    }}
                   />
                 </FormControl>
               </FormItem>
             )}
           />
+
+          {reactivateWhenIaFalse && (
+            <FormField
+              control={form.control}
+              name="settings.reactivate_only_after_first_human_message"
+              render={({ field }) => (
+                <FormItem className="flex items-start gap-3 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3">
+                  <FormControl>
+                    <Checkbox
+                      id="reactivate_only_after_first_human_message"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className="mt-0.5"
+                    />
+                  </FormControl>
+                  <div className="space-y-0.5">
+                    <FormLabel htmlFor="reactivate_only_after_first_human_message" className="cursor-pointer">
+                      Somente apos primeira interacao humana
+                    </FormLabel>
+                    <FormDescription>
+                      A IA so tentara reativar a conversa depois que o contato tiver enviado ao menos uma mensagem. Evita reativar contatos que nunca responderam.
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+          )}
         </CardContent>
       </Card>
 
