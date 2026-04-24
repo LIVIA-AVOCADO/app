@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { MessageFeedbackButtons } from './message-feedback-buttons';
-import { Check, Clock, AlertCircle, CheckCheck, Reply } from 'lucide-react';
+import { Check, Clock, AlertCircle, CheckCheck, Reply, Copy } from 'lucide-react';
 import type { MessageWithSender, MessageStatus, MessageAttachment, QuotedMessagePreview } from '@/types/livechat';
 import { AudioPlayer } from './audio-player';
 import { createClient } from '@/lib/supabase/client';
@@ -26,6 +26,15 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
   const isIA = message.sender_type === 'ai';
   const isSystem = message.sender_type === 'channel';
   const [isHovered, setIsHovered] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (!message.content) return;
+    navigator.clipboard.writeText(message.content).then(() => {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 1500);
+    });
+  };
 
   const senderName = isCustomer
     ? 'Cliente'
@@ -135,21 +144,37 @@ export function MessageItem({ message, conversationId, tenantId, isNew = false, 
           )}
         </div>
 
-          {/* Botão reply à direita do balão — sempre no DOM para layout estável.
-              Invisível para mensagens temp (sem id real) ou quando não está em hover. */}
-          {onReply && (
-            <button
-              onClick={canReply ? () => onReply(message) : undefined}
-              disabled={!canReply}
-              className={cn(
-                'p-1 rounded-full bg-background border border-border shadow-sm transition-opacity duration-150 text-muted-foreground hover:text-foreground flex-shrink-0',
-                isHovered && canReply ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              )}
-              title="Responder mensagem"
-            >
-              <Reply className="h-3.5 w-3.5" />
-            </button>
-          )}
+          {/* Botões de ação — sempre no DOM para layout estável, visíveis só no hover */}
+          <div className={cn(
+            'flex items-center gap-0.5 transition-opacity duration-150',
+            isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          )}>
+            {message.content && (
+              <button
+                onClick={handleCopy}
+                className="p-1 rounded-full bg-background border border-border shadow-sm text-muted-foreground hover:text-foreground flex-shrink-0"
+                title="Copiar mensagem"
+              >
+                {isCopied
+                  ? <Check className="h-3.5 w-3.5 text-green-500" />
+                  : <Copy className="h-3.5 w-3.5" />
+                }
+              </button>
+            )}
+            {onReply && (
+              <button
+                onClick={canReply ? () => onReply(message) : undefined}
+                disabled={!canReply}
+                className={cn(
+                  'p-1 rounded-full bg-background border border-border shadow-sm text-muted-foreground hover:text-foreground flex-shrink-0',
+                  !canReply && 'cursor-default'
+                )}
+                title="Responder mensagem"
+              >
+                <Reply className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>{/* fim wrapper reply */}
 
         {/* Retry fora do balão, alinhado à direita (apenas atendente com falha) */}
