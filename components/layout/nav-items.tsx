@@ -1,4 +1,4 @@
-import { MessageSquare, BookOpen, Bot, BarChart3, Wallet, Settings, Rocket, Calendar } from 'lucide-react';
+import { MessageSquare, BookOpen, Bot, BarChart3, Wallet, Settings, Rocket, Calendar, LayoutDashboard, Users2, Workflow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { MODULE_KEYS, type ModuleKey, isSuperAdmin, hasModule } from '@/lib/permissions';
 // MODULE_KEYS é a fonte de verdade — não há necessidade de seed no banco para novos módulos.
@@ -54,6 +54,12 @@ export const navItems: NavItem[] = [
     adminOnly: true,
   },
   {
+    title:     'Overview',
+    url:       '/overview',
+    icon:      LayoutDashboard,
+    adminOnly: true,
+  },
+  {
     title:     'Livechat',
     url:       '/inbox',
     icon:      MessageSquare,
@@ -85,6 +91,18 @@ export const navItems: NavItem[] = [
       { title: 'Novo Agendamento', url: '/agendamentos/novo',          moduleKey: MODULE_KEYS.AGENDAMENTOS },
       { title: 'Configurações',    url: '/agendamentos/configuracoes', moduleKey: MODULE_KEYS.AGENDAMENTOS },
     ],
+  },
+  {
+    title:     'Times',
+    url:       '/teams',
+    icon:      Users2,
+    adminOnly: true,
+  },
+  {
+    title:     'Automação',
+    url:       '/automation',
+    icon:      Workflow,
+    adminOnly: true,
   },
   {
     // Pai sem restrição: visibilidade determinada pelos subitens visíveis

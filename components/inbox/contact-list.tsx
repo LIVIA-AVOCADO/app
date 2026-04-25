@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { ContactItem } from './contact-item';
 import { MessageSearchResultItem } from './message-search-result-item';
 import { TagSelector } from '@/components/tags/tag-selector';
-import { Search, MessageCircle, BellOff, Star, Loader2 } from 'lucide-react';
+import { Search, MessageCircle, BellOff, Star, Loader2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMessageSearch } from '@/hooks/use-message-search';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
@@ -29,10 +29,17 @@ function fmtCount(n: number): string {
   return (Number.isInteger(k) ? String(k) : k.toFixed(1)) + 'k';
 }
 
+type StatusFilter =
+  | 'mine' | 'unassigned' | 'team' | 'all'
+  | 'ia' | 'manual' | 'closed' | 'muted' | 'important';
+
 interface ContactListProps {
   conversations: ConversationWithContact[];
   selectedConversationId?: string;
   tenantId: string;
+  userId?: string;
+  userRole?: string;
+  userTeamIds?: string[];
   onConversationClick?: (conversationId: string) => void;
   onConversationHover?: (conversationId: string) => void;
   onConversationUpdate?: (conversationId: string, updates: Partial<ConversationWithContact>) => void;
@@ -41,7 +48,6 @@ interface ContactListProps {
     updates: ConversationWithContactLocalPatch
   ) => void;
   allTags: Tag[];
-  /** Contagens reais das abas (RPC); se null, deriva da lista carregada. */
   tabStatusCounts?: LivechatTabStatusCounts | null;
 }
 
@@ -49,6 +55,9 @@ export function ContactList({
   conversations,
   selectedConversationId,
   tenantId,
+  userId,
+  userRole,
+  userTeamIds = [],
   onConversationClick,
   onConversationHover,
   onConversationUpdate,
@@ -56,6 +65,7 @@ export function ContactList({
   allTags,
   tabStatusCounts,
 }: ContactListProps) {
+  const isAdmin = userRole === 'super_admin';
   const [searchQuery, setSearchQuery] = useState('');
   const isMessageSearch = searchQuery.trim().length >= 3;
 
@@ -71,9 +81,7 @@ export function ContactList({
     isError: isMessageSearchError,
   } = useMessageSearch({ tenantId, query: searchQuery, enabled: isMessageSearch });
 
-  const [statusFilter, setStatusFilter] = useState<
-    'ia' | 'manual' | 'closed' | 'muted' | 'important'
-  >('ia');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ia');
 
   // Carrega encerradas ao entrar na aba pela primeira vez
   useEffect(() => {
@@ -218,20 +226,28 @@ export function ContactList({
     // Contatos silenciados nunca aparecem nas abas normais
     if (conversation.contact.is_muted) return false;
 
-    // Lógica de filtro baseada em ia_active
+    // Lógica de filtro
     let matchesStatus = false;
-    if (statusFilter === 'ia') {
-      // IA Ativa: conversas com IA respondendo
-      matchesStatus = conversation.ia_active && conversation.status !== 'closed';
+    const isOpen = conversation.status !== 'closed';
+    const isManual = !conversation.ia_active;
+
+    if (statusFilter === 'mine') {
+      matchesStatus = isOpen && isManual && conversation.assigned_to === userId;
+    } else if (statusFilter === 'unassigned') {
+      matchesStatus = isOpen && isManual && !conversation.assigned_to;
+    } else if (statusFilter === 'team') {
+      matchesStatus = isOpen && isManual &&
+        !!conversation.team_id && userTeamIds.includes(conversation.team_id);
+    } else if (statusFilter === 'all') {
+      matchesStatus = isOpen && isManual;
+    } else if (statusFilter === 'ia') {
+      matchesStatus = isOpen && conversation.ia_active;
     } else if (statusFilter === 'manual') {
-      // Modo Manual: TODAS conversas sem IA (inclui open com ia_active=false)
-      matchesStatus = !conversation.ia_active && conversation.status !== 'closed';
+      matchesStatus = isOpen && isManual;
     } else if (statusFilter === 'closed') {
-      // Encerradas
       matchesStatus = conversation.status === 'closed';
     } else if (statusFilter === 'important') {
-      // Importantes: conversas marcadas como importantes (qualquer status exceto encerradas)
-      matchesStatus = !!conversation.is_important && conversation.status !== 'closed';
+      matchesStatus = isOpen && !!conversation.is_important;
     }
 
     // Filtro de tags: se nenhuma tag selecionada, mostra todas
@@ -254,17 +270,24 @@ export function ContactList({
   });
 
   const derivedStatusCounts = {
+    mine: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted && c.assigned_to === userId).length,
+    unassigned: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted && !c.assigned_to).length,
+    team: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted && !!c.team_id && userTeamIds.includes(c.team_id!)).length,
+    all: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
     ia: conversations.filter((c) => c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
     manual: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
     closed: conversations.filter((c) => c.status === 'closed' && !c.contact.is_muted).length,
     important: conversations.filter((c) => c.is_important && c.status !== 'closed' && !c.contact.is_muted).length,
   };
 
-  // Totais das abas: usa RPC (preciso, ignora limite do PostgREST) quando disponível;
-  // cai para derivado da lista local como fallback.
-  const statusCounts = tabStatusCounts
-    ? { ia: tabStatusCounts.ia, manual: tabStatusCounts.manual, closed: tabStatusCounts.closed, important: tabStatusCounts.important }
-    : derivedStatusCounts;
+  // Totais das abas: filtros de atribuição sempre derivados localmente (Realtime reativo).
+  // ia/manual/closed/important: usa RPC quando disponível, senão derivado.
+  const statusCounts = {
+    ...derivedStatusCounts,
+    ...(tabStatusCounts
+      ? { ia: tabStatusCounts.ia, manual: tabStatusCounts.manual, closed: tabStatusCounts.closed, important: tabStatusCounts.important }
+      : {}),
+  };
 
   // Não-lidas: SEMPRE derivado do estado reativo (atualiza a cada mensagem via Realtime).
   // tabStatusCounts.unreadManual é SSR-estático e ficaria congelado.
@@ -289,7 +312,7 @@ export function ContactList({
   };
 
   // Handler para mudança de filtro de status
-  const handleStatusFilterChange = (newFilter: 'ia' | 'manual' | 'closed' | 'muted' | 'important') => {
+  const handleStatusFilterChange = (newFilter: StatusFilter) => {
     if (newFilter !== statusFilter) {
       setStatusFilter(newFilter);
       // Reset toggle de não lidas e justReadConversationId quando sai do modo manual
@@ -351,6 +374,42 @@ export function ContactList({
         </div>
 
         <div className="flex gap-2 flex-wrap">
+          {/* Filtros de atribuição — Fase 3 */}
+          {isAdmin && (
+            <Badge
+              variant={statusFilter === 'all' ? 'default' : 'outline'}
+              className="cursor-pointer gap-1"
+              onClick={() => handleStatusFilterChange('all')}
+            >
+              <Users className="h-3 w-3" />
+              Todos ({fmtCount(statusCounts.all)})
+            </Badge>
+          )}
+          <Badge
+            variant={statusFilter === 'mine' ? 'default' : 'outline'}
+            className="cursor-pointer"
+            onClick={() => handleStatusFilterChange('mine')}
+          >
+            Meus ({fmtCount(statusCounts.mine)})
+          </Badge>
+          <Badge
+            variant={statusFilter === 'unassigned' ? 'default' : 'outline'}
+            className="cursor-pointer"
+            onClick={() => handleStatusFilterChange('unassigned')}
+          >
+            Não atribuídos ({fmtCount(statusCounts.unassigned)})
+          </Badge>
+          {userTeamIds.length > 0 && (
+            <Badge
+              variant={statusFilter === 'team' ? 'default' : 'outline'}
+              className="cursor-pointer"
+              onClick={() => handleStatusFilterChange('team')}
+            >
+              Meu time ({fmtCount(statusCounts.team)})
+            </Badge>
+          )}
+
+          {/* Filtros existentes */}
           <Badge
             variant={statusFilter === 'ia' ? 'default' : 'outline'}
             className="cursor-pointer"

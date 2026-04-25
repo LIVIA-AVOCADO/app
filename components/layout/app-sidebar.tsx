@@ -46,6 +46,7 @@ interface AppSidebarProps {
   hasTenant?: boolean;
   userRole?: string;
   userModules?: string[];
+  availabilityStatus?: 'online' | 'busy' | 'offline';
 }
 
 
@@ -56,6 +57,7 @@ export function AppSidebar({
   hasTenant = false,
   userRole = 'user',
   userModules = [],
+  availabilityStatus = 'offline',
 }: AppSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -189,6 +191,8 @@ export function AppSidebar({
           userName={userName}
           tenantName={tenantName}
           avatarUrl={avatarUrl}
+          availabilityStatus={availabilityStatus}
+          showAvailability={userRole !== 'super_admin' && userModules.includes('livechat')}
         />
         <div className="px-3 pb-1 group-data-[collapsible=icon]:hidden">
           <span className="text-[10px] text-white/30 select-none">

@@ -918,11 +918,12 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 [x] Atualizar Next.js: envio manual Evolution → Go Gateway (não n8n)         ← 2026-04-22
 [x] Rebuild imagem Docker + redeploy stack em DUAL_WRITE=true                ← 2026-04-23
     → gateway rodando: "DUAL WRITE (Go persiste + forward → n8n em paralelo)"
-[~] Validar dual-write com mensagem real (próximo passo imediato)
-[ ] Validação dual-write: 24h comparando writes Go vs n8n (devem ser idênticos)
-[ ] Cutover Passo 2: DUAL_WRITE=false SHADOW_MODE=false (Go assume inbound)
+[x] Validar dual-write com mensagem real                                       ← 2026-04-24
+[x] Validação dual-write: 24h — 2 msgs, 2 com external_id, 0 duplicatas        ← 2026-04-25
+[x] Cutover Passo 2: DUAL_WRITE=false — Go assume inbound sozinho               ← 2026-04-25
+    → gateway rodando: "ATIVO (Go persiste, sem n8n no inbound)"
 [ ] Implementar ura/ (engine + strategies)
-[ ] Migração Passo 3: Go assume todas as instâncias
+[~] Migração Passo 3: 1 tenant pendente — aguardando reconexão via UI no novo Evolution
 [ ] Implementar integrations/n8n.go (para rota AI)
 [ ] [BACKLOG] contacts.is_blocked: hard block por tenant (drop no gateway antes de write)
 ```
@@ -1524,24 +1525,157 @@ NOVO:   [Nome do contato]   [Agente: João ▼]  [⋮] [👤]
 | `queue` | fila de espera | `{ "target_team_id": "uuid" }` |
 | `auto_reply` | resposta automática + fila | `{ "message": "Olá! Em breve retornamos." }` |
 
-### 7.6 Checklist Fase 3
+### 7.6 Protocolo de Migrations — Sem Staging
+
+> **Contexto (2026-04-25):** o ambiente de staging Supabase existe mas está bloqueado
+> (ver 12FACTOR_PLAN.md § 6.1 — aguarda senha do banco de produção para gerar baseline).
+> Enquanto o staging não estiver operacional, **todas as migrations vão direto para produção**.
+
+**Regras obrigatórias para cada migration desta fase:**
+
+- Usar `CREATE TABLE IF NOT EXISTS` em todas as tabelas novas
+- Usar `ADD COLUMN IF NOT EXISTS` em todas as alterações de tabelas existentes
+- Novas colunas em tabelas com dados devem ser sempre `nullable` — nunca `NOT NULL` sem `DEFAULT`
+- Nunca usar `DROP`, nunca alterar tipo ou nome de coluna existente
+- Fluxo: escrever SQL → aplicar no Supabase SQL Editor → confirmar sem erros → commitar em `supabase/migrations/`
+- Nunca commitar uma migration que ainda não foi aplicada em produção
+
+---
+
+### 7.7 Decisões Arquiteturais — Roles, Disponibilidade e Billing
+
+#### Papéis de usuário existentes
+
+O sistema usa `role` + `modules[]` em `users`:
+
+| Role | Quem é | Acesso |
+|---|---|---|
+| `super_admin` | Dono/gestor do tenant | Irrestrito — bypass total de permissões |
+| `user` | Agente da equipe | Apenas módulos concedidos pelo super_admin em `users.modules[]` |
+
+Acesso ao inbox = `role='user'` com `'livechat'` no array `modules`.  
+Super admins têm acesso irrestrito e **não precisam** ter módulos listados.
+
+#### Equipe LIVIA — flag is_internal
+
+A equipe LIVIA acessa a aplicação do tenant para suporte e manutenção.
+Esses usuários **não devem ser cobrados** na assinatura do tenant.
+
+**Solução:** flag `is_internal boolean DEFAULT false` em `users`.
+
+```sql
+-- Usuário da equipe LIVIA:
+UPDATE users SET is_internal = true WHERE email LIKE '%@livia.com.br';
+```
+
+**Evolução futura:** quando o admin_livia implementar impersonation, usuários internos
+deixarão de ser criados diretamente nos tenants. O campo `is_internal` vira legado.
+
+#### Billing por seat — sem hardcode
+
+O preço por agente com acesso ao inbox não é hardcoded. Vem da tabela `platform_configs`,
+editável pelo admin_livia sem deploy.
+
+```sql
+-- Leitura do preço atual:
+SELECT value::int FROM platform_configs WHERE key = 'inbox_seat_price_brl_cents';
+-- Retorna: 2000 (= R$ 20,00)
+```
+
+**Query de cobrança:**
+```sql
+SELECT COUNT(*) FROM users
+WHERE tenant_id = $1
+  AND 'livechat' = ANY(modules)
+  AND is_internal = false;
+-- Resultado × inbox_seat_price_brl_cents = valor do plano
+```
+
+#### Disponibilidade do agente
+
+Agentes com acesso ao inbox podem se marcar como disponíveis/ocupados/offline.
+O status é **manual** — o sistema nunca muda automaticamente.
+
+| Status | Cor | Significado para o URA Engine |
+|---|---|---|
+| `online` | 🟢 Verde | Aceita novas atribuições automáticas |
+| `busy` | 🟡 Amarelo | Não recebe auto-assign; aceita atribuição manual |
+| `offline` | 🔴 Vermelho | Invisível para o engine |
+
+**Campos adicionados em `users`:**
+```sql
+availability_status       text DEFAULT 'offline'  -- 'online' | 'busy' | 'offline'
+availability_updated_at   timestamptz
+```
+
+**Dialog ao logar** (para `role='user'` com módulo `livechat`):
+> **Você está pronto para atender?**
+>
+> Ao ficar disponível, novas conversas poderão ser atribuídas a você automaticamente.
+> Se precisar de um momento para se organizar antes de começar, fique à vontade.
+>
+> `[Ficar disponível agora]`  `[Ainda não, obrigado]`
+
+O dialog aparece apenas quando `availability_status = 'offline'` ao entrar no dashboard.
+Não aparece para super_admin.
+
+#### Telas da Fase 3 — mapa por papel
+
+| Tela | Rota | Super admin | Agente (user) |
+|---|---|---|---|
+| Inbox | `/inbox` | Filtros: Meus / Não atribuídos / Times / Todos | Filtros: Meus / Não atribuídos / Meu time |
+| Overview | `/overview` | ✅ Visível | ❌ Sem acesso |
+| Times | `/teams` | ✅ Visível | ❌ Sem acesso |
+| Automação / URA | `/automation` | ✅ Visível | ❌ Sem acesso |
+
+As 3 novas rotas admin são protegidas com `adminOnly: true` em `lib/permissions/index.ts`
+(mesmo padrão do `/onboarding`). Super admins têm bypass automático — sem novo `MODULE_KEY`.
+
+#### Indicador de status global (sidebar)
+
+Visível para todos os usuários com módulo `livechat`. Clicável para trocar status.
 
 ```
-[ ] Migration: teams, team_members, attendants
-[ ] Migration: ura_configs, ura_rules
-[ ] Migration: conversation_assignments, conversation_queue
-[ ] Migration: ALTER conversations ADD assigned_to, team_id
-[ ] UI: filtros de inbox (Meus / Não atribuídos / Times)
-[ ] UI: dropdown de atribuição no header da conversa
-[ ] API: POST /api/conversations/assign (reatribuição manual)
-[ ] UI: tela /automation (CRUD de regras URA)
-[ ] UI: tela /teams (CRUD de times e membros)
+╔═══════════════════╗
+║  🟢 João Silva  ▼ ║
+╚═══════════════════╝
+     ● Online
+     ● Ocupado
+     ● Offline
+```
+
+Ao mudar → `PATCH /api/users/me/availability` → Supabase Realtime → overview do admin
+atualiza em tempo real sem polling.
+
+---
+
+### 7.8 Checklist Fase 3
+
+```
+[x] Migration: teams, team_members, attendants                                  ← 2026-04-25
+[x] Migration: ura_configs, ura_rules                                           ← 2026-04-25
+[x] Migration: conversation_assignments, conversation_queue                     ← 2026-04-25
+[x] Migration: ALTER conversations ADD assigned_to, assigned_at, team_id        ← 2026-04-25
+[x] Migration: users ADD availability_status, availability_updated_at, is_internal  ← 2026-04-25
+[x] Migration: CREATE TABLE platform_configs + INSERT inbox_seat_price_brl_cents    ← 2026-04-25
+[x] lib/permissions: adicionar /overview, /teams, /automation como adminOnly        ← 2026-04-25
+[x] UI: indicador de status na sidebar (online/ocupado/offline)                     ← 2026-04-25
+[x] UI: dialog de disponibilidade ao logar (só agents com livechat)                 ← 2026-04-25
+[x] API: PATCH /api/users/me/availability                                           ← 2026-04-25
+[x] UI: filtros de inbox por papel (Meus / Não atribuídos / Times / Todos)         ← 2026-04-25
+[x] UI: dropdown de atribuição no header da conversa                             ← 2026-04-25
+[x] API: POST /api/conversations/[id]/assign + GET /api/teams/users              ← 2026-04-25
+[x] UI: página /overview com Realtime (agentes, fila, stats)                    ← 2026-04-25
+[x] UI: tela /teams (CRUD de times e membros)                                   ← 2026-04-25
+[x] UI: tela /automation (modo URA + CRUD de regras)                            ← 2026-04-25
 [ ] Go: integrar URA Engine com regras do banco
-[ ] Go: implementar todas as estratégias de distribuição
-[ ] Go: implementar lógica sticky (retorna ao agente anterior)
-[ ] Testar: conversa é atribuída corretamente pela regra
+[ ] Go: implementar estratégias (round_robin, least_busy, random, percentage, sticky)
+[ ] Go: integrations/n8n.go para rota AI
+[ ] Testar: conversa atribuída corretamente pela regra
 [ ] Testar: reatribuição manual atualiza via Realtime
 [ ] Testar: agente vê apenas conversas atribuídas a ele/time
+[ ] Testar: agente offline não recebe auto-assign
+[ ] Desbloquear staging (12FACTOR § 6.1) para validar migrations antes de produção
 ```
 
 ---

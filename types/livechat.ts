@@ -77,8 +77,12 @@ export interface ConversationWithContact extends Conversation {
   };
   lastMessage: Message | null;
   conversation_tags?: ConversationTagWithTag[];
-  category?: Tag | null; // Helper: primeira tag com is_category=true (se existir)
+  category?: Tag | null;
   channel?: ConversationChannel | null;
+  // Fase 3 — campos de atribuição (nullable até URA Engine entrar em operação)
+  assigned_to?: string | null;
+  assigned_at?: string | null;
+  team_id?: string | null;
 }
 
 /** Patch no estado local: `contact` pode ser parcial (ex.: só is_muted). */

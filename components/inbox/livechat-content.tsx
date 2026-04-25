@@ -29,10 +29,12 @@ interface LivechatContentProps {
   conversations: ConversationWithContact[];
   selectedConversationId?: string;
   tenantId: string;
+  userId?: string;
+  userRole?: string;
+  userTeamIds?: string[];
   selectedConversation: ConversationWithContact | null;
   messages: MessageWithSender[] | null;
   allTags: Tag[];
-  /** Contagens iniciais das abas (RPC no SSR); atualizadas client-side quando Realtime detecta mudança nos totais. */
   tabStatusCounts: LivechatTabStatusCounts | null;
 }
 
@@ -40,6 +42,9 @@ export function LivechatContent({
   conversations: initialConversations,
   selectedConversationId: initialSelectedConvId,
   tenantId,
+  userId,
+  userRole,
+  userTeamIds,
   selectedConversation: initialSelectedConversation,
   messages: initialMessages,
   allTags,
@@ -289,6 +294,9 @@ export function LivechatContent({
             conversations={conversations}
             selectedConversationId={selectedConvId}
             tenantId={tenantId}
+            userId={userId}
+            userRole={userRole}
+            userTeamIds={userTeamIds}
             onConversationClick={handleConversationClick}
             onConversationHover={prefetch}
             onConversationUpdate={updateConversation}

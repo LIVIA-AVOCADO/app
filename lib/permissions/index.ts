@@ -32,6 +32,8 @@ export const MODULE_KEYS = {
   AGENDAMENTOS:       'agendamentos',
   CONEXOES:           'conexoes',
   CONEXOES_VIEW:      'conexoes-view',
+  // Fase 3 — sem MODULE_KEY: rotas admin-only protegidas por adminOnly: true
+  // /overview, /teams, /automation → super_admin tem bypass automático
 } as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS];
@@ -131,6 +133,9 @@ interface RoutePermission {
 
 const ROUTE_PERMISSIONS: Array<{ pattern: string; permission: RoutePermission }> = [
   { pattern: '/onboarding',         permission: { adminOnly: true } },
+  { pattern: '/overview',           permission: { adminOnly: true } },
+  { pattern: '/teams',              permission: { adminOnly: true } },
+  { pattern: '/automation',         permission: { adminOnly: true } },
   { pattern: '/gerenciar-usuarios', permission: { moduleKey: MODULE_KEYS.GERENCIAR_USUARIOS } },
   { pattern: '/financeiro',         permission: { moduleKey: MODULE_KEYS.FINANCEIRO } },
   { pattern: '/relatorios',         permission: { moduleKey: MODULE_KEYS.RELATORIOS } },

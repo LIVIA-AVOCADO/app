@@ -25,12 +25,14 @@ export default async function LivechatPage({
 
   const { data: userData } = await supabase
     .from('users')
-    .select('tenant_id, full_name, email, avatar_url')
+    .select('tenant_id, full_name, email, avatar_url, role')
     .eq('id', authData.user.id)
     .single();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tenantId = (userData as any)?.tenant_id;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userRole = (userData as any)?.role ?? 'user';
   if (!tenantId) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -58,6 +60,14 @@ export default async function LivechatPage({
       </div>
     );
   }
+
+  // Times do usuário — para filtro "Meu time" (novo na Fase 3)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: teamMemberships } = await (supabase as any)
+    .from('team_members')
+    .select('team_id')
+    .eq('user_id', authData.user.id);
+  const userTeamIds: string[] = (teamMemberships ?? []).map((m: { team_id: string }) => m.team_id);
 
   // Duas queries paralelas — conversas ativas + metadados.
   // Encerradas são carregadas client-side quando o usuário clica na aba (lazy).
@@ -112,6 +122,9 @@ export default async function LivechatPage({
       conversations={conversations}
       selectedConversationId={selectedConversationId}
       tenantId={tenantId}
+      userId={authData.user.id}
+      userRole={userRole}
+      userTeamIds={userTeamIds}
       selectedConversation={selectedConversation}
       messages={messages}
       allTags={allTags}

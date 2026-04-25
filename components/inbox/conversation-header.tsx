@@ -34,6 +34,7 @@ import { PauseIAConfirmDialog } from './pause-ia-confirm-dialog';
 import { FollowUpDialog } from './follow-up-dialog';
 import { TagSelector } from '@/components/tags/tag-selector';
 import { StatusSelect } from './status-select';
+import { AssignmentSelect } from './assignment-select';
 
 interface ConversationHeaderProps {
   contactId: string;
@@ -43,6 +44,7 @@ interface ConversationHeaderProps {
   conversation: Conversation;
   channel?: ConversationChannel | null;
   tenantId: string;
+  assignedTo?: string | null;
   allTags: Tag[];
   conversationTags?: Array<{ tag: Tag }>;
   initialFollowup?: ConversationFollowup | null;
@@ -65,6 +67,7 @@ export function ConversationHeader({
   conversation,
   channel,
   tenantId,
+  assignedTo,
   allTags,
   conversationTags = [],
   initialFollowup = null,
@@ -255,6 +258,16 @@ export function ConversationHeader({
             tenantId={tenantId}
             currentStatus={conversation.status}
             onStatusChange={(newStatus) => onConversationUpdate?.({ status: newStatus })}
+          />
+
+          <AssignmentSelect
+            conversationId={conversation.id}
+            tenantId={tenantId}
+            assignedTo={assignedTo}
+            onAssignmentChange={(userId) =>
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onConversationUpdate?.({ assigned_to: userId, assigned_at: userId ? new Date().toISOString() : null } as any)
+            }
           />
 
           {conversation.ia_active ? (

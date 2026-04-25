@@ -15,7 +15,7 @@ import { useTypingPresence } from '@/lib/hooks/use-typing-presence';
 import { useSendMessage } from '@/lib/hooks/use-send-message';
 import { useScrollToMessage } from '@/lib/hooks/use-scroll-to-message';
 import { getMessageDayLabel } from '@/lib/utils/date-helpers';
-import type { Conversation, Tag } from '@/types/database-helpers';
+import type { Tag } from '@/types/database-helpers';
 import type { ConversationChannel, ConversationWithContact, MessageWithSender } from '@/types/livechat';
 
 function DateSeparator({ label }: { label: string }) {
@@ -29,7 +29,7 @@ function DateSeparator({ label }: { label: string }) {
 }
 
 interface ConversationViewProps {
-  initialConversation: Conversation;
+  initialConversation: ConversationWithContact;
   initialMessages: MessageWithSender[];
   tenantId: string;
   contactId: string;
@@ -37,8 +37,8 @@ interface ConversationViewProps {
   contactPhone?: string | null;
   contactIsMuted?: boolean;
   channel?: ConversationChannel | null;
-  allTags: Tag[]; // Todas as tags do tenant
-  conversationTags?: Array<{ tag: Tag }>; // Tags atuais da conversa
+  allTags: Tag[];
+  conversationTags?: Array<{ tag: Tag }>;
   onConversationUpdate?: (updates: Partial<ConversationWithContact>) => void;
   onContactMuted?: (detail: { muteReason: string }) => void;
   onContactUnmuted?: () => void;
@@ -178,6 +178,8 @@ export function ConversationView({
         conversation={conversation}
         channel={channel}
         tenantId={tenantId}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        assignedTo={(conversation as any).assigned_to ?? null}
         allTags={allTags}
         conversationTags={conversationTags}
         onConversationUpdate={onConversationUpdate}
