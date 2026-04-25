@@ -77,6 +77,11 @@ export function ModeConfigCard({ config, onSave }: ModeConfigCardProps) {
     }
   };
 
+  const handleModeChange = async (newMode: UraMode) => {
+    setMode(newMode);
+    await onSave({ mode: newMode });
+  };
+
   const toggleDay = (day: string, enabled: boolean) => {
     setHours((prev) => ({
       ...prev,
@@ -108,7 +113,7 @@ export function ModeConfigCard({ config, onSave }: ModeConfigCardProps) {
               <button
                 key={m}
                 type="button"
-                onClick={() => setMode(m)}
+                onClick={() => handleModeChange(m)}
                 className={`text-left p-3 rounded-lg border-2 transition-colors ${
                   mode === m
                     ? 'border-primary bg-primary/5'
