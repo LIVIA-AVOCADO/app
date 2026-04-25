@@ -401,23 +401,21 @@ Previne perda de dados e garante recuperação de desastre.
     Prazo: quando houver clientes reais / base ativa  |  Esforço: 2h
 
 [x] 5.2 — Supabase migrations versionadas no git                      ← 2026-04-25
-    supabase/migrations/ com 50 migrations versionadas por data
+    supabase/migrations/ com 51 migrations (50 históricas + 1 baseline)
     supabase/config.toml criado (project_id + sa-east-1)
     CLI linkado ao projeto de produção (wfrxwfbslhkkzkexyilx) com senha do banco
-    migration repair executado: 24 versões marcadas como aplicadas no remote
-    ⚠️  LIMITAÇÃO CONHECIDA: 26 migrations não rastreáveis individualmente pelo CLI
-      Causa: múltiplos arquivos no mesmo dia (ex: 20260307_social_login + 20260307_tenant_rls)
-      O CLI usa apenas o prefixo numérico da data como versão — máx. 1 por dia
-      Estado: correto em produção, metadata do CLI parcialmente sincronizado
-    Decisão: manter estado atual — migrations antigas já estão 100% aplicadas em prod
-      Renomear 37 arquivos traria risco sem benefício prático imediato
-      Novas migrations DEVEM usar: npm run db:new <nome> (gera YYYYMMDDHHMMSS único)
+    37 arquivos renomeados de YYYYMMDD para YYYYMMDDHHMMSS (11 datas com múltiplas migrations)
+    schema_migrations remoto atualizado via Management API: 50/50 local = remoto
+    Baseline criada: 20260101000000_baseline.sql — schema completo (enums, tabelas, sequences,
+      funções onboarding, RLS) para shadow DB do CLI reproduzir o estado histórico
+    npm run db:pull funcional: detectou e capturou drift em 20260425160607_remote_schema.sql
     Scripts adicionados ao package.json:
       npm run db:status  → supabase migration list (visualiza estado local vs remote)
       npm run db:new     → supabase migration new (cria migration com timestamp único)
+      npm run db:pull    → db pull --linked --schema public (detecta drift do dashboard)
       npm run db:push    → lista migrations + db push --linked (push seguro)
     Regra: NUNCA criar arquivo .sql manualmente com prefixo YYYYMMDD
-    Impacto: schema versionado ✅ | workflow de migrations futuras 100% funcional
+    Impacto: schema versionado ✅ | drift detection ✅ | workflow 100% funcional
 
 [x] 3.5 — Fix n8n task runner: external → internal mode            ← 2026-04-25
     Problema: N8N_RUNNERS_MODE=external configurado em livia + sofhia sem container runner
