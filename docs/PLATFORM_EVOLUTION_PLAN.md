@@ -1521,7 +1521,7 @@ NOVO:   [Nome do contato]   [Agente: João ▼]  [⋮] [👤]
 | `assign_team` | round_robin, least_busy, random | `{ "team_id": "uuid", "strategy": "round_robin" }` |
 | `assign_agent` | direto | `{ "agent_id": "uuid" }` |
 | `assign_percentage` | múltiplos times com peso | `{ "buckets": [{"team_id":"A","pct":70},{"team_id":"B","pct":30}] }` |
-| `route_ai` | agente IA | `{ "attendant_id": "uuid" }` |
+| `route_ai` | webhook Neurocore do tenant | `{}` — usa `tenants.ai_webhook_url` |
 | `queue` | fila de espera | `{ "target_team_id": "uuid" }` |
 | `auto_reply` | resposta automática + fila | `{ "message": "Olá! Em breve retornamos." }` |
 
@@ -1649,6 +1649,36 @@ atualiza em tempo real sem polling.
 
 ---
 
+### 7.9 Decisão Arquitetural — route_ai sem FirstIntegration
+
+**Contexto (2026-04-25):** o plano original previa que `route_ai` dispararia o fluxo
+`FirstIntegration` do n8n, que então chamaria o Neurocore. Isso foi revisado.
+
+**Decisão:** o Go Gateway chama o webhook do Neurocore **diretamente**, sem passar pelo n8n
+FirstIntegration.
+
+**Justificativa:**
+- O gateway já faz tudo que o FirstIntegration fazia (upsert contato/conversa, insert message)
+- Chamar FirstIntegration seria um hop redundante: gateway → n8n → Neurocore
+- Novo fluxo: gateway → Neurocore webhook diretamente
+- A URL do webhook fica em `tenants.ai_webhook_url` (configurável no admin_livia)
+
+**Payload enviado ao webhook:**
+```json
+{
+  "conversation_id": "uuid",
+  "tenant_id":       "uuid",
+  "contact_id":      "uuid",
+  "channel_id":      "uuid",
+  "phone":           "5511...",
+  "message":         "texto da mensagem"
+}
+```
+
+**Configuração no admin_livia:** aba "Configurações" do tenant → campo "Webhook IA (Neurocore)".
+
+---
+
 ### 7.8 Checklist Fase 3
 
 ```
@@ -1668,9 +1698,12 @@ atualiza em tempo real sem polling.
 [x] UI: página /overview com Realtime (agentes, fila, stats)                    ← 2026-04-25
 [x] UI: tela /teams (CRUD de times e membros)                                   ← 2026-04-25
 [x] UI: tela /automation (modo URA + CRUD de regras)                            ← 2026-04-25
-[ ] Go: integrar URA Engine com regras do banco
-[ ] Go: implementar estratégias (round_robin, least_busy, random, percentage, sticky)
-[ ] Go: integrations/n8n.go para rota AI
+[x] fix(automation): modo URA agora exibe regras ao clicar (auto-save imediato) ← 2026-04-25
+[x] Go: URA Engine — assign_agent, assign_team, auto_reply, queue               ← 2026-04-25
+[x] Go: estratégias round_robin (fnv32), least_busy, random                     ← 2026-04-25
+[x] Go: route_ai — chama tenants.ai_webhook_url diretamente (sem FirstIntegration) ← 2026-04-25
+[x] Migration: tenants ADD ai_webhook_url text                                  ← 2026-04-25
+[x] admin_livia: campo ai_webhook_url na aba Configurações do tenant            ← 2026-04-25
 [ ] Testar: conversa atribuída corretamente pela regra
 [ ] Testar: reatribuição manual atualiza via Realtime
 [ ] Testar: agente vê apenas conversas atribuídas a ele/time
