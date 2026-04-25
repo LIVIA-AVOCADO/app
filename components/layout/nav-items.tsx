@@ -60,7 +60,7 @@ export const navItems: NavItem[] = [
     adminOnly: true,
   },
   {
-    title:     'Livechat',
+    title:     'Inbox',
     url:       '/inbox',
     icon:      MessageSquare,
     moduleKey: MODULE_KEYS.LIVECHAT,

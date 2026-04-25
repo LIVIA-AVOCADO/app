@@ -62,6 +62,15 @@ export async function login(email: string, password: string) {
 export async function logout() {
   const supabase = await createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from('users')
+      .update({ availability_status: 'offline', availability_updated_at: new Date().toISOString() })
+      .eq('id', user.id);
+  }
+
   await supabase.auth.signOut();
 
   revalidatePath('/', 'layout');

@@ -32,42 +32,74 @@ export function OverviewContent({
     try {
       const sb = supabaseRef.current;
 
-      const [agentsRes, agentConvsRes, queueRes, statsRes] = await Promise.all([
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (sb as any)
-          .from('users')
-          .select('id, full_name, avatar_url, availability_status')
-          .eq('tenant_id', tenantId)
-          .eq('is_internal', false)
-          .contains('modules', ['livechat'])
-          .order('full_name'),
+      // meia-noite BRT = 03:00 UTC
+      const now = new Date();
+      const localMs = now.getTime() - 3 * 60 * 60 * 1000;
+      const localDate = new Date(localMs).toISOString().slice(0, 10);
+      const todayStart = `${localDate}T03:00:00.000Z`;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (sb as any)
-          .from('conversations')
-          .select('assigned_to')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'open')
-          .not('assigned_to', 'is', null),
+      const [agentsRes, agentConvsRes, queueRes, openRes, closedRes, unassignedRes, iaRes] =
+        await Promise.all([
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (sb as any)
+            .from('users')
+            .select('id, full_name, avatar_url, availability_status')
+            .eq('tenant_id', tenantId)
+            .eq('is_internal', false)
+            .contains('modules', ['livechat'])
+            .order('full_name'),
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (sb as any)
-          .from('conversations')
-          .select('id, last_message_at, created_at, contact:contacts(name, phone)')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'open')
-          .eq('ia_active', false)
-          .is('assigned_to', null)
-          .order('last_message_at', { ascending: true })
-          .limit(100),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (sb as any)
+            .from('conversations')
+            .select('assigned_to')
+            .eq('tenant_id', tenantId)
+            .eq('status', 'open')
+            .not('assigned_to', 'is', null),
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (sb as any)
-          .from('conversations')
-          .select('status, ia_active, assigned_to, updated_at')
-          .eq('tenant_id', tenantId)
-          .in('status', ['open', 'closed']),
-      ]);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (sb as any)
+            .from('conversations')
+            .select('id, last_message_at, created_at, contact:contacts(name, phone)')
+            .eq('tenant_id', tenantId)
+            .eq('status', 'open')
+            .eq('ia_active', false)
+            .is('assigned_to', null)
+            .order('last_message_at', { ascending: true })
+            .limit(100),
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (sb as any)
+            .from('conversations')
+            .select('id', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId)
+            .eq('status', 'open'),
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (sb as any)
+            .from('conversations')
+            .select('id', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId)
+            .eq('status', 'closed')
+            .gte('updated_at', todayStart),
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (sb as any)
+            .from('conversations')
+            .select('id', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId)
+            .eq('status', 'open')
+            .eq('ia_active', false)
+            .is('assigned_to', null),
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (sb as any)
+            .from('conversations')
+            .select('id', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId)
+            .eq('status', 'open')
+            .eq('ia_active', true),
+        ]);
 
       const convsByAgent: Record<string, number> = {};
       for (const c of (agentConvsRes.data ?? [])) {
@@ -97,22 +129,11 @@ export function OverviewContent({
         }))
       );
 
-      const today = new Date().toISOString().slice(0, 10);
-      const all = (statsRes.data ?? []) as Array<{
-        status: string;
-        ia_active: boolean;
-        assigned_to: string | null;
-        updated_at: string;
-      }>;
       setStats({
-        open_total: all.filter((c) => c.status === 'open').length,
-        closed_today: all.filter(
-          (c) => c.status === 'closed' && c.updated_at?.startsWith(today)
-        ).length,
-        unassigned_manual: all.filter(
-          (c) => c.status === 'open' && !c.ia_active && !c.assigned_to
-        ).length,
-        ia_active: all.filter((c) => c.status === 'open' && c.ia_active).length,
+        open_total:        openRes.count       ?? 0,
+        closed_today:      closedRes.count     ?? 0,
+        unassigned_manual: unassignedRes.count ?? 0,
+        ia_active:         iaRes.count         ?? 0,
       });
     } finally {
       setIsRefreshing(false);
