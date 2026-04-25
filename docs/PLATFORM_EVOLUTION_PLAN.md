@@ -1521,7 +1521,7 @@ NOVO:   [Nome do contato]   [Agente: João ▼]  [⋮] [👤]
 | `assign_team` | round_robin, least_busy, random | `{ "team_id": "uuid", "strategy": "round_robin" }` |
 | `assign_agent` | direto | `{ "agent_id": "uuid" }` |
 | `assign_percentage` | múltiplos times com peso | `{ "buckets": [{"team_id":"A","pct":70},{"team_id":"B","pct":30}] }` |
-| `route_ai` | webhook Neurocore do tenant | `{}` — usa `tenants.ai_webhook_url` |
+| `route_ai` | webhook Neurocore do tenant | `{}` — usa `neurocores.webhook_url` (herdado pelo tenant) |
 | `queue` | fila de espera | `{ "target_team_id": "uuid" }` |
 | `auto_reply` | resposta automática + fila | `{ "message": "Olá! Em breve retornamos." }` |
 
@@ -1661,7 +1661,7 @@ FirstIntegration.
 - O gateway já faz tudo que o FirstIntegration fazia (upsert contato/conversa, insert message)
 - Chamar FirstIntegration seria um hop redundante: gateway → n8n → Neurocore
 - Novo fluxo: gateway → Neurocore webhook diretamente
-- A URL do webhook fica em `tenants.ai_webhook_url` (configurável no admin_livia)
+- A URL do webhook fica em `neurocores.webhook_url` (configurável no admin_livia) e é herdada por todos os tenants associados ao neurocore — 2026-04-25
 
 **Payload enviado ao webhook:**
 ```json
@@ -1675,7 +1675,7 @@ FirstIntegration.
 }
 ```
 
-**Configuração no admin_livia:** aba "Configurações" do tenant → campo "Webhook IA (Neurocore)".
+**Configuração no admin_livia:** cadastro do Neurocore → campo "Webhook URL (Gateway → IA)".
 
 ---
 
@@ -1701,9 +1701,9 @@ FirstIntegration.
 [x] fix(automation): modo URA agora exibe regras ao clicar (auto-save imediato) ← 2026-04-25
 [x] Go: URA Engine — assign_agent, assign_team, auto_reply, queue               ← 2026-04-25
 [x] Go: estratégias round_robin (fnv32), least_busy, random                     ← 2026-04-25
-[x] Go: route_ai — chama tenants.ai_webhook_url diretamente (sem FirstIntegration) ← 2026-04-25
-[x] Migration: tenants ADD ai_webhook_url text                                  ← 2026-04-25
-[x] admin_livia: campo ai_webhook_url na aba Configurações do tenant            ← 2026-04-25
+[x] Go: route_ai — chama neurocores.webhook_url diretamente (sem FirstIntegration) ← 2026-04-25
+[x] Migration: tenants ADD ai_webhook_url → movido para neurocores.webhook_url  ← 2026-04-25
+[x] admin_livia: campo webhook_url no cadastro do Neurocore                     ← 2026-04-25
 [ ] Testar: conversa atribuída corretamente pela regra
 [ ] Testar: reatribuição manual atualiza via Realtime
 [ ] Testar: agente vê apenas conversas atribuídas a ele/time
