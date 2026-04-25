@@ -445,6 +445,11 @@ Previne perda de dados e garante recuperação de desastre.
     Cobre: VPS, DNS, Docker Swarm, deploy ordenado das stacks, restore de backup,
     cron jobs, verificação final, reconexão WhatsApp, referência rápida de serviços
     Impacto: reduz MTTR de horas para minutos  |  Esforço: 3h
+
+⚠️  NOTA (2026-04-25): deploy do livia-gateway ainda faz `docker build` na VPS (não via CI)
+    O workflow release.yml (4.2) gera imagem no ghcr.io, mas o fluxo de emergência
+    (scp + docker build + docker service update) continua ativo para agilidade no dev.
+    Retomar CI/CD completo quando Fase 3 estiver estabilizada.
 ```
 
 ---

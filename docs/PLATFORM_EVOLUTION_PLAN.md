@@ -1704,6 +1704,13 @@ FirstIntegration.
 [x] Go: route_ai — chama neurocores.webhook_url diretamente (sem FirstIntegration) ← 2026-04-25
 [x] Migration: tenants ADD ai_webhook_url → movido para neurocores.webhook_url  ← 2026-04-25
 [x] admin_livia: campo webhook_url no cadastro do Neurocore                     ← 2026-04-25
+[x] fix(admin_livia): NeurocoreForm — remove .transform() Zod (UseFormReturn<T> mismatch) ← 2026-04-25
+[x] Go: payload route_ai enriquecido — send_type (text/audio/image/video/document) ← 2026-04-25
+[x] Go: payload route_ai — mídia: media_base64, media_mimetype, media_url, media_apikey ← 2026-04-25
+    Nota: base64 da mídia fica em data.message.base64 (top-level), não no sub-objeto
+    Nota: media_url = {evolution_url}/message/download/{external_message_id}
+[x] Go: payload route_ai — reply: quoted_external_id, quoted_content, quoted_message_id ← 2026-04-25
+    Nota: contextInfo de reply fica em data.contextInfo (irmão de data.message, não aninhado)
 [ ] Testar: conversa atribuída corretamente pela regra
 [ ] Testar: reatribuição manual atualiza via Realtime
 [ ] Testar: agente vê apenas conversas atribuídas a ele/time
@@ -2315,3 +2322,8 @@ Ciclo final (Fase 5)
 - 2026-04-23 — Fase 2 Passo 2: implementação completa (normalizer, dedup, supabase client, persister, config, evolution handler, main); RPC upsert_contact_conversation criada; gateway deployado em DUAL WRITE mode
 - 2026-04-23 — Fase 2 Passo 2: dual-write validado com mensagens reais (fix tenant_id em MessageInsert); pipeline completo operacional ~500ms
 - 2026-04-23 — Decisão arquitetural: Meta Cloud API não será roteada via Evolution; handler nativo no gateway Go mapeado como alvo de médio prazo (Seção 6.11)
+- 2026-04-25 — Fase 2: cutover concluído (DUAL_WRITE=false) — Go assume inbound completamente
+- 2026-04-25 — Fase 3: URA Engine deployado em produção — route_ai validado (webhook n8n chamado com sucesso)
+- 2026-04-25 — Fase 3: payload route_ai enriquecido com send_type, mídia (base64+url+mimetype) e reply (quoted_*)
+- 2026-04-25 — Fase 3: descoberta Evolution API — base64 da mídia em data.message.base64 (top-level); contextInfo de reply em data.contextInfo (irmão de data.message, não aninhado no sub-objeto)
+- 2026-04-25 — fix(admin_livia): NeurocoreForm — remove .transform() Zod que quebrava UseFormReturn<T> + fix webhook_url nos defaultValues
