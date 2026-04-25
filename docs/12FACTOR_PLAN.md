@@ -400,16 +400,37 @@ Previne perda de dados e garante recuperação de desastre.
       - Remover envio de arquivos do backup.sh; manter só alertas de sucesso/erro
     Prazo: quando houver clientes reais / base ativa  |  Esforço: 2h
 
-[~] 5.2 — Supabase migrations versionadas no git                      ← 2026-04-24
-    supabase/migrations/ já existia com 47 migrations versionadas por data
+[x] 5.2 — Supabase migrations versionadas no git                      ← 2026-04-25
+    supabase/migrations/ com 50 migrations versionadas por data
     supabase/config.toml criado (project_id + sa-east-1)
-    CLI autenticado: migration list mostra 47 local, Remote vazio (aplicadas via UI)
-    ⚠️  BACKLOG: marcar 47 migrations como aplicadas no CLI
-      Bloqueio: senha do banco não localizada (não resetar — última opção)
-      Comando pendente: npx supabase db push --db-url "postgresql://postgres:SENHA@db.wfrxwfbslhkkzkexyilx.supabase.co:5432/postgres" --include-all
-      Localizar senha: dashboard → Settings → Database → Connection string
-      Adicionar ao .env.local: DIRECT_URL e SUPABASE_DB_PASSWORD
-    Impacto: schema versionado ✅ | db push/diff via CLI 🔒 desbloqueado após senha
+    CLI linkado ao projeto de produção (wfrxwfbslhkkzkexyilx) com senha do banco
+    migration repair executado: 24 versões marcadas como aplicadas no remote
+    ⚠️  LIMITAÇÃO CONHECIDA: 26 migrations não rastreáveis individualmente pelo CLI
+      Causa: múltiplos arquivos no mesmo dia (ex: 20260307_social_login + 20260307_tenant_rls)
+      O CLI usa apenas o prefixo numérico da data como versão — máx. 1 por dia
+      Estado: correto em produção, metadata do CLI parcialmente sincronizado
+    Decisão: manter estado atual — migrations antigas já estão 100% aplicadas em prod
+      Renomear 37 arquivos traria risco sem benefício prático imediato
+      Novas migrations DEVEM usar: npm run db:new <nome> (gera YYYYMMDDHHMMSS único)
+    Scripts adicionados ao package.json:
+      npm run db:status  → supabase migration list (visualiza estado local vs remote)
+      npm run db:new     → supabase migration new (cria migration com timestamp único)
+      npm run db:push    → lista migrations + db push --linked (push seguro)
+    Regra: NUNCA criar arquivo .sql manualmente com prefixo YYYYMMDD
+    Impacto: schema versionado ✅ | workflow de migrations futuras 100% funcional
+
+[x] 3.5 — Fix n8n task runner: external → internal mode            ← 2026-04-25
+    Problema: N8N_RUNNERS_MODE=external configurado em livia + sofhia sem container runner
+    Todo Code node retornava "Task request timed out after 60 seconds" (timeout 60s)
+    Causa raiz: modo external exige processo n8n-task-runner separado conectado ao broker —
+      nenhum serviço runner estava definido nos stacks nem rodando no Swarm
+    Correção: N8N_RUNNERS_MODE=internal em ambos os stacks (runner como processo filho do worker)
+    Arquivos alterados: /root/stacks/livia.yaml + /root/stacks/sofhia.yaml
+    Redeploy: docker stack deploy -c livia.yaml livia && docker stack deploy -c sofhia.yaml sofhia
+    Confirmado nos logs: "Registered runner JS Task Runner" em livia_worker e sofhia_worker
+    ⚠️  Python runner indisponível: Python 3 ausente na imagem n8nio/n8n:2.3.2 — esperado
+      Se Python for necessário no futuro: usar imagem customizada + mode=external com runner próprio
+    Impacto: Code nodes JavaScript funcionando em livia e sofhia  |  Esforço: 10 min
 
 [~] 5.3 — Export automático de workflows n8n                          ← 2026-04-24
     Script criado: scripts/export-n8n-workflows.sh
@@ -517,10 +538,10 @@ Só faz sentido após o produto ter usuários suficientes para justificar o cust
 | livia-gateway | livia-gateway | livia-gateway:latest | 1/1 | ✅ Shadow mode ativo — 25h up |
 | livia_editor | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável — 9 dias up |
 | livia_webhook | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável — 9 dias up |
-| livia_worker | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável — 9 dias up |
+| livia_worker | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável — JS Task Runner registrado (2026-04-25) |
 | livia_postgres | livia | postgres:16-alpine | 1/1 | ✅ Saudável — 9 dias up |
 | livia_redis | livia | redis:7.2-alpine | 1/1 | ✅ Saudável — 9 dias up |
-| sofhia_* | sofhia | n8nio/n8n:2.3.2 + postgres + redis | 5/5 | ✅ Saudável — 9 dias up |
+| sofhia_* | sofhia | n8nio/n8n:2.3.2 + postgres + redis | 5/5 | ✅ Saudável — JS Task Runner registrado (2026-04-25) |
 | rabbitmq | rabbitmq | rabbitmq:3.12.14-management | 1/1 | ✅ Saudável — 11 dias up |
 | portainer | portainer | portainer-ce:latest | 2/2 | ✅ Saudável — 11 dias up |
 

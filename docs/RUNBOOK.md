@@ -18,6 +18,7 @@
 8. [Configurar cron jobs](#8-configurar-cron-jobs)
 9. [Verificação final](#9-verificação-final)
 10. [Referência rápida de serviços](#10-referência-rápida-de-serviços)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -407,6 +408,57 @@ df -h /
 # Memória
 free -h
 ```
+
+---
+
+## 11. Troubleshooting
+
+### n8n — Code node trava com "Task request timed out after 60 seconds"
+
+**Sintoma:** Qualquer Code node (JavaScript) no n8n retorna o erro:
+```
+Task request timed out after 60 seconds
+Your Code node task was not matched to a runner within the timeout period.
+```
+
+**Causa:** `N8N_RUNNERS_MODE=external` configurado sem um container runner rodando.
+No modo `external`, o n8n espera que um processo `n8n-task-runner` externo se conecte
+ao broker via WebSocket. Sem ele, toda tarefa expira no timeout.
+
+**Diagnóstico:**
+```bash
+# Verificar modo configurado nos workers
+docker inspect $(docker ps -q -f name=livia_worker) \
+  --format '{{range .Config.Env}}{{println .}}{{end}}' | grep RUNNERS_MODE
+
+# Verificar se algum runner externo está rodando
+docker ps | grep runner
+
+# Confirmar se o runner interno está registrado (modo internal)
+docker service logs livia_worker --tail 30 | grep -i runner
+# Esperado: "Registered runner JS Task Runner"
+```
+
+**Solução (modo internal — recomendado):**
+```bash
+# Editar os stacks
+sed -i 's/N8N_RUNNERS_MODE=external/N8N_RUNNERS_MODE=internal/g' \
+  /root/stacks/livia.yaml /root/stacks/sofhia.yaml
+
+# Redeployar
+docker stack deploy -c /root/stacks/livia.yaml livia
+docker stack deploy -c /root/stacks/sofhia.yaml sofhia
+
+# Verificar — aguardar ~20s e checar logs
+docker service logs livia_worker --tail 20 | grep -i runner
+docker service logs sofhia_worker --tail 20 | grep -i runner
+```
+
+**Notas:**
+- Modo `internal`: runner roda como processo filho do worker — sem container extra necessário
+- Modo `external`: requer um serviço separado com imagem customizada (necessário apenas se precisar de Python ou isolamento de processo)
+- A imagem `n8nio/n8n:2.3.2` não inclui Python 3 — aviso sobre Python runner no modo internal é esperado e não afeta JavaScript
+- Incidente resolvido em 2026-04-25 — ver [12FACTOR_PLAN.md item 3.5](./12FACTOR_PLAN.md)
 
 ---
 
