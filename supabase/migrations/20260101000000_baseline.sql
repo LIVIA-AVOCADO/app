@@ -15,7 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "btree_gist";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "vector";
+CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA extensions;
 
 -- 0c. SEQUENCES
 -- ============================================================
@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS public.base_conhecimentos_vectors (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     content text,
     metadata jsonb,
-    embedding vector(1536),
+    embedding extensions.vector(1536),
     base_conhecimentos_id uuid,
     tenant_id uuid
 );
@@ -338,7 +338,7 @@ CREATE TABLE IF NOT EXISTS public.commercial_policies (
 );
 
 CREATE TABLE IF NOT EXISTS public.contact_data_changes (
-    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL,
     contact_id uuid NOT NULL,
     field_name text NOT NULL,
@@ -594,7 +594,7 @@ CREATE TABLE IF NOT EXISTS public.message_attachments (
 );
 
 CREATE TABLE IF NOT EXISTS public.message_feedback (
-    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL,
     message_id uuid NOT NULL,
     conversation_id uuid NOT NULL,

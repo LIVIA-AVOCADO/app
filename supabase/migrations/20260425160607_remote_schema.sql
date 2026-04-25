@@ -1,3 +1,14 @@
+-- Move vector extension to extensions schema if still in public (idempotent)
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_extension e
+    JOIN pg_namespace n ON e.extnamespace = n.oid
+    WHERE e.extname = 'vector' AND n.nspname != 'extensions'
+  ) THEN
+    ALTER EXTENSION vector SET SCHEMA extensions;
+  END IF;
+END $$;
+
 drop trigger if exists "trigger_create_test_records" on "public"."tenants";
 
 alter table "public"."messages" drop constraint "messages_sender_user_id_fkey";
@@ -28,7 +39,16 @@ drop sequence if exists "public"."agent_prompts_intention_id_seq";
 
 drop sequence if exists "public"."usages_id_seq";
 
-drop extension if exists "vector";
+-- Drop vector only if it is NOT in extensions schema (was a no-op on prod where it was already there)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_extension e
+    JOIN pg_namespace n ON e.extnamespace = n.oid
+    WHERE e.extname = 'vector' AND n.nspname = 'extensions'
+  ) THEN
+    DROP EXTENSION IF EXISTS vector;
+  END IF;
+END $$;
 
 CREATE INDEX contacts_external_contact_id_idx ON public.contacts USING btree (external_contact_id);
 
@@ -2602,6 +2622,7 @@ END;
 $function$
 ;
 
+DROP FUNCTION IF EXISTS public.get_channel_evolution_by_instance_id(text);
 CREATE OR REPLACE FUNCTION public.get_channel_evolution_by_instance_id(p_instance_name text)
  RETURNS SETOF jsonb
  LANGUAGE sql
