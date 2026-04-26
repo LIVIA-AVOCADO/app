@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, UserCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, UserCircle2, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
 import { cn } from '@/lib/utils';
 import type { Contact } from '@/types/database-helpers';
+import { ContactImportDialog } from './contact-import-dialog';
 
 interface Props {
   initialContacts: Contact[];
@@ -21,6 +22,7 @@ export function ContactListView({ initialContacts, initialTotal, initialPage, to
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const navigate = useCallback(
     (page: number, q: string) => {
@@ -51,6 +53,10 @@ export function ContactListView({ initialContacts, initialTotal, initialPage, to
             <h1 className="text-2xl font-bold">Contatos</h1>
             <p className="text-sm text-muted-foreground">{initialTotal} contatos cadastrados</p>
           </div>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Importar CSV
+          </Button>
         </div>
 
         <form onSubmit={handleSearch} className="flex gap-2">
@@ -122,6 +128,12 @@ export function ContactListView({ initialContacts, initialTotal, initialPage, to
           </table>
         )}
       </div>
+
+      <ContactImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSuccess={() => router.refresh()}
+      />
 
       {/* Pagination */}
       {totalPages > 1 && (
