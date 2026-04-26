@@ -195,7 +195,7 @@ export function OverviewContent({
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <QueuePanel queue={queue} tenantId={tenantId} />
+            <QueuePanel queue={queue} tenantId={tenantId} agents={agents} />
           </div>
           <div>
             <AgentsPanel agents={agents} />

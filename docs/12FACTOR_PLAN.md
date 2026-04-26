@@ -470,8 +470,13 @@ Reduz bugs que só aparecem em produção.
       - drift migration: DROP FUNCTION antes de CREATE (mudança de return type jsonb vs channels)
     CLI continua linkado à PRODUÇÃO (wfrxwfbslhkkzkexyilx) para db:push e db:pull
     Para operar no staging: npx supabase link --project-ref qejxaqqfdpmzahlrshws
-    ⚠️  PRÓXIMO PASSO: Configurar Vercel preview com NEXT_PUBLIC_SUPABASE_URL do staging
     Credenciais staging salvas: ver docs/ENV_VARS.md
+
+[ ] 6.1b — Branch staging no Vercel com env vars do projeto staging   ← PENDENTE
+    ⚠️  O projeto Supabase de staging existe, mas o Vercel ainda aponta para produção
+    Ação: criar branch "staging" no repositório + configurar Vercel preview deployment
+      com NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY do projeto staging
+    Impacto: commits testados em ambiente isolado antes de afetar produção  |  Esforço: 2h
 
 [x] 6.2 — docker-compose.yml local para livia-gateway               ← 2026-04-24
     local-dev/docker-compose.gateway.yml — dois modos via Docker profiles:
@@ -528,31 +533,24 @@ Só faz sentido após o produto ter usuários suficientes para justificar o cust
 
 ---
 
-## Estado da Infra — Snapshot 2026-04-22
+## Estado da Infra — Snapshot 2026-04-26
 
 ### Serviços rodando na VPS `manager01` (187.127.16.101)
 
 | Serviço | Stack | Imagem | Replicas | Status |
 |---|---|---|---|---|
-| traefik | traefik | traefik:v3.6.1 | 1/1 | ✅ Saudável — 11 dias up |
-| evolution_v2 | evolution_v2 | evoapicloud/evolution-api:v2.3.6 | 1/1 | ⚠️ Up mas DB com erro de auth |
-| livia-gateway | livia-gateway | livia-gateway:latest | 1/1 | ✅ Shadow mode ativo — 25h up |
-| livia_editor | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável — 9 dias up |
-| livia_webhook | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável — 9 dias up |
-| livia_worker | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável — JS Task Runner registrado (2026-04-25) |
-| livia_postgres | livia | postgres:16-alpine | 1/1 | ✅ Saudável — 9 dias up |
-| livia_redis | livia | redis:7.2-alpine | 1/1 | ✅ Saudável — 9 dias up |
-| sofhia_* | sofhia | n8nio/n8n:2.3.2 + postgres + redis | 5/5 | ✅ Saudável — JS Task Runner registrado (2026-04-25) |
-| rabbitmq | rabbitmq | rabbitmq:3.12.14-management | 1/1 | ✅ Saudável — 11 dias up |
-| portainer | portainer | portainer-ce:latest | 2/2 | ✅ Saudável — 11 dias up |
-
-### Problema conhecido: Evolution DB
-
-- **Causa:** Evolution esperava postgres standalone (senha `BTudZJDU09M3`)
-  mas o DNS `postgres` resolve para `livia_postgres` (senha `Mv8nKpXqR2wLivia`)
-- **Solução preparada:** `evolution_user` criado no `livia_postgres` com
-  senha `BTudZJDU09M3` e banco `evolution` já existente
-- **Pendente:** redeploy do stack com `DATABASE_CONNECTION_URI` corrigida
+| traefik | traefik | traefik:v3.6.1 | 1/1 | ✅ Saudável |
+| evolution_v2 | evolution_v2 | evoapicloud/evolution-api:v2.3.6 | 1/1 | ✅ Saudável — DB corrigido |
+| livia-gateway | livia-gateway | ghcr.io/frankmarcelino/livia-gateway:v1.x | 1/1 | ✅ **Modo ATIVO** — Go processa inbound, shadow_mode=false, dual_write=false |
+| livia_editor | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável |
+| livia_webhook | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável |
+| livia_worker | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável — JS Task Runner ativo |
+| livia_postgres | livia | postgres:16-alpine | 1/1 | ✅ Saudável |
+| livia_redis | livia | redis:7.2-alpine | 1/1 | ✅ Saudável |
+| sofhia_* | sofhia | n8nio/n8n:2.3.2 + postgres + redis | 5/5 | ✅ Saudável |
+| rabbitmq | rabbitmq | rabbitmq:3.12.14-management | 1/1 | ✅ Saudável |
+| portainer | portainer | portainer-ce:latest | 2/2 | ✅ Saudável |
+| uptime-kuma | monitoring | louislam/uptime-kuma:1 | 1/1 | ✅ monitor.online24por7.ai |
 
 ### Recursos da VPS
 
@@ -580,18 +578,53 @@ Só faz sentido após o produto ter usuários suficientes para justificar o cust
 
 ---
 
-## Próximos Passos Imediatos (ordem exata)
+## Backlog 12-Factor — Itens Pendentes
+
+Items em aberto ordenados por risco/impacto. Os já concluídos foram marcados `[x]` nas seções acima.
+
+### Crítico (fazer antes de múltiplos tenants ativos)
 
 ```
-1. [x] Remover PAT do git remote                              ← 2026-04-22
-2. [x] Restaurar .env.local.example + docs/ENV_VARS.md        ← 2026-04-22
-3. [ ] Redeploy Evolution com DATABASE_CONNECTION_URI correto (desbloqueio Fase 2 — 30 min)
-4. [ ] Configurar webhook Evolution → livia-gateway (Fase 2 Passo 1 — 30 min)
-5. [ ] Configurar rotação de logs no Docker daemon (risco operacional — 10 min)
-6. [ ] Instalar Uptime Kuma na VPS (observabilidade — 1h)
+[ ] 6.1b — Branch staging no Vercel + env vars do Supabase staging
+    Projeto staging existe (qejxaqqfdpmzahlrshws) — falta conectar ao Vercel
+    Esforço: 2h
+
+[ ] BACKLOG-016 — Corrigir RLS da tabela agents (cross-tenant data leak)
+    Workaround manual ativo em lib/queries/agents.ts
+    Fix: trocar IN (subquery) por EXISTS na policy SQL
+    Esforço: 2h (documentado no docs/old_doc/BACKLOG.md)
+```
+
+### Operacional (fazer em breve)
+
+```
+[ ] Ativar metrics_daily cron (job já implementado, falta setup)
+    1. Vercel → env var CRON_SECRET
+    2. n8n → Variables: LIVIA_APP_URL + LIVIA_CRON_SECRET
+    3. n8n → importar + ativar docs/n8n-workflows/metrics-daily-cron.json
+    Esforço: 15 min
+
+[ ] Ativar export automático de workflows n8n (5.3)
+    Script pronto: scripts/export-n8n-workflows.sh
+    Falta: preencher N8N_URL + N8N_API_KEY no script e agendar no cron da VPS
+    Esforço: 10 min
+
+[ ] BACKLOG-LGPD — Separar backup de dados de notificações Telegram
+    Situação: pg_dump enviado via Telegram (sem DPA)
+    Solução: Backblaze B2 / S3 para arquivos; Telegram só para alertas de status
+    Esforço: 2h | Prioridade: quando houver clientes reais ativos
+```
+
+### Médio prazo (quando carga justificar)
+
+```
+[ ] 6.3 — n8n dev separado (stack livia-dev na VPS)
+[ ] 7.x — Alta disponibilidade: segundo nó Swarm + gateway replicas 2
+[ ] 7.4 — Stack de observabilidade: Loki + Grafana (log aggregation)
+[ ] Vercel logs externos: Axiom ou Logtail (logs efêmeros hoje)
 ```
 
 ---
 
-*Documento criado em 2026-04-22.*  
+*Documento criado em 2026-04-22. Última atualização: 2026-04-26.*  
 *Referências: [12factor.net](https://12factor.net) · [PLATFORM_EVOLUTION_PLAN.md](./PLATFORM_EVOLUTION_PLAN.md)*

@@ -86,9 +86,10 @@ Usar `.env` local + secrets do servidor (ou vault) para todas as credenciais.
 7. [Fase 3 — Multi-Agente e URA Engine](#7-fase-3--multi-agente-e-ura-engine)
 8. [Fase 4 — Tela de Logs de Canal](#8-fase-4--tela-de-logs-de-canal)
 9. [Fase 5 — Evolução CRM](#9-fase-5--evolução-crm)
-10. [Schema de Banco Completo](#10-schema-de-banco-completo)
-11. [Infraestrutura Final](#11-infraestrutura-final)
-12. [Roadmap e Prioridades](#12-roadmap-e-prioridades)
+10. [Backlog Pós-Fase 5](#10-backlog-pós-fase-5)
+11. [Schema de Banco Completo](#11-schema-de-banco-completo)
+12. [Infraestrutura Final](#12-infraestrutura-final)
+13. [Roadmap e Prioridades](#13-roadmap-e-prioridades)
 
 ---
 
@@ -1977,12 +1978,94 @@ CREATE TABLE metrics_daily (
 [x] UI: drag-and-drop entre estágios + atualização via API        (2026-04-26)
 [x] UI: /relatorios/crm — KPIs em tempo real + pipeline breakdown (2026-04-26)
 [x] Integração: mover conversa no Kanban ↔ atualiza pipeline_stage_history (2026-04-26)
-[ ] Job: gerar metrics_daily (cron via n8n ou Go) — próxima iteração
+[x] Job: gerar metrics_daily — SQL fn + API route + n8n workflow JSON    (2026-04-26)
+[x] UI: atribuição direta de agente na fila do /overview (QueuePanel)    (2026-04-26)
+```
+
+### 9.6 Setup pendente (ativação do cron)
+
+> ⚠️ O job `metrics_daily` está **implementado mas não ativado**. Requer 3 ações manuais (~15 min):
+
+1. **Vercel** → Settings → Environment Variables: adicionar `CRON_SECRET` (string segura aleatória)
+2. **n8n** → Settings → Variables: `LIVIA_APP_URL` = URL da Vercel · `LIVIA_CRON_SECRET` = mesma string
+3. **n8n**: importar e ativar `docs/n8n-workflows/metrics-daily-cron.json`
+
+### 9.7 Status Fase 5
+
+**✅ Fase 5 CONCLUÍDA** — implementação 100% completa em 2026-04-26  
+Pendente apenas: ativação do cron (setup acima)
+
+---
+
+## 10. Backlog Pós-Fase 5
+
+Itens identificados após a conclusão das fases 0–5, ordenados por prioridade.
+
+### 10.1 Segurança — Crítico
+
+```
+[ ] BACKLOG-016: Corrigir RLS policy na tabela agents (vazamento entre tenants)
+    Situação: filtro manual no código como workaround (lib/queries/agents.ts)
+    Causa suspeita: IN (subquery) não funciona bem com RLS em SSR — usar EXISTS
+    Risco: se o filtro for removido sem corrigir a policy, tenants veem agents de outros tenants
+    Esforço: 2h  |  Prioridade: ANTES de ter múltiplos tenants ativos
+
+[ ] BACKLOG-LGPD: Backup via Telegram transitando dados pessoais (pg_dump)
+    Situação: backup.sh envia dump para Telegram — sem DPA, fora da LGPD
+    Solução: separar notificação (Telegram) de armazenamento (Backblaze B2 ou S3)
+    Esforço: 2h  |  Prioridade: quando houver clientes reais / base ativa
+```
+
+### 10.2 Produto — Alta prioridade
+
+```
+[ ] Importação de contatos via CSV
+    Gargalo imediato para qualquer cliente novo que já tenha base de contatos
+    Esforço: 3-4h
+
+[ ] Templates / respostas rápidas para agentes
+    Mensagens pré-definidas reutilizáveis por tenant
+    Esforço: 4-6h
+
+[ ] Regras de SLA (alerta quando espera > X min)
+    Complementa o QueuePanel — escalada automática após tempo configurável
+    Esforço: 4-6h
+
+[ ] Módulo de billing / assinatura
+    docs/ONBOARDING_SIGNUP_IMPLEMENTATION.md já planejado
+    Esforço: 1-2 semanas
+```
+
+### 10.3 Operacional — Média prioridade
+
+```
+[ ] Staging completo no Vercel (branch staging → projeto Supabase staging)
+    12FACTOR § 6.1: projeto staging criado (qejxaqqfdpmzahlrshws), falta branch Vercel
+    Esforço: 2h
+
+[ ] Ativar export automático de workflows n8n
+    Script pronto em scripts/export-n8n-workflows.sh — falta preencher N8N_URL + N8N_API_KEY
+    e agendar no cron da VPS  |  Esforço: 10 min (script já existe)
+
+[ ] n8n: instância separada para desenvolvimento de workflows
+    12FACTOR § 6.3: evitar testar em produção
+    Esforço: 2h
+```
+
+### 10.4 Produto — Médio/longo prazo
+
+```
+[ ] Onboarding self-serve (novo tenant se cadastra sem intervenção manual)
+[ ] Suporte nativo à Meta Cloud API no Go Gateway (sem Evolution como intermediário)
+[ ] Multi-canal: Instagram DMs, e-mail
+[ ] Analytics avançado: exportação de relatórios, performance por agente
+[ ] is_blocked: bloquear contatos (gap identificado na Fase 2, seção 6.7)
+[ ] Alta disponibilidade: segundo nó Docker Swarm + replicas 2 no gateway
 ```
 
 ---
 
-## 10. Schema de Banco Completo
+## 11. Schema de Banco Completo
 
 SQL de todas as migrations novas organizadas por fase.
 
@@ -2238,7 +2321,7 @@ CREATE INDEX ON metrics_daily (tenant_id, date DESC);
 
 ---
 
-## 11. Infraestrutura Final
+## 12. Infraestrutura Final
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -2284,44 +2367,46 @@ CANAIS:
 
 ---
 
-## 12. Roadmap e Prioridades
+## 13. Roadmap e Prioridades
 
 ### Visão geral por fase
 
-| Fase | Descrição | Esforço | Impacto | Depende |
+| Fase | Descrição | Esforço | Impacto | Status |
 |---|---|---|---|---|
-| **0** | Performance imediata (Next.js) | 1-2 sem | Alto (lentidão resolve) | — |
-| **1** | Modularização do código | 1 sem | Médio (qualidade) | — |
-| **2** | Go Message Gateway | 3-4 sem | Muito alto (arquitetura) | — |
-| **3** | Multi-agente + URA Engine | 3-4 sem | Muito alto (produto) | Fase 2 |
-| **4** | Logs de canal | 1 sem | Alto (operacional) | Fase 2 |
-| **5** | Evolução CRM | 4-6 sem | Muito alto (produto) | Fase 3 |
+| **0** | Performance imediata (Next.js) | 1-2 sem | Alto | ✅ Concluída 2026-04-21 |
+| **1** | Modularização do código | 1 sem | Médio | ✅ Concluída 2026-04-21 |
+| **2** | Go Message Gateway | 3-4 sem | Muito alto | ✅ Concluída 2026-04-25 |
+| **3** | Multi-agente + URA Engine | 3-4 sem | Muito alto | ✅ Concluída 2026-04-25 |
+| **4** | Logs de canal | 1 sem | Alto | ✅ Concluída 2026-04-26 |
+| **5** | Evolução CRM | 4-6 sem | Muito alto | ✅ Concluída 2026-04-26 |
+| **Backlog** | Pós-Fase 5 (ver seção 10) | — | — | Em planejamento |
 
-### Sequência recomendada
+### Estado atual (2026-04-26)
 
+**Plano original 100% executado.** Todas as fases 0–5 estão em produção.
+
+Próximas frentes de trabalho:
 ```
-Agora (Fase 0 + Fase 1 em paralelo)
-  → Fase 0.B: client-side navigation (maior impacto, mais simples)
-  → Fase 0.A: middleware JWT local
-  → Fase 1: modularização (rename de pastas, zero risco)
-  → Fase 0.C: diagnóstico WebSocket (pode ser investigado junto)
+Imediato (< 1h, você faz)
+  → Ativar cron metrics_daily: CRON_SECRET no Vercel + importar workflow n8n
 
-Próximo ciclo (Fase 2)
-  → Criar repositório livia-gateway
-  → MVP: recebe webhook Evolution, persiste, loga
-  → Depois: URA Engine básico (round_robin + least_busy)
-  → Depois: outbound pelo Go (tira n8n do envio humano)
+Curto prazo (testes manuais)
+  → Validar 4 itens de teste da Fase 3 (URA rules, Realtime, filtros de inbox)
+  → Validar logs de canal da Fase 4 com dados reais
 
-Ciclo seguinte (Fase 3 + Fase 4 em paralelo)
-  → Schema de multi-agente
-  → UI de atribuição e filtros de inbox
-  → Tela de logs de canal
-  → URA rules CRUD no frontend
+Segurança (antes de múltiplos tenants)
+  → BACKLOG-016: corrigir RLS policy da tabela agents
+  → BACKLOG-LGPD: separar backup de dados de alertas no Telegram
 
-Ciclo final (Fase 5)
-  → Contacts CRM + campos customizados
-  → Pipeline Kanban
-  → Reports e métricas
+Infra (12-Factor)
+  → Staging no Vercel (branch staging + env vars do projeto staging Supabase)
+  → Ativar export automático de workflows n8n (script pronto, falta config)
+
+Próximos produtos (por impacto)
+  → Importação de contatos via CSV
+  → Templates / respostas rápidas
+  → Regras de SLA
+  → Billing / onboarding self-serve
 ```
 
 ### Critérios de sucesso por fase
@@ -2365,3 +2450,6 @@ Ciclo final (Fase 5)
 - 2026-04-25 — fix(admin_livia): NeurocoreForm — remove .transform() Zod que quebrava UseFormReturn<T> + fix webhook_url nos defaultValues
 - 2026-04-26 — Fase 4: migration channel_connection_logs (CLI); webhook Next.js grava connected/disconnected; UI /configuracoes/conexoes/logs com tabela+Realtime+filtros+CSV+expand; badge vermelho nav Conexões
 - 2026-04-26 — Fase 4: Go Gateway logger deployado — message_received (persister) + connected/disconnected (evolution handler) gravados em channel_connection_logs via ChannelLogger fire-and-forget
+- 2026-04-26 — Fase 5: CONCLUÍDA — pipeline Kanban + contatos + campos customizados + notas + relatório CRM + job metrics_daily (SQL fn + API + n8n workflow)
+- 2026-04-26 — Fase 5 extra: QueuePanel (/overview) ganhou dropdown de atribuição inline por agente
+- 2026-04-26 — Seção 10 adicionada: Backlog Pós-Fase 5 (segurança, produto, infra, longo prazo)

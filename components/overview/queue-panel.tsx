@@ -1,14 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Clock, UserCheck } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Clock, UserCheck, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import type { QueueConversation } from './types';
+import type { AgentOverview, QueueConversation } from './types';
 
 interface QueuePanelProps {
   queue: QueueConversation[];
   tenantId: string;
+  agents: AgentOverview[];
 }
 
 function formatWaitTime(isoDate: string | null): string {
@@ -29,7 +32,38 @@ function getWaitBadgeVariant(isoDate: string | null): string {
   return 'bg-green-500/10 text-green-600 border-green-200';
 }
 
-export function QueuePanel({ queue }: QueuePanelProps) {
+const STATUS_ORDER: Record<AgentOverview['availability_status'], number> = {
+  online: 0,
+  busy: 1,
+  offline: 2,
+};
+
+const STATUS_DOT: Record<AgentOverview['availability_status'], string> = {
+  online: 'bg-emerald-500',
+  busy: 'bg-amber-500',
+  offline: 'bg-gray-400',
+};
+
+export function QueuePanel({ queue, tenantId, agents }: QueuePanelProps) {
+  const [assigning, setAssigning] = useState<Record<string, boolean>>({});
+
+  const sortedAgents = [...agents].sort(
+    (a, b) => STATUS_ORDER[a.availability_status] - STATUS_ORDER[b.availability_status]
+  );
+
+  async function handleAssign(convId: string, agentId: string) {
+    setAssigning((prev) => ({ ...prev, [convId]: true }));
+    try {
+      await fetch(`/api/conversations/${convId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: agentId, tenantId }),
+      });
+    } finally {
+      setAssigning((prev) => ({ ...prev, [convId]: false }));
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -63,6 +97,9 @@ export function QueuePanel({ queue }: QueuePanelProps) {
                   <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">
                     Espera
                   </th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">
+                    Atribuir
+                  </th>
                   <th className="px-4 py-2" />
                 </tr>
               </thead>
@@ -70,7 +107,7 @@ export function QueuePanel({ queue }: QueuePanelProps) {
                 {queue.map((conv) => (
                   <tr key={conv.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
-                      <p className="font-medium truncate max-w-[180px]">
+                      <p className="font-medium truncate max-w-[160px]">
                         {conv.contact_name ?? conv.contact_phone ?? 'Desconhecido'}
                       </p>
                       {conv.contact_name && conv.contact_phone && (
@@ -94,6 +131,32 @@ export function QueuePanel({ queue }: QueuePanelProps) {
                       >
                         {formatWaitTime(conv.last_message_at)}
                       </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      {assigning[conv.id] ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <Select
+                          onValueChange={(agentId) => handleAssign(conv.id, agentId)}
+                          disabled={sortedAgents.length === 0}
+                        >
+                          <SelectTrigger className="h-7 text-xs w-[140px]">
+                            <SelectValue placeholder="Atribuir..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sortedAgents.map((agent) => (
+                              <SelectItem key={agent.id} value={agent.id}>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`h-2 w-2 rounded-full flex-shrink-0 ${STATUS_DOT[agent.availability_status]}`}
+                                  />
+                                  <span className="truncate max-w-[120px]">{agent.full_name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Link
