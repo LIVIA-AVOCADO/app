@@ -121,7 +121,8 @@ export const navItems: NavItem[] = [
     icon:  Settings,
     items: [
       { title: 'Reativação',        url: '/reativacao',              moduleKey: MODULE_KEYS.REATIVACAO },
-      { title: 'Tags',              url: '/configuracoes/tags',       moduleKey: MODULE_KEYS.CONFIGURACOES },
+      { title: 'Tags',              url: '/configuracoes/tags',        moduleKey: MODULE_KEYS.CONFIGURACOES },
+      { title: 'Campos CRM',        url: '/configuracoes/campos-crm', moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Controle da IA',           url: '/configuracoes/controle-ia',             moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Encerramento Automático',  url: '/configuracoes/encerramento-automatico', moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Horários do Agente',       url: '/configuracoes/horarios-agente',         moduleKey: MODULE_KEYS.HORARIOS_AGENTE },
@@ -139,6 +140,7 @@ export const navItems: NavItem[] = [
       { title: 'Principal',  url: '/relatorios/principal',  moduleKey: MODULE_KEYS.RELATORIOS },
       { title: 'Conversas',  url: '/relatorios/conversas',  moduleKey: MODULE_KEYS.RELATORIOS },
       { title: 'Tags',       url: '/relatorios/tags',       moduleKey: MODULE_KEYS.RELATORIOS },
+      { title: 'CRM',        url: '/relatorios/crm',        moduleKey: MODULE_KEYS.RELATORIOS },
     ],
   },
   {
