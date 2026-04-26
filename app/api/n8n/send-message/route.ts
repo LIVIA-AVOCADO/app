@@ -123,6 +123,8 @@ export async function POST(request: NextRequest) {
 
     // Envio e pausa de IA rodam DEPOIS da resposta (after garante execução completa no Vercel)
     after(async () => {
+      // DEBUG TEMPORÁRIO — diagnosticar routing gateway vs n8n
+      console.error(`[send-message] routing: gw_url=${GATEWAY_SEND_URL ? 'SET' : 'UNSET'} is_evolution=${channelInfo?.isEvolution ?? false} channel_info=${channelInfo ? 'OK' : 'NULL'}`);
       if (channelInfo?.isEvolution && GATEWAY_SEND_URL) {
         await sendViaGateway(message.id, channelInfo, contactId, content.trim(), quotedData, supabase);
       } else {
