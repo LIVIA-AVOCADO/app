@@ -170,7 +170,7 @@ async function resolveChannelInfo(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: channel, error: chErr } = await (createAdminClient() as any)
       .from('channels')
-      .select('config_json')
+      .select('config_json, provider_external_channel_id')
       .eq('id', channelId)
       .single();
 
@@ -183,7 +183,7 @@ async function resolveChannelInfo(
     const cfg = channel.config_json as Record<string, any> | null;
 
     const evolutionBaseUrl = cfg?.evolution_api_url ?? '';
-    const evolutionApiKey  = cfg?.evolution_api_key ?? '';
+    const evolutionApiKey  = cfg?.evolution_api_key ?? channel.provider_external_channel_id ?? '';
     const instanceName     = cfg?.instance_name ?? '';
 
     console.error(`[resolveChannelInfo] channel_id=${channelId} base_url=${evolutionBaseUrl ? 'SET' : 'EMPTY'} instance=${instanceName ? 'SET' : 'EMPTY'} api_key=${evolutionApiKey ? 'SET' : 'EMPTY'}`);
