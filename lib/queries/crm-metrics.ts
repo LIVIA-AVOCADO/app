@@ -1,6 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createAdminClient } from '@/lib/supabase/admin';
 
+export interface DailyMetricRow {
+  date: string;
+  total_conversations: number;
+  closed_conversations: number;
+  ai_handled: number;
+  human_handled: number;
+  avg_resolution_s: number | null;
+  csat_positive: number;
+  csat_negative: number;
+}
+
 export interface CRMMetricsSummary {
   totalContacts: number;
   activeConversations: number;
@@ -10,6 +21,7 @@ export interface CRMMetricsSummary {
   pipelineByStage: Array<{ name: string; color: string; count: number; dealValue: number }>;
   contactsLast30d: number;
   messagesLast7d: number;
+  dailyHistory: DailyMetricRow[];
 }
 
 export async function getCRMMetrics(tenantId: string): Promise<CRMMetricsSummary> {
@@ -25,6 +37,7 @@ export async function getCRMMetrics(tenantId: string): Promise<CRMMetricsSummary
     messagesRecent,
     contactsRecent,
     pipeline,
+    dailyHistory,
   ] = await Promise.all([
     // Total contacts
     admin.from('contacts').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
@@ -40,6 +53,13 @@ export async function getCRMMetrics(tenantId: string): Promise<CRMMetricsSummary
     admin.from('contacts').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).gte('created_at', d30),
     // Pipeline stages with conversation counts
     (admin as any).from('pipeline_stages').select('id, name, color').eq('tenant_id', tenantId).order('display_order'),
+    // Historical metrics (last 30 days from metrics_daily)
+    (admin as any)
+      .from('metrics_daily')
+      .select('date, total_conversations, closed_conversations, ai_handled, human_handled, avg_resolution_s, csat_positive, csat_negative')
+      .eq('tenant_id', tenantId)
+      .gte('date', d30.slice(0, 10))
+      .order('date', { ascending: true }),
   ]);
 
   const stagesData: Array<{ id: string; name: string; color: string }> = pipeline.data || [];
@@ -73,5 +93,6 @@ export async function getCRMMetrics(tenantId: string): Promise<CRMMetricsSummary
     pipelineByStage,
     contactsLast30d: contactsRecent.count ?? 0,
     messagesLast7d: messagesRecent.count ?? 0,
+    dailyHistory: (dailyHistory.data || []) as DailyMetricRow[],
   };
 }
