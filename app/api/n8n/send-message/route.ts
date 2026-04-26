@@ -162,7 +162,7 @@ interface ChannelInfo {
 async function resolveChannelInfo(
   _supabase: Awaited<ReturnType<typeof createClient>>,
   channelId: string,
-  tenantId: string,
+  _tenantId: string,
 ): Promise<ChannelInfo | null> {
   try {
     // Admin client bypassa RLS. Filtra só por id — tenant já foi validado na busca da conversa.
