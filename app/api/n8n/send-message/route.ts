@@ -24,6 +24,7 @@
 
 import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { callN8nWebhook } from '@/lib/n8n/client';
 
 const N8N_SEND_MESSAGE_WEBHOOK = process.env.N8N_SEND_MESSAGE_WEBHOOK!;
@@ -159,13 +160,14 @@ interface ChannelInfo {
 }
 
 async function resolveChannelInfo(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   channelId: string,
   tenantId: string,
 ): Promise<ChannelInfo | null> {
   try {
+    // Usa admin client para bypassar RLS — channels pode ter política restritiva
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: channel } = await (supabase as any)
+    const { data: channel } = await (createAdminClient() as any)
       .from('channels')
       .select('config_json, external_api_url, instance_company_name, provider_external_channel_id')
       .eq('id', channelId)
