@@ -4,11 +4,21 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText, Plus, Trash2, Phone, Mail,
-  MapPin, CreditCard, Bot, User, ChevronRight
+  MapPin, CreditCard, Bot, User, ChevronRight, Save, Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { RelativeTime } from '@/components/ui/relative-time';
 import { cn } from '@/lib/utils';
 import type { Contact } from '@/types/database-helpers';
@@ -28,18 +38,56 @@ interface Props {
   fieldValues: ContactFieldValue[];
 }
 
-export function ContactProfile({ contact, conversations, notes: initialNotes, fieldDefs, fieldValues }: Props) {
+export function ContactProfile({
+  contact,
+  conversations,
+  notes: initialNotes,
+  fieldDefs,
+  fieldValues,
+}: Props) {
   const router = useRouter();
   const [notes, setNotes] = useState(initialNotes);
   const [newNote, setNewNote] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'conversations' | 'notes' | 'fields'>('info');
 
-  const fieldMap = Object.fromEntries(fieldValues.map((v) => [v.field_key, v.value]));
+  // ── Custom fields state ───────────────────────────────────────────────────
+  const initialFieldMap = Object.fromEntries(
+    fieldValues.map((v) => [v.field_key, v.value ?? ''])
+  );
+  const [fieldMap, setFieldMap] = useState<Record<string, string>>(initialFieldMap);
+  const [fieldsDirty, setFieldsDirty] = useState(false);
+  const [savingFields, setSavingFields] = useState(false);
+  const [fieldsSaved, setFieldsSaved] = useState(false);
 
+  const handleFieldChange = (key: string, value: string) => {
+    setFieldMap((prev) => ({ ...prev, [key]: value }));
+    setFieldsDirty(true);
+    setFieldsSaved(false);
+  };
+
+  const handleSaveFields = async () => {
+    setSavingFields(true);
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/fields`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: fieldMap }),
+      });
+      if (res.ok) {
+        setFieldsDirty(false);
+        setFieldsSaved(true);
+        setTimeout(() => setFieldsSaved(false), 2000);
+      }
+    } finally {
+      setSavingFields(false);
+    }
+  };
+
+  // ── Notes ─────────────────────────────────────────────────────────────────
   const handleAddNote = async () => {
-    if (!newNote.trim() || saving) return;
-    setSaving(true);
+    if (!newNote.trim() || savingNote) return;
+    setSavingNote(true);
     try {
       const res = await fetch(`/api/contacts/${contact.id}/notes`, {
         method: 'POST',
@@ -52,20 +100,24 @@ export function ContactProfile({ contact, conversations, notes: initialNotes, fi
         setNewNote('');
       }
     } finally {
-      setSaving(false);
+      setSavingNote(false);
     }
   };
 
   const handleDeleteNote = async (noteId: string) => {
-    const res = await fetch(`/api/contacts/${contact.id}/notes?note_id=${noteId}`, { method: 'DELETE' });
+    const res = await fetch(`/api/contacts/${contact.id}/notes?note_id=${noteId}`, {
+      method: 'DELETE',
+    });
     if (res.ok) setNotes((prev) => prev.filter((n) => n.id !== noteId));
   };
 
   const tabs = [
-    { key: 'info' as const, label: 'Informações' },
+    { key: 'info' as const,          label: 'Informações' },
     { key: 'conversations' as const, label: `Conversas (${conversations.length})` },
-    { key: 'notes' as const, label: `Notas (${notes.length})` },
-    ...(fieldDefs.length > 0 ? [{ key: 'fields' as const, label: 'Campos CRM' }] : []),
+    { key: 'notes' as const,         label: `Notas (${notes.length})` },
+    ...(fieldDefs.length > 0
+      ? [{ key: 'fields' as const, label: 'Campos CRM' }]
+      : []),
   ];
 
   return (
@@ -79,7 +131,7 @@ export function ContactProfile({ contact, conversations, notes: initialNotes, fi
           ← Contatos
         </button>
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
             <span className="text-lg font-bold text-primary uppercase">
               {(contact.name || contact.phone || '?')[0]}
             </span>
@@ -88,18 +140,20 @@ export function ContactProfile({ contact, conversations, notes: initialNotes, fi
             <h1 className="text-xl font-bold">{contact.name || contact.phone}</h1>
             <p className="text-sm text-muted-foreground">{contact.phone}</p>
           </div>
-          {(contact as any).is_muted && <Badge variant="secondary" className="ml-auto">Silenciado</Badge>}
+          {(contact as any).is_muted && (
+            <Badge variant="secondary" className="ml-auto">Silenciado</Badge>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b px-4 bg-card flex-shrink-0">
+      <div className="flex gap-1 border-b px-4 bg-card flex-shrink-0 overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              'px-3 py-2 text-sm border-b-2 transition-colors',
+              'px-3 py-2 text-sm border-b-2 transition-colors whitespace-nowrap',
               activeTab === tab.key
                 ? 'border-primary text-primary font-medium'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -112,45 +166,56 @@ export function ContactProfile({ contact, conversations, notes: initialNotes, fi
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
-        {/* Info tab */}
+
+        {/* ── Info tab ─────────────────────────────────────────────────────── */}
         {activeTab === 'info' && (
           <div className="space-y-4 max-w-md">
             {contact.email && (
               <div className="flex items-center gap-3">
-                <Mail className="h-4 w-4 text-muted-foreground" />
+                <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <span className="text-sm">{contact.email}</span>
               </div>
             )}
             {contact.phone && (
               <div className="flex items-center gap-3">
-                <Phone className="h-4 w-4 text-muted-foreground" />
+                <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <span className="text-sm">{contact.phone}</span>
               </div>
             )}
             {contact.cpf && (
               <div className="flex items-center gap-3">
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                <CreditCard className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <span className="text-sm">{contact.cpf}</span>
               </div>
             )}
             {(contact.address_street || contact.city) && (
               <div className="flex items-center gap-3">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <span className="text-sm">
-                  {[contact.address_street, contact.address_number, contact.city, contact.zip_code]
+                  {[
+                    contact.address_street,
+                    contact.address_number,
+                    contact.city,
+                    contact.zip_code,
+                  ]
                     .filter(Boolean)
                     .join(', ')}
                 </span>
               </div>
             )}
+            {!contact.email && !contact.cpf && !contact.address_street && !contact.city && (
+              <p className="text-sm text-muted-foreground">Nenhum dado adicional cadastrado.</p>
+            )}
           </div>
         )}
 
-        {/* Conversations tab */}
+        {/* ── Conversations tab ─────────────────────────────────────────────── */}
         {activeTab === 'conversations' && (
           <div className="space-y-2">
             {conversations.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma conversa ainda</p>
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                Nenhuma conversa ainda
+              </p>
             ) : (
               conversations.map((conv) => {
                 const Icon = conv.ia_active ? Bot : User;
@@ -163,18 +228,20 @@ export function ContactProfile({ contact, conversations, notes: initialNotes, fi
                     <div className="flex items-center gap-3">
                       <Icon className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={conv.status === 'closed' ? 'secondary' : 'default'}
-                            className={cn(
-                              'text-xs',
-                              conv.status !== 'closed' && conv.ia_active && 'bg-green-500',
-                              conv.status !== 'closed' && !conv.ia_active && 'bg-blue-500'
-                            )}
-                          >
-                            {conv.status === 'closed' ? 'Encerrada' : conv.ia_active ? 'IA Ativa' : 'Manual'}
-                          </Badge>
-                        </div>
+                        <Badge
+                          variant={conv.status === 'closed' ? 'secondary' : 'default'}
+                          className={cn(
+                            'text-xs',
+                            conv.status !== 'closed' && conv.ia_active && 'bg-green-500',
+                            conv.status !== 'closed' && !conv.ia_active && 'bg-blue-500'
+                          )}
+                        >
+                          {conv.status === 'closed'
+                            ? 'Encerrada'
+                            : conv.ia_active
+                            ? 'IA Ativa'
+                            : 'Manual'}
+                        </Badge>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           <RelativeTime timestamp={conv.last_message_at || conv.created_at} />
                         </p>
@@ -188,10 +255,9 @@ export function ContactProfile({ contact, conversations, notes: initialNotes, fi
           </div>
         )}
 
-        {/* Notes tab */}
+        {/* ── Notes tab ────────────────────────────────────────────────────── */}
         {activeTab === 'notes' && (
-          <div className="space-y-4">
-            {/* Add note */}
+          <div className="space-y-4 max-w-xl">
             <div className="space-y-2">
               <Textarea
                 placeholder="Adicionar nota interna..."
@@ -199,7 +265,11 @@ export function ContactProfile({ contact, conversations, notes: initialNotes, fi
                 onChange={(e) => setNewNote(e.target.value)}
                 rows={3}
               />
-              <Button onClick={handleAddNote} disabled={saving || !newNote.trim()} size="sm">
+              <Button
+                onClick={handleAddNote}
+                disabled={savingNote || !newNote.trim()}
+                size="sm"
+              >
                 <Plus className="h-4 w-4 mr-1" />
                 Adicionar nota
               </Button>
@@ -233,24 +303,99 @@ export function ContactProfile({ contact, conversations, notes: initialNotes, fi
           </div>
         )}
 
-        {/* Fields tab */}
+        {/* ── Fields tab (editable) ─────────────────────────────────────────── */}
         {activeTab === 'fields' && (
-          <div className="space-y-3 max-w-md">
+          <div className="space-y-5 max-w-md">
             {fieldDefs.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">
-                Nenhum campo customizado configurado
+                Nenhum campo customizado configurado.{' '}
+                <button
+                  onClick={() => router.push('/configuracoes/campos-crm')}
+                  className="underline hover:text-foreground"
+                >
+                  Configurar campos
+                </button>
               </p>
             ) : (
-              fieldDefs.map((def) => (
-                <div key={def.id} className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {def.field_label}
-                  </label>
-                  <p className="text-sm border rounded-md px-3 py-2 bg-muted/30 min-h-[36px]">
-                    {fieldMap[def.field_key] || '—'}
-                  </p>
+              <>
+                {fieldDefs.map((def) => (
+                  <div key={def.id} className="space-y-1.5">
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {def.field_label}
+                      {def.is_required && (
+                        <span className="text-destructive ml-1">*</span>
+                      )}
+                    </Label>
+
+                    {def.field_type === 'boolean' ? (
+                      <div className="flex items-center gap-2 h-9">
+                        <Switch
+                          checked={fieldMap[def.field_key] === 'true'}
+                          onCheckedChange={(v) =>
+                            handleFieldChange(def.field_key, v ? 'true' : 'false')
+                          }
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          {fieldMap[def.field_key] === 'true' ? 'Sim' : 'Não'}
+                        </span>
+                      </div>
+                    ) : def.field_type === 'select' && def.options ? (
+                      <Select
+                        value={fieldMap[def.field_key] ?? ''}
+                        onValueChange={(v) => handleFieldChange(def.field_key, v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecionar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">— Nenhum —</SelectItem>
+                          {def.options.map((opt) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        type={
+                          def.field_type === 'number'
+                            ? 'number'
+                            : def.field_type === 'date'
+                            ? 'date'
+                            : 'text'
+                        }
+                        value={fieldMap[def.field_key] ?? ''}
+                        onChange={(e) => handleFieldChange(def.field_key, e.target.value)}
+                        placeholder={`Informar ${def.field_label.toLowerCase()}...`}
+                      />
+                    )}
+                  </div>
+                ))}
+
+                <div className="pt-2 flex items-center gap-3">
+                  <Button
+                    onClick={handleSaveFields}
+                    disabled={savingFields || !fieldsDirty}
+                    size="sm"
+                  >
+                    {fieldsSaved ? (
+                      <>
+                        <Check className="h-4 w-4 mr-1 text-green-400" />
+                        Salvo
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-1" />
+                        {savingFields ? 'Salvando...' : 'Salvar campos'}
+                      </>
+                    )}
+                  </Button>
+                  {fieldsDirty && !savingFields && (
+                    <span className="text-xs text-muted-foreground">Alterações não salvas</span>
+                  )}
                 </div>
-              ))
+              </>
             )}
           </div>
         )}
