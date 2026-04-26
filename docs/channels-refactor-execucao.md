@@ -240,14 +240,18 @@ A Evolution API **não aceita LID** no `/message/sendText` — rejeita com 400.
 `external_identification_contact=<LID>@s.whatsapp.net`. Após o fix, novos contatos são
 criados com o telefone real. Limpeza pendente.
 
-### Typing indicator — presence (2026-04-26)
+### Typing indicator — presence (2026-04-26) ✅
 
-Implementado no gateway Go (v1.x+):
+Gateway v1.2.0 + Next.js (commit `e804bc8`).
 
-- **URA Engine (IA):** `sendPresenceViaEvolution` chamado antes de cada mensagem da IA.
-  O contato vê "digitando..." por `typingDelay(msg)` ms antes de receber o texto.
-- **Modo manual:** novo endpoint `POST /presence` no gateway.
-  Next.js deve chamar `POST /api/send-presence` enquanto agente digita.
-  Frontend integration: **pendente**.
+**IA automático (URA Engine):**
+`sendPresenceViaEvolution` chamado antes de cada mensagem da IA.
+O contato vê "digitando..." por `typingDelay(msg)` ms antes de receber o texto. Non-fatal.
 
-Endpoint: `POST /chat/sendPresence/{instance}` (Evolution API v2)
+**Modo manual (agente):**
+- `handlers/presence.go` — endpoint `POST /presence` no gateway
+- `app/api/send-presence/route.ts` — resolve canal + contato e chama gateway fire-and-forget
+- `lib/hooks/use-whatsapp-presence.ts` — throttle 4s (presence dura 5s no WhatsApp)
+- `components/inbox/conversation-view.tsx` — `handleTyping` compõe `broadcastTyping` (Realtime UI) + `sendPresence` (WhatsApp)
+
+Endpoint Evolution usado: `POST /chat/sendPresence/{instance}`
