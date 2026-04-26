@@ -32,8 +32,37 @@ Referência completa: `.env.local.example`
 | `MERCADOPAGO_WEBHOOK_SECRET` | ✅ | MP > Notificações IPN > chave secreta |
 | `N8N_MOCK` | ⚠️ dev | `true` em dev local, `false` em produção |
 | `NEUROCORE_MOCK` | ⚠️ dev | `true` em dev local, `false` em produção |
+| `CRON_SECRET` | ✅ prod | String segura aleatória — autentica o job n8n `metrics_daily` |
 
 > **Como configurar na Vercel:** Dashboard > Project > Settings > Environment Variables
+
+---
+
+## Ambientes — Produção vs Staging
+
+| Variável | Produção (`main`) | Staging (`staging` branch) |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://wfrxwfbslhkkzkexyilx.supabase.co` | `https://qejxaqqfdpmzahlrshws.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | prod anon key | staging anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | prod service role | staging service role |
+| `CRON_SECRET` | string segura (prod) | qualquer string (staging) |
+| Demais variáveis | valores reais | pode apontar para mesmos webhooks n8n |
+
+> **Onde obter as chaves do staging:**
+> Supabase → selecionar projeto `qejxaqqfdpmzahlrshws` → Settings → API
+
+### Como configurar no Vercel (branch-specific env vars)
+
+1. Vercel Dashboard → seu projeto → **Settings → Environment Variables**
+2. Para cada variável que difere entre prod e staging:
+   - Clique na variável existente (ou adicione nova)
+   - Em "Environments": desmarque **Production**, marque **Preview**
+   - Em "Git Branch": preencha `staging`
+   - Salve com o valor do projeto Supabase staging
+3. As variáveis sem branch específica continuam valendo para todos os previews
+
+> **Resultado:** push para `staging` → Vercel cria preview com banco de staging.
+> Push para `main` → deploy de produção com banco de produção. Zero risco de cruzamento.
 
 ---
 
