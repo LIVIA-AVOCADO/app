@@ -141,6 +141,7 @@ const ROUTE_PERMISSIONS: Array<{ pattern: string; permission: RoutePermission }>
   { pattern: '/relatorios',         permission: { moduleKey: MODULE_KEYS.RELATORIOS } },
   { pattern: '/inbox',              permission: { moduleKey: MODULE_KEYS.LIVECHAT } },
   { pattern: '/crm',                permission: { moduleKey: MODULE_KEYS.CRM } },
+  { pattern: '/contacts',           permission: { moduleKey: MODULE_KEYS.CRM } },
   { pattern: '/knowledge-base',     permission: { moduleKey: MODULE_KEYS.KNOWLEDGE_BASE } },
   { pattern: '/neurocore',          permission: { moduleKey: MODULE_KEYS.KNOWLEDGE_BASE } },
   { pattern: '/meus-agentes',       permission: { moduleKey: MODULE_KEYS.AGENTS } },

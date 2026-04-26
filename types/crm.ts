@@ -1,5 +1,70 @@
 import type { Conversation, Contact, Tag } from './database-helpers';
 
+// ── Pipeline ──────────────────────────────────────────────────────────────────
+
+export interface PipelineStage {
+  id: string;
+  tenant_id: string;
+  name: string;
+  color: string;
+  display_order: number;
+  is_closed: boolean;
+  is_won: boolean;
+  created_at: string;
+}
+
+export interface ConversationWithPipelineAndContact extends Conversation {
+  contact: Contact;
+  pipeline_stage_id: string | null;
+  deal_value: number | null;
+  deal_currency: string;
+  stage_moved_at: string | null;
+}
+
+export interface PipelineKanbanBoardProps {
+  initialStages: PipelineStage[];
+  initialConversations: ConversationWithPipelineAndContact[];
+  tenantId: string;
+}
+
+export interface PipelineKanbanColumnProps {
+  stage: PipelineStage;
+  conversations: ConversationWithPipelineAndContact[];
+  currentFilter: CRMStatusFilter;
+  isOver?: boolean;
+}
+
+// ── Contact fields ────────────────────────────────────────────────────────────
+
+export interface ContactFieldDefinition {
+  id: string;
+  tenant_id: string;
+  field_key: string;
+  field_label: string;
+  field_type: 'text' | 'number' | 'date' | 'select' | 'boolean';
+  options: string[] | null;
+  is_required: boolean;
+  display_order: number;
+  created_at: string;
+}
+
+export interface ContactFieldValue {
+  contact_id: string;
+  tenant_id: string;
+  field_key: string;
+  value: string | null;
+  updated_at: string;
+}
+
+export interface ContactNote {
+  id: string;
+  contact_id: string;
+  tenant_id: string;
+  content: string;
+  created_by: string | null;
+  created_at: string;
+}
+
 /**
  * CRM Types - Feature Kanban Board
  *

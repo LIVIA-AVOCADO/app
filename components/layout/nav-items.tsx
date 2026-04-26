@@ -1,4 +1,4 @@
-import { MessageSquare, BookOpen, Bot, BarChart3, Wallet, Settings, Rocket, Calendar, LayoutDashboard, Users2, Workflow } from 'lucide-react';
+import { MessageSquare, BookOpen, Bot, BarChart3, Wallet, Settings, Rocket, Calendar, LayoutDashboard, Users2, Workflow, Kanban } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { MODULE_KEYS, type ModuleKey, isSuperAdmin, hasModule } from '@/lib/permissions';
 // MODULE_KEYS é a fonte de verdade — não há necessidade de seed no banco para novos módulos.
@@ -90,6 +90,16 @@ export const navItems: NavItem[] = [
       { title: 'Agenda',           url: '/agendamentos',               moduleKey: MODULE_KEYS.AGENDAMENTOS },
       { title: 'Novo Agendamento', url: '/agendamentos/novo',          moduleKey: MODULE_KEYS.AGENDAMENTOS },
       { title: 'Configurações',    url: '/agendamentos/configuracoes', moduleKey: MODULE_KEYS.AGENDAMENTOS },
+    ],
+  },
+  {
+    title:     'CRM',
+    url:       '/crm',
+    icon:      Kanban,
+    moduleKey: MODULE_KEYS.CRM,
+    items: [
+      { title: 'Pipeline',  url: '/crm',      moduleKey: MODULE_KEYS.CRM },
+      { title: 'Contatos',  url: '/contacts', moduleKey: MODULE_KEYS.CRM },
     ],
   },
   {

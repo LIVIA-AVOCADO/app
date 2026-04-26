@@ -1,12 +1,18 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getPipelineStages, getConversationsForPipeline } from '@/lib/queries/pipeline';
-import { PipelineKanbanBoard } from '@/components/crm';
+import { getContactsPage } from '@/lib/queries/contacts';
+import { ContactListView } from '@/components/contacts/contact-list-view';
 
-export default async function CRMPage() {
+interface Props {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}
+
+export default async function ContactsPage({ searchParams }: Props) {
+  const { q = '', page: pageStr = '1' } = await searchParams;
+  const page = Math.max(1, parseInt(pageStr, 10) || 1);
+
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
-
   if (!authData.user) redirect('/login');
 
   const { data: userData } = await supabase
@@ -16,7 +22,6 @@ export default async function CRMPage() {
     .single();
 
   const tenantId = userData?.tenant_id;
-
   if (!tenantId) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -25,16 +30,14 @@ export default async function CRMPage() {
     );
   }
 
-  const [stages, conversations] = await Promise.all([
-    getPipelineStages(tenantId),
-    getConversationsForPipeline(tenantId),
-  ]);
+  const result = await getContactsPage(tenantId, q, page);
 
   return (
-    <PipelineKanbanBoard
-      initialStages={stages}
-      initialConversations={conversations}
-      tenantId={tenantId}
+    <ContactListView
+      initialContacts={result.contacts}
+      initialTotal={result.total}
+      initialPage={result.page}
+      totalPages={result.totalPages}
     />
   );
 }

@@ -170,3 +170,93 @@ export async function updateContact(
 
   return updatedContact as Contact;
 }
+
+// ── Contact list with search + pagination ─────────────────────────────────────
+
+const PAGE_SIZE = 50;
+
+export interface ContactsPage {
+  contacts: Contact[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export async function getContactsPage(
+  tenantId: string,
+  search: string,
+  page: number
+): Promise<ContactsPage> {
+  const supabase = await createClient();
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  let query = supabase
+    .from('contacts')
+    .select('*', { count: 'exact' })
+    .eq('tenant_id', tenantId)
+    .order('name', { ascending: true })
+    .range(from, to);
+
+  if (search.trim()) {
+    const s = `%${search.trim()}%`;
+    query = query.or(`name.ilike.${s},phone.ilike.${s},email.ilike.${s}`);
+  }
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    console.error('Error fetching contacts page:', error);
+    return { contacts: [], total: 0, page, totalPages: 0 };
+  }
+
+  const total = count ?? 0;
+  return {
+    contacts: (data || []) as Contact[],
+    total,
+    page,
+    totalPages: Math.ceil(total / PAGE_SIZE),
+  };
+}
+
+export async function getContactWithDetails(contactId: string, tenantId: string) {
+  const supabase = await createClient();
+
+  const [contactRes, conversationsRes, notesRes, fieldDefsRes, fieldValuesRes] =
+    await Promise.all([
+      supabase.from('contacts').select('*').eq('id', contactId).eq('tenant_id', tenantId).single(),
+      supabase
+        .from('conversations')
+        .select('id, status, ia_active, last_message_at, created_at, pipeline_stage_id')
+        .eq('contact_id', contactId)
+        .eq('tenant_id', tenantId)
+        .order('last_message_at', { ascending: false })
+        .limit(20),
+      (supabase as any)
+        .from('contact_notes')
+        .select('*')
+        .eq('contact_id', contactId)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false }),
+      (supabase as any)
+        .from('contact_field_definitions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('display_order', { ascending: true }),
+      (supabase as any)
+        .from('contact_field_values')
+        .select('*')
+        .eq('contact_id', contactId)
+        .eq('tenant_id', tenantId),
+    ]);
+
+  if (contactRes.error || !contactRes.data) return null;
+
+  return {
+    contact: contactRes.data as Contact,
+    conversations: (conversationsRes.data || []) as any[],
+    notes: (notesRes.data || []) as any[],
+    fieldDefs: (fieldDefsRes.data || []) as any[],
+    fieldValues: (fieldValuesRes.data || []) as any[],
+  };
+}
