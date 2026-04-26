@@ -472,11 +472,38 @@ Reduz bugs que só aparecem em produção.
     Para operar no staging: npx supabase link --project-ref qejxaqqfdpmzahlrshws
     Credenciais staging salvas: ver docs/ENV_VARS.md
 
-[ ] 6.1b — Branch staging no Vercel com env vars do projeto staging   ← PENDENTE
-    ⚠️  O projeto Supabase de staging existe, mas o Vercel ainda aponta para produção
-    Ação: criar branch "staging" no repositório + configurar Vercel preview deployment
-      com NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY do projeto staging
-    Impacto: commits testados em ambiente isolado antes de afetar produção  |  Esforço: 2h
+[~] 6.1b — Branch staging no Vercel com env vars do projeto staging   ← EM ANDAMENTO (2026-04-26)
+
+    ✅ FEITO:
+    - branch "staging" criada e pushed para origin/staging
+    - CI (.github/workflows/ci.yml) atualizado: roda em push/PR para main E staging
+    - .env.local.example: CRON_SECRET documentado (com instrução openssl rand -hex 32)
+    - docs/ENV_VARS.md: tabela prod vs staging + instruções Vercel adicionadas
+    - Supabase staging keys obtidas (projeto qejxaqqfdpmzahlrshws)
+    - CRON_SECRET gerado (openssl rand -hex 32)
+
+    ⏸️  PAROU AQUI — Vercel env vars não concluídas:
+    Contexto: plano Free não suporta Custom Environments → usar Production vs Preview nativos
+
+    Próximos passos exatos no Vercel (Settings → Environment Variables):
+
+    1. Para cada uma das 3 vars abaixo, editar e mudar de "All Environments" → "Production":
+         NEXT_PUBLIC_SUPABASE_URL     (manter valor de prod)
+         NEXT_PUBLIC_SUPABASE_ANON_KEY (manter valor de prod)
+         SUPABASE_SERVICE_ROLE_KEY    (manter valor de prod, marcar sensitive)
+
+    2. Adicionar nova entrada para cada uma das 3 vars, agora para "Preview":
+         NEXT_PUBLIC_SUPABASE_URL      → https://qejxaqqfdpmzahlrshws.supabase.co
+         NEXT_PUBLIC_SUPABASE_ANON_KEY → anon key do projeto staging
+         SUPABASE_SERVICE_ROLE_KEY     → service role key do projeto staging (sensitive)
+
+    3. Adicionar variável nova:
+         CRON_SECRET  →  hex gerado  →  ambiente: Production apenas
+
+    4. Verificar: Vercel → Deployments → branch "staging" deve ter um preview build
+       Se não disparou: git commit --allow-empty -m "trigger" && git push origin staging
+
+    Impacto: push para staging → preview com banco de staging | push para main → produção
 
 [x] 6.2 — docker-compose.yml local para livia-gateway               ← 2026-04-24
     local-dev/docker-compose.gateway.yml — dois modos via Docker profiles:
