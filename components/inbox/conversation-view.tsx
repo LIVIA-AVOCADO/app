@@ -12,6 +12,7 @@ import { useRealtimeMessages } from '@/lib/hooks/use-realtime-messages';
 import { useRealtimeConversation } from '@/lib/hooks/use-realtime-conversation';
 import { useChatScroll } from '@/lib/hooks/use-chat-scroll';
 import { useTypingPresence } from '@/lib/hooks/use-typing-presence';
+import { useWhatsAppPresence } from '@/lib/hooks/use-whatsapp-presence';
 import { useSendMessage } from '@/lib/hooks/use-send-message';
 import { useScrollToMessage } from '@/lib/hooks/use-scroll-to-message';
 import { getMessageDayLabel } from '@/lib/utils/date-helpers';
@@ -71,6 +72,8 @@ export function ConversationView({
       conversation.last_message_at
     );
   const { isRemoteTyping, broadcastTyping } = useTypingPresence(initialConversation.id);
+  const { sendPresence } = useWhatsAppPresence(initialConversation.id, tenantId);
+  const handleTyping = useCallback(() => { broadcastTyping(); sendPresence(); }, [broadcastTyping, sendPresence]);
 
   // scrollRef criado aqui para que handleLoadOlder possa usá-lo antes de useChatScroll
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -288,7 +291,7 @@ export function ConversationView({
         onOptimisticAdd={addMessage}
         onTempConfirmed={replaceTempMessage}
         onTempFailed={(tempId) => updateMessageStatus(tempId, 'failed')}
-        onTyping={broadcastTyping}
+        onTyping={handleTyping}
         replyToMessage={replyToMessage}
         onClearReply={() => setReplyToMessage(null)}
       />
