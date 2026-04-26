@@ -983,19 +983,25 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 | Webhook instâncias → gateway | ✅ | `POST /webhook/evolution` recebendo |
 | Forward gateway → n8n | ✅ | `n8n_forward_ok:true` em todos os eventos |
 | **Inbound** (mensagens recebidas) | ✅ **Validado** | `messages.upsert` chega no gateway e n8n processa |
-| **Outbound IA** (agente IA envia) | ✅ **Validado** | n8n chama Evolution diretamente — funciona |
+| **Outbound IA** (agente IA envia) | ✅ **Migrado para Gateway** | Gateway lê resposta do Neurocore e envia via Evolution — ver seção 7.9 |
 | **Outbound manual** (atendente envia) | ✅ **Implementado** | Next.js → Gateway `/send` → Evolution API |
 
 #### Fluxo atual validado
 
 ```
 INBOUND:
-  WhatsApp → Evolution (nova) → livia-gateway (shadow) → n8n (forward) → Supabase
-                                                         ↑
-                                                  loga + n8n_forward_ok:true
+  WhatsApp → Evolution → livia-gateway → persiste (Supabase) → URA Engine
+                                                                     ↓
+                                                            route_ai: POST Neurocore
+                                                                     ↓
+                                                         Neurocore (n8n) processa IA
+                                                                     ↓
+                                                    Gateway lê resposta + envia via Evolution
+                                                         (sequencial com typing delay)
 
 OUTBOUND IA:
-  n8n workflow → Evolution API direta (sem gateway) → WhatsApp  ✅
+  URA Engine → Neurocore webhook → [aguarda resposta] → Evolution API → WhatsApp  ✅
+  n8n NÃO chama mais Evolution diretamente — responsabilidade do Gateway
 
 OUTBOUND MANUAL (Evolution):
   Frontend → Next.js /api/n8n/send-message → Gateway POST /send → Evolution → WhatsApp
@@ -1785,21 +1791,40 @@ atualiza em tempo real sem polling.
 
 ---
 
-### 7.9 Decisão Arquitetural — route_ai sem FirstIntegration
+### 7.9 Decisão Arquitetural — route_ai: Gateway controla todo o fluxo IA
 
 **Contexto (2026-04-25):** o plano original previa que `route_ai` dispararia o fluxo
 `FirstIntegration` do n8n, que então chamaria o Neurocore. Isso foi revisado.
 
-**Decisão:** o Go Gateway chama o webhook do Neurocore **diretamente**, sem passar pelo n8n
-FirstIntegration.
+**Decisão original (2026-04-25):** o Go Gateway chama o webhook do Neurocore **diretamente**,
+sem passar pelo n8n FirstIntegration.
 
-**Justificativa:**
-- O gateway já faz tudo que o FirstIntegration fazia (upsert contato/conversa, insert message)
-- Chamar FirstIntegration seria um hop redundante: gateway → n8n → Neurocore
-- Novo fluxo: gateway → Neurocore webhook diretamente
-- A URL do webhook fica em `neurocores.webhook_url` (configurável no admin_livia) e é herdada por todos os tenants associados ao neurocore — 2026-04-25
+**Decisão expandida (2026-04-26):** o Gateway também é responsável por **enviar a resposta da IA
+via Evolution API**. O n8n (Neurocore) retorna as mensagens no body da resposta HTTP — o Gateway
+lê e envia cada mensagem sequencialmente com delay de digitação.
 
-**Payload enviado ao webhook:**
+**Justificativa da expansão:**
+- Centraliza toda comunicação com Evolution no Gateway (inbound + outbound)
+- n8n fica limitado a processamento de IA — nenhuma chamada de canal (DA-003)
+- Go tem performance superior para HTTP calls (~5ms vs ~150ms do n8n)
+- Retry, circuit breaker e observabilidade centralizados no Gateway
+- Credenciais Evolution em um único lugar
+
+**Fluxo completo route_ai:**
+```
+URA Engine chama Neurocore webhook (síncrono, timeout 90s)
+       ↓
+Neurocore processa a mensagem com IA
+       ↓
+Neurocore retorna HTTP 200 com body:
+  { "mensagem_agente_ia": ["msg1", "msg2", "msg3"] }
+       ↓
+Gateway itera as mensagens sequencialmente:
+  - delay entre mensagens: 50ms/char, min 800ms, max 3s (simula digitação)
+  - POST /message/sendText/{instance} na Evolution para cada mensagem
+```
+
+**Payload enviado ao webhook do Neurocore:**
 ```json
 {
   "conversation_id": "uuid",
@@ -1807,9 +1832,33 @@ FirstIntegration.
   "contact_id":      "uuid",
   "channel_id":      "uuid",
   "phone":           "5511...",
-  "message":         "texto da mensagem"
+  "message":         "texto da mensagem",
+  "send_type":       "text | audio | image | video | document"
 }
 ```
+
+**Contrato de resposta esperado do Neurocore:**
+```json
+{
+  "mensagem_agente_ia": ["balão 1", "balão 2", "balão 3"]
+}
+```
+> O Neurocore deve retornar o array de mensagens fragmentadas no body da resposta HTTP.
+> Resposta sem `mensagem_agente_ia` ou array vazio é logada como warning e nenhuma mensagem é enviada.
+
+**Credenciais Evolution usadas pelo Gateway:**
+Extraídas de `channels.config_json` no momento do `Persist()`:
+- `config_json.evolution_api_url` → base URL da Evolution
+- `config_json.instance_name` → nome da instância
+- `body.apikey` (do webhook inbound) → API key da instância
+
+**Implementação no Gateway:**
+- `gateway/persister.go`: `PersistResult` agora carrega `Phone` e `Evolution *EvolutionConfig`
+- `ura/engine.go`: `dispatchAI` lê resposta + chama `sendAIMessages()`
+- `ura/engine.go`: `sendAIMessages()` — loop com `typingDelay()` entre mensagens
+- `ura/engine.go`: `sendTextViaEvolution()` — POST direto na Evolution API
+- `handlers/evolution.go`: timeout do goroutine 15s → 120s (cobre AI + envios)
+- `ura/engine.go`: `neurocoreClient` timeout 90s; `evolutionClient` timeout 15s
 
 **Configuração no admin_livia:** cadastro do Neurocore → campo "Webhook URL (Gateway → IA)".
 
@@ -1841,6 +1890,13 @@ FirstIntegration.
 [x] Go: route_ai — chama neurocores.webhook_url diretamente (sem FirstIntegration) ← 2026-04-26
     payload: conversation_id, tenant_id, contact_id, channel_id, phone, message, send_type
 [x] Go: payload route_ai — send_type (text/audio/image/video/document)           ← 2026-04-26
+[x] Go: route_ai — Gateway lê resposta do Neurocore e envia via Evolution         ← 2026-04-26
+    contrato: { "mensagem_agente_ia": ["msg1", "msg2"] }
+    n8n NÃO chama mais Evolution diretamente — ver seção 7.9
+[x] Go: sendAIMessages — envio sequencial com typingDelay (50ms/char, 800ms-3s)   ← 2026-04-26
+[x] Go: PersistResult carrega Phone + EvolutionConfig (extraídos do config_json)   ← 2026-04-26
+[x] Go: neurocoreClient timeout 90s; evolutionClient timeout 15s                   ← 2026-04-26
+[x] Go: goroutine context timeout 15s → 120s (cobre IA + envios sequenciais)       ← 2026-04-26
 [x] Migration: tenants ADD ai_webhook_url → movido para neurocores.webhook_url  ← 2026-04-25
 [x] admin_livia: campo webhook_url no cadastro do Neurocore                     ← 2026-04-25
 [x] fix(admin_livia): NeurocoreForm — remove .transform() Zod (UseFormReturn<T> mismatch) ← 2026-04-25
