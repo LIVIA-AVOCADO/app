@@ -165,19 +165,19 @@ async function resolveChannelInfo(
   tenantId: string,
 ): Promise<ChannelInfo | null> {
   try {
-    // Usa admin client para bypassar RLS — channels pode ter política restritiva
+    // Admin client bypassa RLS. Filtra só por id — tenant já foi validado na busca da conversa.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: channel } = await (createAdminClient() as any)
+    const { data: channel, error: chErr } = await (createAdminClient() as any)
       .from('channels')
-      .select('config_json, external_api_url, instance_company_name, provider_external_channel_id')
+      .select('config_json, external_api_url, instance_company_name, provider_external_channel_id, tenant_id')
       .eq('id', channelId)
-      .eq('tenant_id', tenantId)
       .single();
 
     if (!channel) {
-      console.error(`[resolveChannelInfo] canal não encontrado: channel_id=${channelId} tenant_id=${tenantId}`);
+      console.error(`[resolveChannelInfo] canal não encontrado: channel_id=${channelId} tenant_id_conv=${tenantId} err=${chErr?.message}`);
       return null;
     }
+    console.error(`[resolveChannelInfo] canal encontrado: channel_tenant=${channel.tenant_id} conv_tenant=${tenantId}`);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cfg = channel.config_json as Record<string, any> | null;
