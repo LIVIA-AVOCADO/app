@@ -33,8 +33,6 @@ const GATEWAY_SEND_URL         = process.env.GATEWAY_SEND_URL; // https://livia-
 const GATEWAY_API_KEY          = process.env.GATEWAY_API_KEY;
 
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-
   try {
     const body = await request.json();
     const { conversationId, content, tenantId, quotedMessageId } = body;
