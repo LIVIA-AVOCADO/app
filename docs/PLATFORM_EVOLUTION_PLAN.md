@@ -2130,11 +2130,10 @@ Itens identificados após a conclusão das fases 0–5, ordenados por prioridade
 ### 10.1 Segurança — Crítico
 
 ```
-[ ] BACKLOG-016: Corrigir RLS policy na tabela agents (vazamento entre tenants)
-    Situação: filtro manual no código como workaround (lib/queries/agents.ts)
-    Causa suspeita: IN (subquery) não funciona bem com RLS em SSR — usar EXISTS
-    Risco: se o filtro for removido sem corrigir a policy, tenants veem agents de outros tenants
-    Esforço: 2h  |  Prioridade: ANTES de ter múltiplos tenants ativos
+[x] BACKLOG-016: Corrigir RLS policy na tabela agents (vazamento entre tenants)    ← 2026-04-26
+    Migration: 20260426181341_fix_agents_rls_exists.sql
+    Fix: CREATE POLICY "agents_tenant_isolation" usando EXISTS (não IN)
+    agents.ts: filtro manual removido — RLS garante isolamento
 
 [ ] BACKLOG-LGPD: Backup via Telegram transitando dados pessoais (pg_dump)
     Situação: backup.sh envia dump para Telegram — sem DPA, fora da LGPD
@@ -2145,9 +2144,10 @@ Itens identificados após a conclusão das fases 0–5, ordenados por prioridade
 ### 10.2 Produto — Alta prioridade
 
 ```
-[ ] Importação de contatos via CSV
-    Gargalo imediato para qualquer cliente novo que já tenha base de contatos
-    Esforço: 3-4h
+[x] Importação de contatos via CSV                                                  ← 2026-04-26
+    API: POST /api/contacts/import (multipart/form-data, lotes de 100, dedup por phone)
+    UI: botão "Importar CSV" + modal com preview de erros em /contacts
+    Formato: nome,telefone,[email,cpf,cidade,cep,rua,numero]
 
 [ ] Templates / respostas rápidas para agentes
     Mensagens pré-definidas reutilizáveis por tenant
