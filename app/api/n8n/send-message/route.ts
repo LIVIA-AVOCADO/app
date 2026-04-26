@@ -172,7 +172,10 @@ async function resolveChannelInfo(
       .eq('tenant_id', tenantId)
       .single();
 
-    if (!channel) return null;
+    if (!channel) {
+      console.error(`[resolveChannelInfo] canal não encontrado: channel_id=${channelId} tenant_id=${tenantId}`);
+      return null;
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cfg = channel.config_json as Record<string, any> | null;
@@ -180,6 +183,8 @@ async function resolveChannelInfo(
     const evolutionBaseUrl = cfg?.evolution_api_url ?? channel.external_api_url ?? '';
     const evolutionApiKey  = cfg?.evolution_api_key ?? channel.provider_external_channel_id ?? '';
     const instanceName     = cfg?.instance_name ?? channel.instance_company_name ?? '';
+
+    console.error(`[resolveChannelInfo] channel_id=${channelId} base_url=${evolutionBaseUrl ? 'SET' : 'EMPTY'} instance=${instanceName ? 'SET' : 'EMPTY'} api_key=${evolutionApiKey ? 'SET' : 'EMPTY'}`);
 
     if (!evolutionBaseUrl || !instanceName) return null;
 
