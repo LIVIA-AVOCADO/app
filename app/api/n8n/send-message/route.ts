@@ -166,23 +166,23 @@ async function resolveChannelInfo(
 ): Promise<ChannelInfo | null> {
   try {
     // Admin client bypassa RLS. Filtra só por id — tenant já foi validado na busca da conversa.
+    // Seleciona apenas config_json para evitar dependência de colunas que variam entre schemas.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: channel, error: chErr } = await (createAdminClient() as any)
       .from('channels')
-      .select('config_json, external_api_url, instance_company_name, provider_external_channel_id, tenant_id')
+      .select('config_json, instance_company_name, provider_external_channel_id')
       .eq('id', channelId)
       .single();
 
     if (!channel) {
-      console.error(`[resolveChannelInfo] canal não encontrado: channel_id=${channelId} tenant_id_conv=${tenantId} err=${chErr?.message}`);
+      console.error(`[resolveChannelInfo] canal não encontrado: channel_id=${channelId} err=${chErr?.message}`);
       return null;
     }
-    console.error(`[resolveChannelInfo] canal encontrado: channel_tenant=${channel.tenant_id} conv_tenant=${tenantId}`);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cfg = channel.config_json as Record<string, any> | null;
 
-    const evolutionBaseUrl = cfg?.evolution_api_url ?? channel.external_api_url ?? '';
+    const evolutionBaseUrl = cfg?.evolution_api_url ?? '';
     const evolutionApiKey  = cfg?.evolution_api_key ?? channel.provider_external_channel_id ?? '';
     const instanceName     = cfg?.instance_name ?? channel.instance_company_name ?? '';
 
