@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao salvar mensagem' }, { status: 500 });
     }
 
-    console.error(`[send-message] ✅ DB insert ${Date.now() - startTime}ms (id: ${message.id.slice(0, 8)})`);
+
 
     // Atualiza timestamps da conversa e do contato (fire-and-forget)
     const now = new Date().toISOString();
@@ -124,8 +124,6 @@ export async function POST(request: NextRequest) {
 
     // Envio e pausa de IA rodam DEPOIS da resposta (after garante execução completa no Vercel)
     after(async () => {
-      // DEBUG TEMPORÁRIO — diagnosticar routing gateway vs n8n
-      console.error(`[send-message] routing: gw_url=${GATEWAY_SEND_URL ? 'SET' : 'UNSET'} is_evolution=${channelInfo?.isEvolution ?? false} channel_info=${channelInfo ? 'OK' : 'NULL'}`);
       if (channelInfo?.isEvolution && GATEWAY_SEND_URL) {
         await sendViaGateway(message.id, channelInfo, contactId, content.trim(), quotedData, supabase);
       } else {
@@ -137,10 +135,7 @@ export async function POST(request: NextRequest) {
       if (iaActive) {
         await pauseIAAsync(conversationId, tenantId, user.id, supabase);
       }
-      console.error(`[send-message] ⏱️ after() concluído ${Date.now() - startTime}ms`);
     });
-
-    console.error(`[send-message] ⏱️ Resposta em ${Date.now() - startTime}ms`);
 
     return NextResponse.json({ success: true, message: { id: message.id, status: 'sent' } });
 
@@ -185,8 +180,6 @@ async function resolveChannelInfo(
     const evolutionBaseUrl = cfg?.evolution_api_url ?? '';
     const evolutionApiKey  = cfg?.evolution_api_key ?? cfg?.instance_id_api ?? '';
     const instanceName     = cfg?.instance_name ?? '';
-
-    console.error(`[resolveChannelInfo] channel_id=${channelId} base_url=${evolutionBaseUrl ? 'SET' : 'EMPTY'} instance=${instanceName ? 'SET' : 'EMPTY'} api_key=${evolutionApiKey ? 'SET' : 'EMPTY'}`);
 
     if (!evolutionBaseUrl || !instanceName) return null;
 
