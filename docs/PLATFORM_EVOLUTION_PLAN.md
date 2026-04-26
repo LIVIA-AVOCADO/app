@@ -1966,18 +1966,18 @@ CREATE TABLE metrics_daily (
 ### 9.5 Checklist Fase 5
 
 ```
-[ ] Migration: contact_field_definitions + contact_field_values
-[ ] Migration: contact_notes
-[ ] Migration: pipeline_stages + ALTER conversations
-[ ] Migration: pipeline_stage_history + metrics_daily
-[ ] UI: /contacts — lista com campos customizados
-[ ] UI: /contacts/[id] — perfil completo + histórico
-[ ] UI: editor de campos customizados nas configurações
-[ ] UI: /crm — Kanban (já existe base com use-crm-realtime.ts)
-[ ] UI: drag-and-drop entre estágios + atualização via API
-[ ] UI: /reports — gráficos de volume e tempo de resposta
-[ ] Job: gerar metrics_daily (cron via n8n ou Go)
-[ ] Integração: mover conversa no Kanban ↔ atualiza pipeline_stage_history
+[x] Migration: contact_field_definitions + contact_field_values  (2026-04-26)
+[x] Migration: contact_notes                                      (2026-04-26)
+[x] Migration: pipeline_stages + ALTER conversations              (2026-04-26)
+[x] Migration: pipeline_stage_history + metrics_daily             (2026-04-26)
+[x] UI: /contacts — lista paginada com busca                      (2026-04-26)
+[x] UI: /contacts/[id] — perfil completo + conversas + notas     (2026-04-26)
+[x] UI: editor de campos customizados em /configuracoes/campos-crm (2026-04-26)
+[x] UI: /crm — Kanban por pipeline_stages (substituiu tags)       (2026-04-26)
+[x] UI: drag-and-drop entre estágios + atualização via API        (2026-04-26)
+[x] UI: /relatorios/crm — KPIs em tempo real + pipeline breakdown (2026-04-26)
+[x] Integração: mover conversa no Kanban ↔ atualiza pipeline_stage_history (2026-04-26)
+[ ] Job: gerar metrics_daily (cron via n8n ou Go) — próxima iteração
 ```
 
 ---
