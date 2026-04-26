@@ -221,9 +221,21 @@ docker service logs evolution_v2_evolution -f
 ### 6.7 livia-gateway
 
 ```bash
+# ⚠️  OBRIGATÓRIO: verificar git antes de qualquer rebuild
+cd /root/livia-gateway && git status
+# Se houver código não commitado → commitar e push ANTES de continuar
+
+git pull
+docker build -t livia-gateway:latest .
 docker stack deploy -c /root/stacks/livia-gateway.yaml livia-gateway
 docker service logs livia-gateway_app -f
 # deve ver: "livia-gateway iniciado" + "servidor HTTP pronto"
+# se URA ativo: próxima mensagem deve mostrar "ura: regra ativada" + "ura: route_ai ..."
+```
+
+**Forçar atualização do container quando a tag não muda:**
+```bash
+docker service update --force livia-gateway_app
 ```
 
 ### 6.8 Uptime Kuma (monitoramento)
