@@ -116,6 +116,7 @@ export const navItems: NavItem[] = [
       { title: 'Encerramento Automático',  url: '/configuracoes/encerramento-automatico', moduleKey: MODULE_KEYS.CONFIGURACOES },
       { title: 'Horários do Agente',       url: '/configuracoes/horarios-agente',         moduleKey: MODULE_KEYS.HORARIOS_AGENTE },
       { title: 'Conexões', url: '/configuracoes/conexoes', anyModuleKey: [MODULE_KEYS.CONEXOES, MODULE_KEYS.CONEXOES_VIEW] },
+      { title: 'Logs de Conexão', url: '/configuracoes/conexoes/logs', anyModuleKey: [MODULE_KEYS.CONEXOES, MODULE_KEYS.CONEXOES_VIEW] },
       { title: 'Gerenciar Usuários', url: '/gerenciar-usuarios',     moduleKey: MODULE_KEYS.GERENCIAR_USUARIOS },
     ],
   },

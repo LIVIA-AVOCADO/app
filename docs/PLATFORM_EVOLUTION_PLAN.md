@@ -1525,20 +1525,35 @@ NOVO:   [Nome do contato]   [Agente: João ▼]  [⋮] [👤]
 | `queue` | fila de espera | `{ "target_team_id": "uuid" }` |
 | `auto_reply` | resposta automática + fila | `{ "message": "Olá! Em breve retornamos." }` |
 
-### 7.6 Protocolo de Migrations — Sem Staging
+### 7.6 Protocolo de Migrations — Via CLI
 
-> **Contexto (2026-04-25):** o ambiente de staging Supabase existe mas está bloqueado
-> (ver 12FACTOR_PLAN.md § 6.1 — aguarda senha do banco de produção para gerar baseline).
-> Enquanto o staging não estiver operacional, **todas as migrations vão direto para produção**.
+> **Atualizado (2026-04-26):** o padrão mudou. Migrations agora são aplicadas via
+> `npm run db:push` (Supabase CLI `--linked`), não pelo SQL Editor. O staging existe
+> (ver 12FACTOR_PLAN.md § 6.1) mas o fluxo de produção vai direto.
 
-**Regras obrigatórias para cada migration desta fase:**
+**Fluxo obrigatório para cada migration:**
+
+```bash
+# 1. Criar o arquivo com timestamp gerado pelo CLI
+npm run db:new nome_da_migration
+# Gera: supabase/migrations/YYYYMMDDHHMMSS_nome_da_migration.sql
+
+# 2. Escrever o SQL no arquivo gerado
+
+# 3. Aplicar em produção
+npm run db:push
+
+# 4. Verificar estado local vs remoto
+npm run db:status
+```
+
+**Regras de SQL:**
 
 - Usar `CREATE TABLE IF NOT EXISTS` em todas as tabelas novas
 - Usar `ADD COLUMN IF NOT EXISTS` em todas as alterações de tabelas existentes
 - Novas colunas em tabelas com dados devem ser sempre `nullable` — nunca `NOT NULL` sem `DEFAULT`
 - Nunca usar `DROP`, nunca alterar tipo ou nome de coluna existente
-- Fluxo: escrever SQL → aplicar no Supabase SQL Editor → confirmar sem erros → commitar em `supabase/migrations/`
-- Nunca commitar uma migration que ainda não foi aplicada em produção
+- Nunca criar arquivo `.sql` manualmente com prefixo YYYYMMDD (8 dígitos) — usar sempre `npm run db:new`
 
 ---
 
@@ -1805,16 +1820,37 @@ const { count } = await supabase
 ### 8.5 Checklist Fase 4
 
 ```
-[ ] Migration: channel_connection_logs (tabela + indexes + REPLICA IDENTITY)
-[ ] Go Gateway: implementar logger/logger.go
-[ ] Go Gateway: logar todos os eventos de webhook recebidos
-[ ] Next.js webhook existente: adicionar insert ao channel_connection_logs
-[ ] UI: /channels/logs (tabela paginada com Realtime)
-[ ] UI: filtros por canal / evento / período
-[ ] UI: badge de alerta na sidebar (canais desconectados)
-[ ] UI: expandir linha → ver event_data JSON
-[ ] UI: botão exportar CSV
+[x] Migration: channel_connection_logs (tabela + indexes + REPLICA IDENTITY)     ← 2026-04-26
+    → arquivo: supabase/migrations/20260426000000_channel_connection_logs.sql
+    → Aplicada em produção via npm run db:push — 2026-04-26
+[x] Go Gateway: implementar logger/logger.go                                      ← 2026-04-26
+    → logger/channel_logger.go: ChannelLogger com Log() + LogConnectionEvent()
+    → fire-and-forget, nunca bloqueia 200 OK
+[x] Go Gateway: logar message_received (persister) + connected/disconnected (evolution handler) ← 2026-04-26
+[x] Next.js webhook existente: adicionar insert ao channel_connection_logs        ← 2026-04-26
+    → app/api/configuracoes/conexoes/webhook/route.ts — grava connected/disconnected
+[x] UI: /configuracoes/conexoes/logs (tabela paginada com Realtime)               ← 2026-04-26
+[x] UI: filtros por canal / evento                                                 ← 2026-04-26
+[x] UI: badge de alerta na sidebar (canais desconectados)                         ← 2026-04-26
+    → badge vermelho no subitem "Conexões" quando houver desconectados
+[x] UI: expandir linha → ver event_data JSON                                      ← 2026-04-26
+[x] UI: botão exportar CSV                                                        ← 2026-04-26
+[ ] API: GET /api/channels/logs — criado, validar com dados reais
 ```
+
+### 8.6 Status Fase 4
+
+| Item | Status | Detalhe |
+|---|---|---|
+| Migration SQL | ✅ Aplicada em produção | Via `npm run db:push` — 2026-04-26 |
+| Webhook handler Next.js | ✅ Atualizado | Grava `connected`/`disconnected` em `channel_connection_logs` |
+| API `/api/channels/logs` | ✅ Criada | GET com filtros `channel_id`, `event_type`, paginação 50/página |
+| Página `/configuracoes/conexoes/logs` | ✅ Implementada | SSR + client Realtime |
+| Tabela de logs | ✅ Implementada | Ícones por tipo de evento, expand JSON, paginação |
+| Filtros | ✅ Implementados | Por canal e por tipo de evento |
+| Badge sidebar | ✅ Implementado | Count vermelho no nav "Conexões" quando há desconectados |
+| Export CSV | ✅ Implementado | Exporta todos os registros do filtro atual |
+| Go Gateway logger | ✅ Deployado | `logger/channel_logger.go` — message_received + connected/disconnected |
 
 ---
 
@@ -2303,7 +2339,7 @@ Ciclo final (Fase 5)
 
 ---
 
-*Documento criado em 2026-04-20. Última atualização: 2026-04-23.*
+*Documento criado em 2026-04-20. Última atualização: 2026-04-26.*
 
 **Histórico de atualizações:**
 - 2026-04-20 — Fix B (lazy loading encerradas + SSR enxuto) e Fix D (cache L1/L2/L3 + prefetch batched)
@@ -2327,3 +2363,5 @@ Ciclo final (Fase 5)
 - 2026-04-25 — Fase 3: payload route_ai enriquecido com send_type, mídia (base64+url+mimetype) e reply (quoted_*)
 - 2026-04-25 — Fase 3: descoberta Evolution API — base64 da mídia em data.message.base64 (top-level); contextInfo de reply em data.contextInfo (irmão de data.message, não aninhado no sub-objeto)
 - 2026-04-25 — fix(admin_livia): NeurocoreForm — remove .transform() Zod que quebrava UseFormReturn<T> + fix webhook_url nos defaultValues
+- 2026-04-26 — Fase 4: migration channel_connection_logs (CLI); webhook Next.js grava connected/disconnected; UI /configuracoes/conexoes/logs com tabela+Realtime+filtros+CSV+expand; badge vermelho nav Conexões
+- 2026-04-26 — Fase 4: Go Gateway logger deployado — message_received (persister) + connected/disconnected (evolution handler) gravados em channel_connection_logs via ChannelLogger fire-and-forget

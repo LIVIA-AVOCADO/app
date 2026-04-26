@@ -77,5 +77,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Grava log de conexão independente de mudança de status
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: channelFull } = await (admin as any)
+    .from('channels')
+    .select('tenant_id')
+    .eq('id', channel.id)
+    .single();
+
+  if (channelFull?.tenant_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any)
+      .from('channel_connection_logs')
+      .insert({
+        tenant_id:  channelFull.tenant_id,
+        channel_id: channel.id,
+        event_type: connectionStatus === 'connected' ? 'connected' : 'disconnected',
+        event_data: { raw_state: rawState, instance: instanceName },
+        source:     'evolution',
+      });
+  }
+
   return NextResponse.json({ ok: true });
 }

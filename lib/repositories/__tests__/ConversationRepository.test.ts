@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mockConversation, mockConversations, mockContact } from '@/lib/__tests__/fixtures/conversations';
 
 // Mock da query existente
-vi.mock('@/lib/queries/livechat', () => ({
+vi.mock('@/lib/queries/inbox', () => ({
   getConversationsWithContact: vi.fn(),
 }));
 
@@ -122,7 +122,7 @@ describe('ConversationRepository', () => {
   describe('getByTenant', () => {
     it('deve retornar conversas do tenant', async () => {
       // Arrange
-      const { getConversationsWithContact } = await import('@/lib/queries/livechat');
+      const { getConversationsWithContact } = await import('@/lib/queries/inbox');
       vi.mocked(getConversationsWithContact).mockResolvedValue(mockConversations);
 
       // Act
@@ -135,7 +135,7 @@ describe('ConversationRepository', () => {
 
     it('deve passar filtros para a query', async () => {
       // Arrange
-      const { getConversationsWithContact } = await import('@/lib/queries/livechat');
+      const { getConversationsWithContact } = await import('@/lib/queries/inbox');
       vi.mocked(getConversationsWithContact).mockResolvedValue(mockConversations);
 
       const filters = {
@@ -152,7 +152,7 @@ describe('ConversationRepository', () => {
 
     it('deve retornar array vazio se não houver conversas', async () => {
       // Arrange
-      const { getConversationsWithContact } = await import('@/lib/queries/livechat');
+      const { getConversationsWithContact } = await import('@/lib/queries/inbox');
       vi.mocked(getConversationsWithContact).mockResolvedValue([]);
 
       // Act

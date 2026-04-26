@@ -47,6 +47,7 @@ interface AppSidebarProps {
   userRole?: string;
   userModules?: string[];
   availabilityStatus?: 'online' | 'busy' | 'offline';
+  disconnectedChannelsCount?: number;
 }
 
 
@@ -58,6 +59,7 @@ export function AppSidebar({
   userRole = 'user',
   userModules = [],
   availabilityStatus = 'offline',
+  disconnectedChannelsCount = 0,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -166,11 +168,20 @@ export function AppSidebar({
                             ? (currentCategory === subCategory || (!currentCategory && subCategory === 'main'))
                             : pathname === subItem.url;
 
+                          const showDisconnectedBadge =
+                            subItem.url === '/configuracoes/conexoes' &&
+                            disconnectedChannelsCount > 0;
+
                           return (
                             <SidebarMenuSubItem key={subItem.url}>
                               <SidebarMenuSubButton asChild isActive={isSubActive}>
-                                <Link href={subItem.url}>
+                                <Link href={subItem.url} className="flex items-center justify-between w-full">
                                   <span>{subItem.title}</span>
+                                  {showDisconnectedBadge && (
+                                    <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white leading-none">
+                                      {disconnectedChannelsCount}
+                                    </span>
+                                  )}
                                 </Link>
                               </SidebarMenuSubButton>
                             </SidebarMenuSubItem>

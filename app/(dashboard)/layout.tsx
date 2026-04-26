@@ -61,18 +61,30 @@ export default async function DashboardLayout({
   const user = userData as any;
   const tenantName = user?.tenants?.name;
 
-  // Fetch subscription status for warning banner
+  // Fetch subscription status for warning banner + disconnected channels count
   let subscriptionStatus: string | null = null;
   let subscriptionPeriodEnd: string | null = null;
+  let disconnectedChannelsCount = 0;
   if (user?.tenant_id) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: tenant } = await (createAdminClient() as any)
-      .from('tenants')
-      .select('subscription_status, subscription_current_period_end')
-      .eq('id', user.tenant_id)
-      .single();
-    subscriptionStatus = tenant?.subscription_status || null;
-    subscriptionPeriodEnd = tenant?.subscription_current_period_end || null;
+    const adminClient = createAdminClient();
+    const [tenantRes, disconnectedRes] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (adminClient as any)
+        .from('tenants')
+        .select('subscription_status, subscription_current_period_end')
+        .eq('id', user.tenant_id)
+        .single(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (adminClient as any)
+        .from('channels')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', user.tenant_id)
+        .eq('connection_status', 'disconnected')
+        .eq('is_active', true),
+    ]);
+    subscriptionStatus    = tenantRes.data?.subscription_status || null;
+    subscriptionPeriodEnd = tenantRes.data?.subscription_current_period_end || null;
+    disconnectedChannelsCount = disconnectedRes.count ?? 0;
   }
 
   return (
@@ -86,6 +98,7 @@ export default async function DashboardLayout({
           userRole={user?.role ?? 'user'}
           userModules={user?.modules ?? []}
           availabilityStatus={user?.availability_status ?? 'offline'}
+          disconnectedChannelsCount={disconnectedChannelsCount}
         />
         <SidebarInset className="flex min-h-0 flex-col w-full h-screen overflow-hidden bg-surface">
           {user?.role !== 'super_admin' &&
