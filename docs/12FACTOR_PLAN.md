@@ -472,11 +472,15 @@ Reduz bugs que só aparecem em produção.
     Para operar no staging: npx supabase link --project-ref qejxaqqfdpmzahlrshws
     Credenciais staging salvas: ver docs/ENV_VARS.md
 
-[ ] 6.1b — Branch staging no Vercel com env vars do projeto staging   ← PENDENTE
-    ⚠️  O projeto Supabase de staging existe, mas o Vercel ainda aponta para produção
-    Ação: criar branch "staging" no repositório + configurar Vercel preview deployment
-      com NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY do projeto staging
-    Impacto: commits testados em ambiente isolado antes de afetar produção  |  Esforço: 2h
+[x] 6.1b — Branch staging no Vercel com env vars do projeto staging   ← 2026-04-27
+    Branch "staging" criada no livia_dev_01 e pushada para origin
+    Vercel: vars de Supabase isoladas por ambiente (Production vs Preview/staging)
+      NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+      → Production: projeto wfrxwfbslhkkzkexyilx (produção)
+      → Preview (branch staging): projeto qejxaqqfdpmzahlrshws (staging)
+    CRON_SECRET adicionado no Vercel (Production apenas)
+    Deploy de staging confirmado como Preview no Vercel
+    Impacto: push para staging → preview isolado com banco de staging ✅
 
 [x] 6.2 — docker-compose.yml local para livia-gateway               ← 2026-04-24
     local-dev/docker-compose.gateway.yml — dois modos via Docker profiles:
