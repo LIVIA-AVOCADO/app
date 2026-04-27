@@ -11,7 +11,19 @@ import type { AgentWithPrompt } from '@/types/agents';
 export async function getAgentsByTenant(tenantId: string) {
   const supabase = await createClient();
 
-  // RLS policy "agents_tenant_isolation" filtra automaticamente pelos agents do neurocore do tenant
+  // Buscar neurocore_id do tenant para filtro explícito (defense-in-depth:
+  // garante isolamento mesmo para super_admins que bypassam RLS)
+  const { data: tenantData, error: tenantError } = await supabase
+    .from('tenants')
+    .select('neurocore_id')
+    .eq('id', tenantId)
+    .single();
+
+  if (tenantError) {
+    console.error('[getAgentsByTenant] Error fetching tenant:', tenantError);
+    throw tenantError;
+  }
+
   const { data: agentsData, error: agentsError } = await supabase
     .from('agents')
     .select(`
@@ -23,6 +35,7 @@ export async function getAgentsByTenant(tenantId: string) {
       updated_at,
       id_neurocore
     `)
+    .eq('id_neurocore', tenantData.neurocore_id)
     .order('name');
 
   if (agentsError) {
