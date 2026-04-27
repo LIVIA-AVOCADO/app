@@ -16,10 +16,17 @@ import {
 import { Users, Pencil, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const STATUS_DOT: Record<string, string> = {
+  online: 'bg-green-500',
+  busy:   'bg-yellow-500',
+  offline: 'bg-gray-400',
+};
+
 interface FeatureModule { key: string; name: string; description: string; }
 interface TenantUser {
   id: string; full_name: string; email: string;
   avatar_url: string | null; modules: string[]; role: string; is_active: boolean;
+  is_internal: boolean; availability_status: 'online' | 'busy' | 'offline';
 }
 
 function getInitials(name: string): string {
@@ -142,10 +149,16 @@ export function UsersList({
             <div className="space-y-3">
               {users.map((u) => (
                 <div key={u.id} className="flex items-center gap-4 rounded-lg border p-3">
-                  <Avatar className="h-10 w-10">
-                    {u.avatar_url && <AvatarImage src={u.avatar_url} alt={u.full_name} />}
-                    <AvatarFallback>{getInitials(u.full_name)}</AvatarFallback>
-                  </Avatar>
+                  <div className="relative shrink-0">
+                    <Avatar className="h-10 w-10">
+                      {u.avatar_url && <AvatarImage src={u.avatar_url} alt={u.full_name} />}
+                      <AvatarFallback>{getInitials(u.full_name)}</AvatarFallback>
+                    </Avatar>
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${STATUS_DOT[u.availability_status] ?? 'bg-gray-400'}`}
+                      title={u.availability_status}
+                    />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{u.full_name}</p>
                     <p className="text-xs text-muted-foreground truncate">{u.email}</p>

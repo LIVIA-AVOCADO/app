@@ -18,6 +18,7 @@ interface FoundUser { id: string; full_name: string; email: string; avatar_url: 
 interface TenantUser {
   id: string; full_name: string; email: string;
   avatar_url: string | null; modules: string[]; role: string; is_active: boolean;
+  is_internal: boolean; availability_status: 'online' | 'busy' | 'offline';
 }
 
 function getInitials(name: string): string {
