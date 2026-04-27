@@ -11,27 +11,7 @@ import type { AgentWithPrompt } from '@/types/agents';
 export async function getAgentsByTenant(tenantId: string) {
   const supabase = await createClient();
 
-  // Verificar se a autenticação está funcionando
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    console.error('[getAgentsByTenant] ❌ PROBLEMA: Usuário não autenticado! RLS não vai funcionar!');
-  }
-
-  // PRIMEIRO: Buscar qual neurocore_id esse tenant tem
-  const { data: tenantData, error: tenantError } = await supabase
-    .from('tenants')
-    .select('neurocore_id')
-    .eq('id', tenantId)
-    .single();
-
-  if (tenantError) {
-    console.error('[getAgentsByTenant] Error fetching tenant:', tenantError);
-    throw tenantError;
-  }
-
-  // Buscar agents - a RLS policy automaticamente filtra pelos agents do neurocore do tenant
-  // NOTA: Não precisamos filtrar manualmente, a policy "Tenants can view agents from their neurocore" faz isso
+  // RLS policy "agents_tenant_isolation" filtra automaticamente pelos agents do neurocore do tenant
   const { data: agentsData, error: agentsError } = await supabase
     .from('agents')
     .select(`
@@ -54,18 +34,8 @@ export async function getAgentsByTenant(tenantId: string) {
     return [];
   }
 
-  // ⚠️ FILTRO MANUAL: Como a RLS não está funcionando, filtrar manualmente
-  // TODO: REMOVER quando RLS estiver funcionando corretamente
-  const agentsFiltered = agentsData.filter(agent => {
-    return agent.id_neurocore === tenantData.neurocore_id;
-  });
-
-  if (agentsFiltered.length === 0) {
-    return [];
-  }
-
   // Buscar os prompts do tenant para esses agents
-  const agentIds = agentsFiltered.map(a => a.id);
+  const agentIds = agentsData.map(a => a.id);
 
   const { data: promptsData, error: promptsError } = await supabase
     .from('agent_prompts')
@@ -89,7 +59,7 @@ export async function getAgentsByTenant(tenantId: string) {
   // Combinar agents com seus prompts
   // Se não houver prompt do tenant, criar um vazio (será preenchido ao editar)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = agentsFiltered.map((agent: any) => {
+  const result = agentsData.map((agent: any) => {
     const rawPrompt = promptsMap.get(agent.id);
 
     // Parse de TODOS os campos JSONB (podem vir como string ou já parseados)

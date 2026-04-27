@@ -67,6 +67,29 @@ Para cada passo da migração, o rollback deve ser:
 - **Rápido**: re-apontar webhook no painel da Evolution/Meta é suficiente para
   voltar ao n8n em qualquer ponto da Fase 2
 
+### D-007 — Todo código Go deve ser commitado antes de rebuild da imagem
+
+> Origem: incidente 2026-04-26 — URA Engine perdido por rebuild sem commit prévio.
+
+Fluxo obrigatório para qualquer alteração no `livia-gateway`:
+
+```bash
+# Na VPS, antes de qualquer docker build:
+cd /root/livia-gateway
+git status          # deve estar limpo OU confirmar que há commits pendentes
+
+# Se há código novo:
+git add -A && git commit -m "..." && git push
+
+# Só então:
+docker build -t livia-gateway:latest .
+docker stack deploy -c /root/stacks/livia-gateway.yaml livia-gateway
+```
+
+**Nunca** executar `docker build` se `git status` mostrar arquivos modificados não commitados.
+
+---
+
 ### D-006 — Credenciais nunca em código ou documentação pública
 
 A seção 6.7 contém exemplos de variáveis de ambiente com valores reais de referência.
@@ -923,10 +946,21 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 [x] Validação dual-write: 24h — 2 msgs, 2 com external_id, 0 duplicatas        ← 2026-04-25
 [x] Cutover Passo 2: DUAL_WRITE=false — Go assume inbound sozinho               ← 2026-04-25
     → gateway rodando: "ATIVO (Go persiste, sem n8n no inbound)"
-[ ] Implementar ura/ (engine + strategies)
+[x] Implementar ura/ (engine + route_ai)                                         ← 2026-04-26
+    → ura/engine.go: cache config 60s + rules 30s, avalia condições,
+      chama neurocores.webhook_url via POST após persist bem-sucedido
+    → gateway/persister.go: retorna *PersistResult (ConversationID, ContactID,
+      TenantID, ChannelID, SendType)
+    → integrations/supabase.go: GetURAConfig, GetURARules, GetNeurocoreWebhook,
+      helper get() para SELECT REST
+    ⚠️  INCIDENTE 2026-04-26: código original (2026-04-25) nunca foi commitado
+        no git — perdido no rebuild da imagem. Reimplementado do zero.
+        Ver seção 6.12 para detalhes do incidente.
 [~] Migração Passo 3: 1 tenant pendente — aguardando reconexão via UI no novo Evolution
-[ ] Implementar integrations/n8n.go (para rota AI)
+[ ] Implementar integrations/n8n.go (para rota AI) — substituído por route_ai direto
 [ ] [BACKLOG] contacts.is_blocked: hard block por tenant (drop no gateway antes de write)
+[ ] [BACKLOG] URA Engine: estratégias round_robin, least_busy, random (assign_team/agent)
+[ ] [BACKLOG] URA Engine: payload route_ai enriquecido (media_base64, quoted_*)
 ```
 
 ### 6.9 Status Fase 2 — Validação Parcial do Gateway
@@ -949,19 +983,25 @@ RULES_CACHE_TTL_SECONDS=30  # cache das regras URA
 | Webhook instâncias → gateway | ✅ | `POST /webhook/evolution` recebendo |
 | Forward gateway → n8n | ✅ | `n8n_forward_ok:true` em todos os eventos |
 | **Inbound** (mensagens recebidas) | ✅ **Validado** | `messages.upsert` chega no gateway e n8n processa |
-| **Outbound IA** (agente IA envia) | ✅ **Validado** | n8n chama Evolution diretamente — funciona |
+| **Outbound IA** (agente IA envia) | ✅ **Migrado para Gateway** | Gateway lê resposta do Neurocore e envia via Evolution — ver seção 7.9 |
 | **Outbound manual** (atendente envia) | ✅ **Implementado** | Next.js → Gateway `/send` → Evolution API |
 
 #### Fluxo atual validado
 
 ```
 INBOUND:
-  WhatsApp → Evolution (nova) → livia-gateway (shadow) → n8n (forward) → Supabase
-                                                         ↑
-                                                  loga + n8n_forward_ok:true
+  WhatsApp → Evolution → livia-gateway → persiste (Supabase) → URA Engine
+                                                                     ↓
+                                                            route_ai: POST Neurocore
+                                                                     ↓
+                                                         Neurocore (n8n) processa IA
+                                                                     ↓
+                                                    Gateway lê resposta + envia via Evolution
+                                                         (sequencial com typing delay)
 
 OUTBOUND IA:
-  n8n workflow → Evolution API direta (sem gateway) → WhatsApp  ✅
+  URA Engine → Neurocore webhook → [aguarda resposta] → Evolution API → WhatsApp  ✅
+  n8n NÃO chama mais Evolution diretamente — responsabilidade do Gateway
 
 OUTBOUND MANUAL (Evolution):
   Frontend → Next.js /api/n8n/send-message → Gateway POST /send → Evolution → WhatsApp
@@ -1425,6 +1465,92 @@ numa via que já é certificada, contra os princípios 12-factor de minimizar de
 
 ---
 
+### 6.12 Incidente 2026-04-26 — Perda do URA Engine + Reimplementação
+
+#### O que aconteceu
+
+**Sintoma reportado:** mensagens chegavam no inbox mas o n8n (Neurocore) nunca respondia,
+mesmo com regra `route_ai` configurada na automação.
+
+**Causa raiz:** o URA Engine implementado em 2026-04-25 **nunca foi commitado no git**.
+O código existia apenas dentro do container Docker em execução na VPS. Quando a imagem
+foi reconstruída em 2026-04-26T14:50 a partir do repositório (`git pull` + `docker build`),
+o engine foi sobrescrito pela versão sem o pacote `ura/`.
+
+**Evidência nos logs do VPS:**
+
+Versão **antiga** (2026-04-25, container `9axq35x51x29`) — funcionando:
+```
+persister: mensagem persistida  send_type=text
+ura: regra ativada              rule_name="URA - Bem vindos"  action=route_ai
+ura: route_ai — conversa encaminhada para Neurocore
+```
+
+Versão **nova** (2026-04-26T14:50, container `sfto1afevcca`) — sem URA:
+```
+persister: mensagem persistida  (sem send_type, sem URA)
+[fim — Neurocore nunca chamado]
+```
+
+#### Regra permanente adicionada — D-007
+
+> **D-007 — Todo código Go deve ser commitado antes de rebuild da imagem.**
+>
+> Nunca reconstruir a imagem Docker sem primeiro garantir que o repositório
+> `livia-gateway` está atualizado com `git status` limpo.
+> Fluxo obrigatório: `git add` → `git commit` → `git push` → `docker build` → `docker stack deploy`.
+
+#### O que foi reimplementado (commit `2ad8eb0`)
+
+**Arquivos alterados:**
+
+| Arquivo | O que mudou |
+|---|---|
+| `ura/engine.go` | Novo pacote. Engine com cache (config 60s, rules 30s), avalia condições, dispatch `route_ai` → `neurocores.webhook_url` |
+| `gateway/persister.go` | `Persist()` agora retorna `*PersistResult` com `ConversationID`, `ContactID`, `TenantID`, `ChannelID`, `SendType` |
+| `integrations/supabase.go` | `GetURAConfig()`, `GetURARules()`, `GetNeurocoreWebhook()`, helper `get()` para SELECT REST |
+| `handlers/evolution.go` | Recebe `*ura.Engine`; goroutine chama `URAEngine.Route()` após persist OK |
+| `main.go` | Inicializa `ura.New()` quando `SHADOW_MODE=false` |
+
+**Condições suportadas no engine atual:**
+
+| Tipo | Comportamento |
+|---|---|
+| `[]` (vazio) | Catch-all — sempre satisfeita |
+| `channel_id` + `op=eq` | Compara `ChannelID` do persist result |
+| `time_range` + `op=within` | Compara hora atual no timezone configurado |
+| `first_message_keyword` + `op=contains_any` | Case-insensitive no `Content` da mensagem |
+| Outros tipos (contact_tag, etc.) | Ignorados — não bloqueiam a regra (safe default) |
+
+**Payload enviado ao webhook do Neurocore (`route_ai`):**
+```json
+{
+  "conversation_id": "uuid",
+  "tenant_id":       "uuid",
+  "contact_id":      "uuid",
+  "channel_id":      "uuid",
+  "phone":           "5511...",
+  "message":         "texto da mensagem",
+  "send_type":       "text | audio | image | video | document"
+}
+```
+
+**O que ficou como backlog** (estava no engine original, não reimplementado):
+- Estratégias `round_robin`, `least_busy`, `random` para `assign_team`/`assign_agent`
+- Payload enrichment: `media_base64`, `media_mimetype`, `media_url`, `media_apikey`
+- Payload enrichment: `quoted_external_id`, `quoted_content`, `quoted_message_id`
+
+#### Status após reimplementação
+
+| Item | Status |
+|---|---|
+| route_ai funcionando em produção | ✅ Confirmado 2026-04-26 |
+| Código commitado no git | ✅ commit `2ad8eb0` |
+| Regra "URA - Bem vindos" ativando corretamente | ✅ Logs confirmam |
+| n8n/Neurocore recebendo mensagens | ✅ Reportado pelo usuário |
+
+---
+
 ## 7. Fase 3 — Multi-Agente e URA Engine
 
 **Objetivo:** adicionar suporte a múltiplos agentes com atribuição e configuração
@@ -1665,21 +1791,40 @@ atualiza em tempo real sem polling.
 
 ---
 
-### 7.9 Decisão Arquitetural — route_ai sem FirstIntegration
+### 7.9 Decisão Arquitetural — route_ai: Gateway controla todo o fluxo IA
 
 **Contexto (2026-04-25):** o plano original previa que `route_ai` dispararia o fluxo
 `FirstIntegration` do n8n, que então chamaria o Neurocore. Isso foi revisado.
 
-**Decisão:** o Go Gateway chama o webhook do Neurocore **diretamente**, sem passar pelo n8n
-FirstIntegration.
+**Decisão original (2026-04-25):** o Go Gateway chama o webhook do Neurocore **diretamente**,
+sem passar pelo n8n FirstIntegration.
 
-**Justificativa:**
-- O gateway já faz tudo que o FirstIntegration fazia (upsert contato/conversa, insert message)
-- Chamar FirstIntegration seria um hop redundante: gateway → n8n → Neurocore
-- Novo fluxo: gateway → Neurocore webhook diretamente
-- A URL do webhook fica em `neurocores.webhook_url` (configurável no admin_livia) e é herdada por todos os tenants associados ao neurocore — 2026-04-25
+**Decisão expandida (2026-04-26):** o Gateway também é responsável por **enviar a resposta da IA
+via Evolution API**. O n8n (Neurocore) retorna as mensagens no body da resposta HTTP — o Gateway
+lê e envia cada mensagem sequencialmente com delay de digitação.
 
-**Payload enviado ao webhook:**
+**Justificativa da expansão:**
+- Centraliza toda comunicação com Evolution no Gateway (inbound + outbound)
+- n8n fica limitado a processamento de IA — nenhuma chamada de canal (DA-003)
+- Go tem performance superior para HTTP calls (~5ms vs ~150ms do n8n)
+- Retry, circuit breaker e observabilidade centralizados no Gateway
+- Credenciais Evolution em um único lugar
+
+**Fluxo completo route_ai:**
+```
+URA Engine chama Neurocore webhook (síncrono, timeout 90s)
+       ↓
+Neurocore processa a mensagem com IA
+       ↓
+Neurocore retorna HTTP 200 com body:
+  { "mensagem_agente_ia": ["msg1", "msg2", "msg3"] }
+       ↓
+Gateway itera as mensagens sequencialmente:
+  - delay entre mensagens: 50ms/char, min 800ms, max 3s (simula digitação)
+  - POST /message/sendText/{instance} na Evolution para cada mensagem
+```
+
+**Payload enviado ao webhook do Neurocore:**
 ```json
 {
   "conversation_id": "uuid",
@@ -1687,9 +1832,33 @@ FirstIntegration.
   "contact_id":      "uuid",
   "channel_id":      "uuid",
   "phone":           "5511...",
-  "message":         "texto da mensagem"
+  "message":         "texto da mensagem",
+  "send_type":       "text | audio | image | video | document"
 }
 ```
+
+**Contrato de resposta esperado do Neurocore:**
+```json
+{
+  "mensagem_agente_ia": ["balão 1", "balão 2", "balão 3"]
+}
+```
+> O Neurocore deve retornar o array de mensagens fragmentadas no body da resposta HTTP.
+> Resposta sem `mensagem_agente_ia` ou array vazio é logada como warning e nenhuma mensagem é enviada.
+
+**Credenciais Evolution usadas pelo Gateway:**
+Extraídas de `channels.config_json` no momento do `Persist()`:
+- `config_json.evolution_api_url` → base URL da Evolution
+- `config_json.instance_name` → nome da instância
+- `body.apikey` (do webhook inbound) → API key da instância
+
+**Implementação no Gateway:**
+- `gateway/persister.go`: `PersistResult` agora carrega `Phone` e `Evolution *EvolutionConfig`
+- `ura/engine.go`: `dispatchAI` lê resposta + chama `sendAIMessages()`
+- `ura/engine.go`: `sendAIMessages()` — loop com `typingDelay()` entre mensagens
+- `ura/engine.go`: `sendTextViaEvolution()` — POST direto na Evolution API
+- `handlers/evolution.go`: timeout do goroutine 15s → 120s (cobre AI + envios)
+- `ura/engine.go`: `neurocoreClient` timeout 90s; `evolutionClient` timeout 15s
 
 **Configuração no admin_livia:** cadastro do Neurocore → campo "Webhook URL (Gateway → IA)".
 
@@ -1715,18 +1884,31 @@ FirstIntegration.
 [x] UI: tela /teams (CRUD de times e membros)                                   ← 2026-04-25
 [x] UI: tela /automation (modo URA + CRUD de regras)                            ← 2026-04-25
 [x] fix(automation): modo URA agora exibe regras ao clicar (auto-save imediato) ← 2026-04-25
-[x] Go: URA Engine — assign_agent, assign_team, auto_reply, queue               ← 2026-04-25
-[x] Go: estratégias round_robin (fnv32), least_busy, random                     ← 2026-04-25
-[x] Go: route_ai — chama neurocores.webhook_url diretamente (sem FirstIntegration) ← 2026-04-25
+[x] Go: URA Engine — route_ai (commit 2ad8eb0)                                   ← 2026-04-26
+    ⚠️  código original (2026-04-25) nunca foi commitado — perdido no rebuild
+        reimplementado em 2026-04-26; ver seção 6.12
+[x] Go: route_ai — chama neurocores.webhook_url diretamente (sem FirstIntegration) ← 2026-04-26
+    payload: conversation_id, tenant_id, contact_id, channel_id, phone, message, send_type
+[x] Go: payload route_ai — send_type (text/audio/image/video/document)           ← 2026-04-26
+[x] Go: route_ai — Gateway lê resposta do Neurocore e envia via Evolution         ← 2026-04-26
+    contrato: { "mensagem_agente_ia": ["msg1", "msg2"] }
+    n8n NÃO chama mais Evolution diretamente — ver seção 7.9
+[x] Go: sendAIMessages — envio sequencial com typingDelay (50ms/char, 800ms-3s)   ← 2026-04-26
+[x] Go: PersistResult carrega Phone + EvolutionConfig (extraídos do config_json)   ← 2026-04-26
+[x] Go: neurocoreClient timeout 90s; evolutionClient timeout 15s                   ← 2026-04-26
+[x] Go: goroutine context timeout 15s → 120s (cobre IA + envios sequenciais)       ← 2026-04-26
 [x] Migration: tenants ADD ai_webhook_url → movido para neurocores.webhook_url  ← 2026-04-25
 [x] admin_livia: campo webhook_url no cadastro do Neurocore                     ← 2026-04-25
 [x] fix(admin_livia): NeurocoreForm — remove .transform() Zod (UseFormReturn<T> mismatch) ← 2026-04-25
-[x] Go: payload route_ai enriquecido — send_type (text/audio/image/video/document) ← 2026-04-25
-[x] Go: payload route_ai — mídia: media_base64, media_mimetype, media_url, media_apikey ← 2026-04-25
+[ ] Go: URA Engine — assign_agent, assign_team (estratégias round_robin, least_busy, random)
+    ⚠️  estava no código original perdido — backlog (ver seção 6.12)
+[ ] Go: payload route_ai — mídia: media_base64, media_mimetype, media_url, media_apikey
     Nota: base64 da mídia fica em data.message.base64 (top-level), não no sub-objeto
     Nota: media_url = {evolution_url}/message/download/{external_message_id}
-[x] Go: payload route_ai — reply: quoted_external_id, quoted_content, quoted_message_id ← 2026-04-25
+    ⚠️  estava no código original perdido — backlog (ver seção 6.12)
+[ ] Go: payload route_ai — reply: quoted_external_id, quoted_content, quoted_message_id
     Nota: contextInfo de reply fica em data.contextInfo (irmão de data.message, não aninhado)
+    ⚠️  estava no código original perdido — backlog (ver seção 6.12)
 [ ] Testar: conversa atribuída corretamente pela regra
 [ ] Testar: reatribuição manual atualiza via Realtime
 [ ] Testar: agente vê apenas conversas atribuídas a ele/time
@@ -2004,11 +2186,10 @@ Itens identificados após a conclusão das fases 0–5, ordenados por prioridade
 ### 10.1 Segurança — Crítico
 
 ```
-[ ] BACKLOG-016: Corrigir RLS policy na tabela agents (vazamento entre tenants)
-    Situação: filtro manual no código como workaround (lib/queries/agents.ts)
-    Causa suspeita: IN (subquery) não funciona bem com RLS em SSR — usar EXISTS
-    Risco: se o filtro for removido sem corrigir a policy, tenants veem agents de outros tenants
-    Esforço: 2h  |  Prioridade: ANTES de ter múltiplos tenants ativos
+[x] BACKLOG-016: Corrigir RLS policy na tabela agents (vazamento entre tenants)    ← 2026-04-26
+    Migration: 20260426181341_fix_agents_rls_exists.sql
+    Fix: CREATE POLICY "agents_tenant_isolation" usando EXISTS (não IN)
+    agents.ts: filtro manual removido — RLS garante isolamento
 
 [ ] BACKLOG-LGPD: Backup via Telegram transitando dados pessoais (pg_dump)
     Situação: backup.sh envia dump para Telegram — sem DPA, fora da LGPD
@@ -2019,9 +2200,10 @@ Itens identificados após a conclusão das fases 0–5, ordenados por prioridade
 ### 10.2 Produto — Alta prioridade
 
 ```
-[ ] Importação de contatos via CSV
-    Gargalo imediato para qualquer cliente novo que já tenha base de contatos
-    Esforço: 3-4h
+[x] Importação de contatos via CSV                                                  ← 2026-04-26
+    API: POST /api/contacts/import (multipart/form-data, lotes de 100, dedup por phone)
+    UI: botão "Importar CSV" + modal com preview de erros em /contacts
+    Formato: nome,telefone,[email,cpf,cidade,cep,rua,numero]
 
 [ ] Templates / respostas rápidas para agentes
     Mensagens pré-definidas reutilizáveis por tenant

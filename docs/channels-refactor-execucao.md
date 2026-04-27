@@ -206,3 +206,52 @@ Retorna channel com tenant_id, id_subwork_n8n_master_integrator, etc.
 - Lógica de polling no frontend
 - Rota de ativação do onboarding
 - Meta webhook verification (GET hub challenge)
+
+---
+
+## Correções pós-refactor (2026-04-26)
+
+### send-message/route.ts — `resolveChannelInfo`
+
+Diagnóstico: `SELECT 'config_json, external_api_url, instance_company_name, provider_external_channel_id'`
+falhava com `column does not exist` porque o refactor removeu essas colunas físicas.
+
+**Fix:** selecionar apenas `config_json`. Todos os campos lidos diretamente do JSON:
+- `cfg.evolution_api_url` → base URL da Evolution
+- `cfg.instance_name` → nome da instância
+- `cfg.instance_id_api` → API key da instância (campo real em produção)
+
+> **Atenção:** o plano previa `apikey_instance` como chave da API no `config_json`.
+> Em produção o campo é `instance_id_api` (gerado pelo onboarding).
+> O código usa `cfg?.evolution_api_key ?? cfg?.instance_id_api` para cobrir ambos.
+
+### Gateway Go — resolução de JID/LID (v1.1.6+)
+
+Evolution v2.3.6 pode enviar `remoteJid=189369738637507@lid` (LID de dispositivo vinculado).
+A Evolution API **não aceita LID** no `/message/sendText` — rejeita com 400.
+
+**Fix em `gateway/normalizer.go`:**
+- `data.key.remoteJidAlt` contém o JID `@s.whatsapp.net` correto
+- `data.key.senderPn` (v2.3.0+) contém o número puro (mais confiável)
+- `resolvePhone()` extrai o telefone real pela hierarquia: `senderPn` > `@s.whatsapp.net` JID > fallback stripped
+- `ReplyJID` armazena sempre o número puro para envio
+
+**Contatos duplicados (efeito colateral):** canais com LID criaram contatos com
+`external_identification_contact=<LID>@s.whatsapp.net`. Após o fix, novos contatos são
+criados com o telefone real. Limpeza pendente.
+
+### Typing indicator — presence (2026-04-26) ✅
+
+Gateway v1.2.0 + Next.js (commit `e804bc8`).
+
+**IA automático (URA Engine):**
+`sendPresenceViaEvolution` chamado antes de cada mensagem da IA.
+O contato vê "digitando..." por `typingDelay(msg)` ms antes de receber o texto. Non-fatal.
+
+**Modo manual (agente):**
+- `handlers/presence.go` — endpoint `POST /presence` no gateway
+- `app/api/send-presence/route.ts` — resolve canal + contato e chama gateway fire-and-forget
+- `lib/hooks/use-whatsapp-presence.ts` — throttle 4s (presence dura 5s no WhatsApp)
+- `components/inbox/conversation-view.tsx` — `handleTyping` compõe `broadcastTyping` (Realtime UI) + `sendPresence` (WhatsApp)
+
+Endpoint Evolution usado: `POST /chat/sendPresence/{instance}`

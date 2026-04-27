@@ -24,6 +24,7 @@
 
 import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { callN8nWebhook } from '@/lib/n8n/client';
 
 const N8N_SEND_MESSAGE_WEBHOOK = process.env.N8N_SEND_MESSAGE_WEBHOOK!;
@@ -32,8 +33,6 @@ const GATEWAY_SEND_URL         = process.env.GATEWAY_SEND_URL; // https://livia-
 const GATEWAY_API_KEY          = process.env.GATEWAY_API_KEY;
 
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-
   try {
     const body = await request.json();
     const { conversationId, content, tenantId, quotedMessageId } = body;
@@ -112,7 +111,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao salvar mensagem' }, { status: 500 });
     }
 
-    console.error(`[send-message] ✅ DB insert ${Date.now() - startTime}ms (id: ${message.id.slice(0, 8)})`);
+
 
     // Atualiza timestamps da conversa e do contato (fire-and-forget)
     const now = new Date().toISOString();
@@ -134,10 +133,7 @@ export async function POST(request: NextRequest) {
       if (iaActive) {
         await pauseIAAsync(conversationId, tenantId, user.id, supabase);
       }
-      console.error(`[send-message] ⏱️ after() concluído ${Date.now() - startTime}ms`);
     });
-
-    console.error(`[send-message] ⏱️ Resposta em ${Date.now() - startTime}ms`);
 
     return NextResponse.json({ success: true, message: { id: message.id, status: 'sent' } });
 
@@ -157,27 +153,31 @@ interface ChannelInfo {
 }
 
 async function resolveChannelInfo(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   channelId: string,
-  tenantId: string,
+  _tenantId: string,
 ): Promise<ChannelInfo | null> {
   try {
+    // Admin client bypassa RLS. Filtra só por id — tenant já foi validado na busca da conversa.
+    // Seleciona apenas config_json para evitar dependência de colunas que variam entre schemas.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: channel } = await (supabase as any)
+    const { data: channel, error: chErr } = await (createAdminClient() as any)
       .from('channels')
-      .select('config_json, external_api_url, instance_company_name, provider_external_channel_id')
+      .select('config_json')
       .eq('id', channelId)
-      .eq('tenant_id', tenantId)
       .single();
 
-    if (!channel) return null;
+    if (!channel) {
+      console.error(`[resolveChannelInfo] canal não encontrado: channel_id=${channelId} err=${chErr?.message}`);
+      return null;
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cfg = channel.config_json as Record<string, any> | null;
 
-    const evolutionBaseUrl = cfg?.evolution_api_url ?? channel.external_api_url ?? '';
-    const evolutionApiKey  = cfg?.evolution_api_key ?? channel.provider_external_channel_id ?? '';
-    const instanceName     = cfg?.instance_name ?? channel.instance_company_name ?? '';
+    const evolutionBaseUrl = cfg?.evolution_api_url ?? '';
+    const evolutionApiKey  = cfg?.evolution_api_key ?? cfg?.instance_id_api ?? '';
+    const instanceName     = cfg?.instance_name ?? '';
 
     if (!evolutionBaseUrl || !instanceName) return null;
 
