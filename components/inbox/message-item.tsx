@@ -262,9 +262,9 @@ function MessageContent({ message }: { message: MessageWithSender }) {
     !message.content.startsWith('[');
 
   useEffect(() => {
-    // Só busca se for áudio, sem attachment, e não for mensagem temporária
+    // Busca attachment para áudio ou imagem recebidos via Realtime (sem attachment no payload)
     if (
-      messageType !== 'audio' ||
+      (messageType !== 'audio' && messageType !== 'image') ||
       attachment !== null ||
       !message.id ||
       message.id.startsWith('temp-')
@@ -284,6 +284,32 @@ function MessageContent({ message }: { message: MessageWithSender }) {
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message.id, messageType]);
+
+  if (messageType === 'image') {
+    if (loadingAttachment) {
+      return (
+        <p className="text-sm text-muted-foreground italic flex-1 pr-1">
+          Carregando imagem...
+        </p>
+      );
+    }
+    if (attachment?.storage_path) {
+      const src = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${attachment.storage_bucket}/${attachment.storage_path}`;
+      return (
+        <img
+          src={src}
+          alt="Imagem"
+          className="max-w-full rounded-lg"
+          loading="lazy"
+        />
+      );
+    }
+    return (
+      <p className="text-sm text-muted-foreground italic flex-1 pr-1">
+        Imagem indisponível
+      </p>
+    );
+  }
 
   if (messageType === 'audio') {
     if (loadingAttachment) {
