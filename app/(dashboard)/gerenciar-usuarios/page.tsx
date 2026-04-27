@@ -27,10 +27,12 @@ export default async function GerenciarUsuariosPage() {
   const tenantId = userData.tenant_id;
 
   const adminClient = createAdminClient();
-  const { data: tenantUsers } = await adminClient
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: tenantUsers } = await (adminClient as any)
     .from('users')
-    .select('id, full_name, email, avatar_url, modules, role, is_active')
+    .select('id, full_name, email, avatar_url, modules, role, is_active, is_internal, availability_status')
     .eq('tenant_id', tenantId)
+    .eq('is_internal', false)
     .order('full_name');
 
   return (

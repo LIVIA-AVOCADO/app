@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isSuperAdmin, hasModule, MODULE_KEYS } from '@/lib/permissions';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -25,13 +26,18 @@ export async function GET(request: Request) {
 
   const { data: adminUser } = await supabase
     .from('users')
-    .select('tenant_id')
+    .select('tenant_id, role, modules')
     .eq('id', user.id)
     .single();
 
-  if (!adminUser?.tenant_id) {
+  const canManage =
+    adminUser?.tenant_id &&
+    (isSuperAdmin(adminUser.role ?? '') ||
+      hasModule(adminUser.modules ?? [], MODULE_KEYS.GERENCIAR_USUARIOS));
+
+  if (!canManage) {
     return NextResponse.json(
-      { error: 'Apenas administradores com tenant podem buscar usuários' },
+      { error: 'Acesso negado' },
       { status: 403 }
     );
   }
@@ -84,13 +90,18 @@ export async function POST(request: Request) {
 
   const { data: adminUser } = await supabase
     .from('users')
-    .select('tenant_id')
+    .select('tenant_id, role, modules')
     .eq('id', user.id)
     .single();
 
-  if (!adminUser?.tenant_id) {
+  const canManage =
+    adminUser?.tenant_id &&
+    (isSuperAdmin(adminUser.role ?? '') ||
+      hasModule(adminUser.modules ?? [], MODULE_KEYS.GERENCIAR_USUARIOS));
+
+  if (!canManage) {
     return NextResponse.json(
-      { error: 'Apenas administradores com tenant podem associar usuários' },
+      { error: 'Acesso negado' },
       { status: 403 }
     );
   }
@@ -121,6 +132,7 @@ export async function POST(request: Request) {
     .from('users')
     .update({
       tenant_id: adminUser.tenant_id,
+      role: 'user',
       modules,
       invite_code: null,
     })
