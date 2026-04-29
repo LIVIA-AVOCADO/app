@@ -220,22 +220,64 @@ docker service logs evolution_v2_evolution -f
 
 ### 6.7 livia-gateway
 
-```bash
-# ⚠️  OBRIGATÓRIO: verificar git antes de qualquer rebuild
-cd /root/livia-gateway && git status
-# Se houver código não commitado → commitar e push ANTES de continuar
+> **Processo atual (desde v1.6.0):** build acontece no CI (GitHub Actions) ao criar uma tag.
+> A VPS nunca faz `docker build` — só consome a imagem do registry.
 
-git pull
-docker build -t livia-gateway:latest .
-docker stack deploy -c /root/stacks/livia-gateway.yaml livia-gateway
-docker service logs livia-gateway_app -f
+#### Deploy de nova versão
+
+```bash
+# No repositório local (não na VPS):
+git tag v1.X.Y && git push origin main --tags
+# CI constrói ghcr.io/frankmarcelino/livia-gateway:v1.X.Y automaticamente
+
+# Na VPS — após a imagem aparecer no registry:
+docker service update \
+  --image ghcr.io/frankmarcelino/livia-gateway:v1.X.Y \
+  --force livia-gateway_app
+
+docker service logs livia-gateway_app --tail 20
 # deve ver: "livia-gateway iniciado" + "servidor HTTP pronto"
-# se URA ativo: próxima mensagem deve mostrar "ura: regra ativada" + "ura: route_ai ..."
 ```
 
-**Forçar atualização do container quando a tag não muda:**
+#### Adicionar ou alterar variáveis de ambiente
+
+Editar o stack yaml e rodar `docker stack deploy` (relê o bloco `environment` inteiro):
+
 ```bash
-docker service update --force livia-gateway_app
+nano /root/stacks/livia-gateway.yaml
+# Certificar que:
+#   - image: ghcr.io/frankmarcelino/livia-gateway:v1.X.Y  (versão atual)
+#   - todas as env vars usam formato lista: - KEY=VALUE
+
+docker stack deploy -c /root/stacks/livia-gateway.yaml livia-gateway
+
+docker service logs livia-gateway_app --tail 10
+```
+
+> ⚠️ `docker service update --image` atualiza APENAS a imagem — não relê as env vars do yaml.
+> Para aplicar vars novas, sempre usar `docker stack deploy` com o yaml corrigido.
+
+#### Rollback de versão
+
+```bash
+docker service update \
+  --image ghcr.io/frankmarcelino/livia-gateway:v1.X.Y-ANTERIOR \
+  --force livia-gateway_app
+```
+
+#### Formato correto das env vars no stack yaml
+
+```yaml
+# ✅ CORRETO — formato lista
+environment:
+  - PORT=8080
+  - META_APP_SECRET=valor
+  - META_VERIFY_TOKEN=valor
+
+# ❌ ERRADO — formato map misturado com lista (Docker ignora silenciosamente)
+environment:
+  - PORT=8080
+  META_APP_SECRET: "valor"
 ```
 
 ### 6.8 Uptime Kuma (monitoramento)

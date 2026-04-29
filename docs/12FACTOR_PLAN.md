@@ -446,10 +446,11 @@ Previne perda de dados e garante recuperação de desastre.
     cron jobs, verificação final, reconexão WhatsApp, referência rápida de serviços
     Impacto: reduz MTTR de horas para minutos  |  Esforço: 3h
 
-⚠️  NOTA (2026-04-25): deploy do livia-gateway ainda faz `docker build` na VPS (não via CI)
-    O workflow release.yml (4.2) gera imagem no ghcr.io, mas o fluxo de emergência
-    (scp + docker build + docker service update) continua ativo para agilidade no dev.
-    Retomar CI/CD completo quando Fase 3 estiver estabilizada.
+✅  NOTA (2026-04-29): CI/CD 100% via ghcr.io a partir da v1.6.0.
+    `docker build` na VPS removido do fluxo padrão.
+    Deploy: git tag → CI build → docker service update --image ghcr.io/...
+    Env vars: editar stack yaml (formato lista) + docker stack deploy.
+    RUNBOOK seção 6.7 atualizado para refletir o processo correto.
 ```
 
 ---
@@ -545,7 +546,7 @@ Só faz sentido após o produto ter usuários suficientes para justificar o cust
 |---|---|---|---|---|
 | traefik | traefik | traefik:v3.6.1 | 1/1 | ✅ Saudável |
 | evolution_v2 | evolution_v2 | evoapicloud/evolution-api:v2.3.6 | 1/1 | ✅ Saudável — DB corrigido |
-| livia-gateway | livia-gateway | ghcr.io/frankmarcelino/livia-gateway:v1.x | 1/1 | ✅ **Modo ATIVO** — Go processa inbound, shadow_mode=false, dual_write=false |
+| livia-gateway | livia-gateway | ghcr.io/frankmarcelino/livia-gateway:v1.7.0 | 1/1 | ✅ **Modo ATIVO** — Go processa inbound + handler Meta /webhook/meta registrado |
 | livia_editor | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável |
 | livia_webhook | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável |
 | livia_worker | livia | n8nio/n8n:2.3.2 | 1/1 | ✅ Saudável — JS Task Runner ativo |
