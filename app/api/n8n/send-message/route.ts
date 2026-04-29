@@ -30,6 +30,7 @@ import { callN8nWebhook } from '@/lib/n8n/client';
 const N8N_SEND_MESSAGE_WEBHOOK = process.env.N8N_SEND_MESSAGE_WEBHOOK!;
 const N8N_PAUSE_IA_WEBHOOK     = process.env.N8N_PAUSE_IA_WEBHOOK!;
 const GATEWAY_SEND_URL         = process.env.GATEWAY_SEND_URL; // https://livia-gw.online24por7.ai/send
+const GATEWAY_V2_SEND_URL      = GATEWAY_SEND_URL?.replace(/\/send$/, '/v2/send'); // https://livia-gw.online24por7.ai/v2/send
 const GATEWAY_API_KEY          = process.env.GATEWAY_API_KEY;
 
 export async function POST(request: NextRequest) {
@@ -124,6 +125,8 @@ export async function POST(request: NextRequest) {
     after(async () => {
       if (channelInfo?.isEvolution && GATEWAY_SEND_URL) {
         await sendViaGateway(message.id, channelInfo, contactId, content.trim(), quotedData, supabase);
+      } else if (channelInfo?.isMeta && GATEWAY_V2_SEND_URL) {
+        await sendViaGatewayV2(message.id, channelId, contactId, content.trim(), quotedData, supabase);
       } else {
         await sendToN8nAsync(
           message.id, conversationId, content.trim(), tenantId,
@@ -147,6 +150,7 @@ export async function POST(request: NextRequest) {
 
 interface ChannelInfo {
   isEvolution:      boolean;
+  isMeta:           boolean;
   evolutionBaseUrl: string;
   evolutionApiKey:  string;
   instanceName:     string;
@@ -178,10 +182,17 @@ async function resolveChannelInfo(
     const evolutionBaseUrl = cfg?.evolution_api_url ?? '';
     const evolutionApiKey  = cfg?.evolution_api_key ?? cfg?.instance_id_api ?? '';
     const instanceName     = cfg?.instance_name ?? '';
+    const phoneNumberId    = cfg?.phone_number_id ?? '';
+    const accessToken      = cfg?.access_token ?? '';
+
+    // Canal Meta com config completo → usa gateway /v2/send
+    if (phoneNumberId && accessToken) {
+      return { isEvolution: false, isMeta: true, evolutionBaseUrl: '', evolutionApiKey: '', instanceName: '' };
+    }
 
     if (!evolutionBaseUrl || !instanceName) return null;
 
-    return { isEvolution: true, evolutionBaseUrl, evolutionApiKey, instanceName };
+    return { isEvolution: true, isMeta: false, evolutionBaseUrl, evolutionApiKey, instanceName };
   } catch {
     return null;
   }
@@ -278,7 +289,85 @@ async function sendViaGateway(
   }
 }
 
-// ─── Envio via n8n (Meta / caminho legado) ───────────────────────────────────
+// ─── Envio via Go Gateway v2 (Meta — channel_id) ─────────────────────────────
+
+async function sendViaGatewayV2(
+  messageId: string,
+  channelId: string,
+  contactId: string,
+  content: string,
+  quotedData: { externalId: string | null; content: string; fromMe: boolean } | null,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+) {
+  const msgId = messageId.slice(0, 8);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: contact } = await (supabase as any)
+      .from('contacts')
+      .select('phone')
+      .eq('id', contactId)
+      .single();
+
+    const to = contact?.phone ?? '';
+    if (!to) {
+      console.error(`[gateway-v2] ❌ ${msgId}: número do contato não encontrado`);
+      await updateMessageStatus(messageId, 'failed', null, supabase);
+      return;
+    }
+
+    const payload: Record<string, unknown> = { channel_id: channelId, to, text: content };
+
+    if (quotedData?.externalId) {
+      payload.quoted_external_id = quotedData.externalId;
+      payload.quoted_from_me     = quotedData.fromMe;
+      payload.quoted_content     = quotedData.content;
+    }
+
+    console.error(`[gateway-v2] 🚀 ${msgId} → channel ${channelId.slice(0, 8)}`);
+
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), 30000);
+
+    let res: Response;
+    try {
+      res = await fetch(GATEWAY_V2_SEND_URL!, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${GATEWAY_API_KEY ?? ''}`,
+        },
+        body:   JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+        console.error(`[gateway-v2] ⏰ ${msgId}: timeout 30s — mantém status sent`);
+      } else {
+        console.error(`[gateway-v2] 💥 ${msgId}:`, fetchErr);
+        await updateMessageStatus(messageId, 'failed', null, supabase);
+      }
+      return;
+    }
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[gateway-v2] ❌ ${msgId}: gateway ${res.status}`, text);
+      await updateMessageStatus(messageId, 'failed', null, supabase);
+      return;
+    }
+
+    // /v2/send retorna 200 sem body — status já é 'sent', external_id fica nulo
+    console.error(`[gateway-v2] ✅ ${msgId}: sent via Meta`);
+
+  } catch (err) {
+    console.error(`[gateway-v2] 💥 ${msgId}:`, err);
+    await updateMessageStatus(messageId, 'failed', null, supabase);
+  }
+}
+
+// ─── Envio via n8n (Meta sem config completo / caminho legado) ────────────────
 
 async function sendToN8nAsync(
   messageId: string, conversationId: string, content: string,
