@@ -153,11 +153,11 @@ async function sendViaGateway(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: contact } = await (supabase as any)
       .from('contacts')
-      .select('external_identification_contact, phone')
+      .select('phone')
       .eq('id', contactId)
       .single();
 
-    const to = contact?.external_identification_contact ?? contact?.phone ?? '';
+    const to = contact?.phone ?? '';
     if (!to) {
       console.error(`[gateway] ❌ ${msgId}: número do contato não encontrado`);
       await updateMessageStatus(messageId, 'failed', null, supabase);
