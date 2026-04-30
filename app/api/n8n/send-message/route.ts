@@ -358,8 +358,16 @@ async function sendViaGatewayV2(
       return;
     }
 
-    // /v2/send retorna 200 sem body — status já é 'sent', external_id fica nulo
-    console.error(`[gateway-v2] ✅ ${msgId}: sent via Meta`);
+    // /v2/send retorna {"external_message_id":"wamid.xxx"} quando o canal suporta
+    let externalId: string | null = null;
+    try {
+      const data = await res.json() as { external_message_id?: string };
+      externalId = data?.external_message_id ?? null;
+    } catch {
+      // resposta sem body — external_id fica nulo
+    }
+    console.error(`[gateway-v2] ✅ ${msgId}: sent via Meta, external_id=${externalId}`);
+    await updateMessageStatus(messageId, 'sent', externalId, supabase);
 
   } catch (err) {
     console.error(`[gateway-v2] 💥 ${msgId}:`, err);
