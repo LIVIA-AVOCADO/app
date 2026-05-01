@@ -347,12 +347,13 @@ export function ContactList({
     <div className="flex flex-col h-full">
       <div className="p-4 border-b space-y-3">
 
-        {/* Busca + botão silenciadas */}
-        <div className="flex gap-2">
+        {/* Título + busca + botão silenciadas */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold shrink-0">Inbox</span>
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar contato ou mensagem…"
+              placeholder="Buscar…"
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-9"

@@ -283,12 +283,6 @@ export function LivechatContent({
     <div className="flex h-full overflow-hidden bg-background">
       {/* Coluna esquerda: lista de conversas — superfície elevada sobre o canvas */}
       <aside className="w-72 lg:w-80 xl:w-96 border-r border-border flex flex-col h-full bg-card">
-        <div className="p-4 border-b border-border flex-shrink-0">
-          <h2 className="text-lg font-semibold">Conversas</h2>
-          <p className="text-sm text-on-surface-variant">
-            Atendimentos ativos • WhatsApp
-          </p>
-        </div>
         <div className="flex-1 overflow-hidden">
           <ContactList
             conversations={conversations}
