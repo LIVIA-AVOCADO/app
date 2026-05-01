@@ -37,6 +37,23 @@ Client Components para interatividade e realtime.
   da conversa aberta; retry exponencial com até 10 tentativas
 - `useRealtimeConversations` — Supabase Realtime na lista de conversas
 
+**Abas da lista de conversas (`components/inbox/contact-list.tsx`):**
+
+| Aba | Filtro |
+|---|---|
+| Meus | `ia_active=false`, não fechada, `assigned_to=me` |
+| Fila | `ia_active=false`, não fechada, sem atribuição |
+| IA | `ia_active=true`, não fechada |
+| Encerradas | `status=closed` (lazy load ao entrar na aba) |
+
+Filtros secundários (contextuais, abaixo das abas):
+- ★ Importantes — toggle, disponível em Meus/Fila/IA
+- Não lidas — switch com dot indicador nas abas; só em Meus e Fila
+- Tags — multi-select, disponível em todas as abas
+
+Contadores: `mine`/`unassigned` derivados do estado Realtime local (reativo);
+`ia`/`closed` preferem o RPC `livechat_conversation_status_counts` quando disponível.
+
 **Envio de mensagem pelo operador:**
 
 ```
