@@ -27,7 +27,7 @@
 ### O que você precisa ter em mãos antes de começar
 
 - [ ] Acesso ao painel Hostinger (para provisionar VPS e configurar DNS)
-- [ ] Acesso ao GitHub (`FrankMarcelino`) — para clonar os repos
+- [ ] Acesso ao GitHub (org `livia-avocado`) — para clonar os repos
 - [ ] Credenciais dos serviços (Evolution API key, n8n keys, etc.) — guardadas nos stack yamls do repo de infra
 - [ ] Backups mais recentes de `/root/backups/` da VPS anterior (ou Telegram)
 - [ ] Acesso à conta Telegram do bot de alertas (`liviamonitor_bot`)
@@ -36,9 +36,9 @@
 
 | Repo | URL | Conteúdo |
 |---|---|---|
-| infra | `github.com/FrankMarcelino/Setup-Base-Docker-Swarm-Traefik-Portainer-Ctop` | Stack yamls sanitizados |
-| gateway | `github.com/FrankMarcelino/livia-gateway` | Código Go do gateway |
-| app | `github.com/FrankMarcelino/livia_dev_01` | Next.js + docs |
+| infra | `github.com/livia-avocado/infra` | Stack yamls sanitizados |
+| gateway | `github.com/livia-avocado/gateway` | Código Go do gateway |
+| app | `github.com/livia-avocado/app` | Next.js + docs |
 
 ---
 
@@ -139,12 +139,12 @@ cat ~/.ssh/id_github.pub
 
 # Clonar repo de infra
 cd /root
-git clone git@github.com:FrankMarcelino/Setup-Base-Docker-Swarm-Traefik-Portainer-Ctop.git infra
+git clone git@github.com:livia-avocado/infra.git infra
 ls /root/infra/stacks/
 # deve listar: traefik.yaml, livia.yaml, sofhia.yaml, evolution_v2.yaml, livia-gateway.yaml, etc.
 ```
 
-Os stack yamls no repo têm credenciais substituídas por `SEU_*`. Antes de deployar, preencher os valores reais em cada arquivo. As credenciais estão documentadas no `docs/ENV_VARS.md` do repo `livia_dev_01`.
+Os stack yamls no repo têm credenciais substituídas por `SEU_*`. Antes de deployar, preencher os valores reais em cada arquivo. As credenciais estão documentadas no `.env.local.example do repo `livia-avocado/app`.
 
 ```bash
 # Criar diretório de stacks operacionais (nunca commitar com credenciais)
@@ -228,11 +228,11 @@ docker service logs evolution_v2_evolution -f
 ```bash
 # No repositório local (não na VPS):
 git tag v1.X.Y && git push origin main --tags
-# CI constrói ghcr.io/frankmarcelino/livia-gateway:v1.X.Y automaticamente
+# CI constrói ghcr.io/livia-avocado/gateway:v1.X.Y automaticamente
 
 # Na VPS — após a imagem aparecer no registry:
 docker service update \
-  --image ghcr.io/frankmarcelino/livia-gateway:v1.X.Y \
+  --image ghcr.io/livia-avocado/gateway:v1.X.Y \
   --force livia-gateway_app
 
 docker service logs livia-gateway_app --tail 20
@@ -246,7 +246,7 @@ Editar o stack yaml e rodar `docker stack deploy` (relê o bloco `environment` i
 ```bash
 nano /root/stacks/livia-gateway.yaml
 # Certificar que:
-#   - image: ghcr.io/frankmarcelino/livia-gateway:v1.X.Y  (versão atual)
+#   - image: ghcr.io/livia-avocado/gateway:v1.X.Y  (versão atual)
 #   - todas as env vars usam formato lista: - KEY=VALUE
 
 docker stack deploy -c /root/stacks/livia-gateway.yaml livia-gateway
@@ -261,7 +261,7 @@ docker service logs livia-gateway_app --tail 10
 
 ```bash
 docker service update \
-  --image ghcr.io/frankmarcelino/livia-gateway:v1.X.Y-ANTERIOR \
+  --image ghcr.io/livia-avocado/gateway:v1.X.Y-ANTERIOR \
   --force livia-gateway_app
 ```
 
