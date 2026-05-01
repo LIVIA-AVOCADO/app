@@ -25,9 +25,9 @@ import { createClient } from '@/lib/supabase/server';
 import { callN8nWebhook } from '@/lib/n8n/client';
 
 const N8N_PAUSE_IA_WEBHOOK = process.env.N8N_PAUSE_IA_WEBHOOK!;
-const GATEWAY_SEND_URL     = process.env.GATEWAY_SEND_URL; // https://livia-gw.online24por7.ai/send
-const GATEWAY_V2_SEND_URL  = GATEWAY_SEND_URL?.replace(/\/send$/, '/v2/send');
-const GATEWAY_API_KEY      = process.env.GATEWAY_API_KEY;
+const GATEWAY_URL         = process.env.GATEWAY_URL; // https://livia-gw.online24por7.ai
+const GATEWAY_V2_SEND_URL = GATEWAY_URL ? `${GATEWAY_URL}/v2/send` : undefined;
+const GATEWAY_API_KEY     = process.env.GATEWAY_API_KEY;
 
 export async function POST(request: NextRequest) {
   try {
@@ -145,7 +145,7 @@ async function sendViaGateway(
   const msgId = messageId.slice(0, 8);
   try {
     if (!GATEWAY_V2_SEND_URL) {
-      console.error(`[gateway] ❌ ${msgId}: GATEWAY_SEND_URL não configurado`);
+      console.error(`[gateway] ❌ ${msgId}: GATEWAY_URL não configurado`);
       await updateMessageStatus(messageId, 'failed', null, supabase);
       return;
     }

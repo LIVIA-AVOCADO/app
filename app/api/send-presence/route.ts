@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const GATEWAY_SEND_URL = process.env.GATEWAY_SEND_URL; // https://livia-gw.../send
-const GATEWAY_API_KEY  = process.env.GATEWAY_API_KEY;
+const GATEWAY_URL     = process.env.GATEWAY_URL; // https://livia-gw...
+const GATEWAY_API_KEY = process.env.GATEWAY_API_KEY;
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const evolutionApiKey  = cfg?.evolution_api_key ?? cfg?.instance_id_api ?? '';
     const instanceName     = cfg?.instance_name ?? '';
 
-    if (!evolutionBaseUrl || !instanceName || !GATEWAY_SEND_URL) {
+    if (!evolutionBaseUrl || !instanceName || !GATEWAY_URL) {
       return NextResponse.json({ ok: false });
     }
 
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const number  = contact?.external_identification_contact ?? contact?.phone ?? '';
     if (!number) return NextResponse.json({ ok: false });
 
-    const presenceUrl = GATEWAY_SEND_URL.replace(/\/send$/, '/presence');
+    const presenceUrl = `${GATEWAY_URL}/presence`;
 
     // Fire-and-forget — não aguarda resposta para não bloquear o cliente
     fetch(presenceUrl, {
