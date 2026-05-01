@@ -3,14 +3,14 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ContactItem } from './contact-item';
 import { MessageSearchResultItem } from './message-search-result-item';
 import { TagSelector } from '@/components/tags/tag-selector';
-import { Search, MessageCircle, BellOff, Star, Loader2, Users } from 'lucide-react';
+import { Search, BellOff, Star, Loader2, MessageCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useMessageSearch } from '@/hooks/use-message-search';
 import { getContactDisplayName } from '@/lib/utils/contact-helpers';
@@ -29,9 +29,7 @@ function fmtCount(n: number): string {
   return (Number.isInteger(k) ? String(k) : k.toFixed(1)) + 'k';
 }
 
-type StatusFilter =
-  | 'mine' | 'unassigned' | 'team' | 'all'
-  | 'ia' | 'manual' | 'closed' | 'muted' | 'important';
+type StatusFilter = 'mine' | 'unassigned' | 'ia' | 'closed';
 
 interface ContactListProps {
   conversations: ConversationWithContact[];
@@ -51,13 +49,20 @@ interface ContactListProps {
   tabStatusCounts?: LivechatTabStatusCounts | null;
 }
 
+const TAB_LABELS: Record<StatusFilter, string> = {
+  mine:       'Meus',
+  unassigned: 'Fila',
+  ia:         'IA',
+  closed:     'Encerradas',
+};
+
 export function ContactList({
   conversations,
   selectedConversationId,
   tenantId,
   userId,
-  userRole,
-  userTeamIds = [],
+  userRole: _userRole,
+  userTeamIds: _userTeamIds = [],
   onConversationClick,
   onConversationHover,
   onConversationUpdate,
@@ -65,7 +70,6 @@ export function ContactList({
   allTags,
   tabStatusCounts,
 }: ContactListProps) {
-  const isAdmin = userRole === 'super_admin';
   const [searchQuery, setSearchQuery] = useState('');
   const isMessageSearch = searchQuery.trim().length >= 3;
 
@@ -81,7 +85,12 @@ export function ContactList({
     isError: isMessageSearchError,
   } = useMessageSearch({ tenantId, query: searchQuery, enabled: isMessageSearch });
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ia');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('mine');
+  const [showMuted, setShowMuted] = useState(false);
+  const [showOnlyUnread, setShowOnlyUnread] = useState(false);
+  const [showOnlyImportant, setShowOnlyImportant] = useState(false);
+  // ID da conversa que acabou de ser marcada como lida (mantém visível até clicar em outra)
+  const [justReadConversationId, setJustReadConversationId] = useState<string | null>(null);
 
   // Carrega encerradas ao entrar na aba pela primeira vez
   useEffect(() => {
@@ -96,7 +105,6 @@ export function ContactList({
         return res.json();
       })
       .then(({ conversations: closed }: { conversations: ConversationWithContact[] }) => {
-        // Exclui ids já presentes na lista ativa (ex.: conversa encerrada nesta sessão)
         const activeIds = new Set(conversations.map((c) => c.id));
         setClosedConversations(closed.filter((c) => !activeIds.has(c.id)));
         setClosedLoaded(true);
@@ -186,13 +194,11 @@ export function ContactList({
   }, [tenantId]);
 
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
-  const [showOnlyUnread, setShowOnlyUnread] = useState(false);
-  // ID da conversa que acabou de ser marcada como lida (mantém visível até clicar em outra)
-  const [justReadConversationId, setJustReadConversationId] = useState<string | null>(null);
 
   const handleCardActivate = useCallback(
     (conversationId: string) => {
-      if (showOnlyUnread && statusFilter === 'manual') {
+      const isManualTab = statusFilter === 'mine' || statusFilter === 'unassigned';
+      if (showOnlyUnread && isManualTab) {
         setJustReadConversationId((curr) => (conversationId !== curr ? conversationId : curr));
       }
       if (onConversationClick) {
@@ -226,77 +232,69 @@ export function ContactList({
     // Contatos silenciados nunca aparecem nas abas normais
     if (conversation.contact.is_muted) return false;
 
-    // Lógica de filtro
-    let matchesStatus = false;
     const isOpen = conversation.status !== 'closed';
     const isManual = !conversation.ia_active;
 
+    let matchesStatus = false;
     if (statusFilter === 'mine') {
       matchesStatus = isOpen && isManual && conversation.assigned_to === userId;
     } else if (statusFilter === 'unassigned') {
       matchesStatus = isOpen && isManual && !conversation.assigned_to;
-    } else if (statusFilter === 'team') {
-      matchesStatus = isOpen && isManual &&
-        !!conversation.team_id && userTeamIds.includes(conversation.team_id);
-    } else if (statusFilter === 'all') {
-      matchesStatus = isOpen && isManual;
     } else if (statusFilter === 'ia') {
       matchesStatus = isOpen && conversation.ia_active;
-    } else if (statusFilter === 'manual') {
-      matchesStatus = isOpen && isManual;
     } else if (statusFilter === 'closed') {
       matchesStatus = conversation.status === 'closed';
-    } else if (statusFilter === 'important') {
-      matchesStatus = isOpen && !!conversation.is_important;
     }
 
-    // Filtro de tags: se nenhuma tag selecionada, mostra todas
-    // Se há tags selecionadas, mostra apenas conversas que têm PELO MENOS UMA das tags
+    const matchesImportant = !showOnlyImportant || !!conversation.is_important;
+
     const matchesTags =
       selectedTagIds.size === 0 ||
       (conversation.conversation_tags?.some((ct) =>
         ct.tag && selectedTagIds.has(ct.tag.id)
       ) ?? false);
 
-    // Filtro de não lidas - só se aplica no modo manual quando toggle está ativo
-    // Mantém a conversa "recém-lida" visível até clicar em outra
+    // Filtro de não lidas — aplica apenas nas abas Meus e Fila
+    const isManualTab = statusFilter === 'mine' || statusFilter === 'unassigned';
     const matchesUnread =
-      statusFilter !== 'manual' || // Não aplica fora do modo manual
-      !showOnlyUnread || // Toggle desligado = mostra todas
-      conversation.has_unread || // Tem não lidas
-      conversation.id === justReadConversationId; // Recém-lida (mantém visível até clicar em outra)
+      !isManualTab ||
+      !showOnlyUnread ||
+      conversation.has_unread ||
+      conversation.id === justReadConversationId;
 
-    return matchesSearch && matchesStatus && matchesTags && matchesUnread;
+    return matchesSearch && matchesStatus && matchesImportant && matchesTags && matchesUnread;
   });
 
-  const derivedStatusCounts = {
-    mine: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted && c.assigned_to === userId).length,
+  // Contadores derivados do estado local (Realtime-reativo)
+  const derivedCounts = {
+    mine:       conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted && c.assigned_to === userId).length,
     unassigned: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted && !c.assigned_to).length,
-    team: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted && !!c.team_id && userTeamIds.includes(c.team_id!)).length,
-    all: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
-    ia: conversations.filter((c) => c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
-    manual: conversations.filter((c) => !c.ia_active && c.status !== 'closed' && !c.contact.is_muted).length,
-    closed: conversations.filter((c) => c.status === 'closed' && !c.contact.is_muted).length,
-    important: conversations.filter((c) => c.is_important && c.status !== 'closed' && !c.contact.is_muted).length,
+    ia:         conversations.filter((c) => c.ia_active  && c.status !== 'closed' && !c.contact.is_muted).length,
+    closed:     conversations.filter((c) => c.status === 'closed' && !c.contact.is_muted).length,
+    important:  conversations.filter((c) => c.is_important && c.status !== 'closed' && !c.contact.is_muted).length,
   };
 
-  // Totais das abas: filtros de atribuição sempre derivados localmente (Realtime reativo).
-  // ia/manual/closed/important: usa RPC quando disponível, senão derivado.
-  const statusCounts = {
-    ...derivedStatusCounts,
+  // ia e closed preferem RPC quando disponível (mais preciso para grandes volumes)
+  const tabCounts = {
+    ...derivedCounts,
     ...(tabStatusCounts
-      ? { ia: tabStatusCounts.ia, manual: tabStatusCounts.manual, closed: tabStatusCounts.closed, important: tabStatusCounts.important }
+      ? { ia: tabStatusCounts.ia, closed: tabStatusCounts.closed }
       : {}),
   };
 
-  // Não-lidas: SEMPRE derivado do estado reativo (atualiza a cada mensagem via Realtime).
-  // tabStatusCounts.unreadManual é SSR-estático e ficaria congelado.
-  const unreadInManualCount = conversations.filter(
-    (c) => !c.ia_active && c.status !== 'closed' && c.has_unread
+  // Não-lidas por aba: sempre derivado do Realtime (o RPC ficaria congelado)
+  const unreadInMine = conversations.filter(
+    (c) => !c.ia_active && c.status !== 'closed' && c.has_unread && c.assigned_to === userId && !c.contact.is_muted
+  ).length;
+  const unreadInFila = conversations.filter(
+    (c) => !c.ia_active && c.status !== 'closed' && c.has_unread && !c.assigned_to && !c.contact.is_muted
   ).length;
 
+  const unreadInCurrentTab =
+    statusFilter === 'mine' ? unreadInMine :
+    statusFilter === 'unassigned' ? unreadInFila : 0;
+
   // Virtualizer — renderiza apenas os ~10-15 itens visíveis no scroll em vez de todos.
-  // measureElement ajusta automaticamente após o primeiro render real de cada item.
   const virtualizer = useVirtualizer({
     count: filteredConversations.length,
     getScrollElement: () => listRef.current,
@@ -304,193 +302,172 @@ export function ContactList({
     overscan: 5,
   });
 
-  // Limpar seleção ao mudar filtros (sem SSR — só atualiza a URL)
   const clearSelection = () => {
     if (selectedConversationId) {
       window.history.pushState(null, '', '/inbox');
     }
   };
 
-  // Handler para mudança de filtro de status
   const handleStatusFilterChange = (newFilter: StatusFilter) => {
     if (newFilter !== statusFilter) {
       setStatusFilter(newFilter);
-      // Reset toggle de não lidas e justReadConversationId quando sai do modo manual
-      if (newFilter !== 'manual') {
-        setShowOnlyUnread(false);
-        setJustReadConversationId(null);
-      }
+      setShowOnlyUnread(false);
+      setShowOnlyImportant(false);
+      setJustReadConversationId(null);
       clearSelection();
     }
+    setShowMuted(false);
   };
 
-  // Handler para toggle de não lidas
   const handleUnreadToggle = (checked: boolean) => {
     setShowOnlyUnread(checked);
-    // Limpa justReadConversationId ao desligar o toggle
-    if (!checked) {
-      setJustReadConversationId(null);
-    }
+    if (!checked) setJustReadConversationId(null);
     clearSelection();
   };
 
-  // Handler para toggle de tags (modo filtro)
   const handleTagToggle = (tagId: string) => {
     setSelectedTagIds((prev) => {
       const next = new Set(prev);
-      if (next.has(tagId)) {
-        next.delete(tagId);
-      } else {
-        next.add(tagId);
-      }
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
       return next;
     });
     clearSelection();
   };
 
-  // Handler para busca
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    // Só limpa seleção se começou a digitar algo novo
-    if (value && value !== searchQuery) {
-      clearSelection();
-    }
+    if (value && value !== searchQuery) clearSelection();
   };
 
-  // Converter selectedTagIds para array de Tags para o TagSelector
   const selectedTags = allTags.filter((tag) => selectedTagIds.has(tag.id));
+  const isManualTab = statusFilter === 'mine' || statusFilter === 'unassigned';
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 border-b space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar contato ou mensagem…"
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+      <div className="p-4 border-b space-y-3">
 
-        <div className="flex gap-2 flex-wrap">
-          {/* Filtros de atribuição — Fase 3 */}
-          {isAdmin && (
-            <Badge
-              variant={statusFilter === 'all' ? 'default' : 'outline'}
-              className="cursor-pointer gap-1"
-              onClick={() => handleStatusFilterChange('all')}
-            >
-              <Users className="h-3 w-3" />
-              Todos ({fmtCount(statusCounts.all)})
-            </Badge>
-          )}
-          <Badge
-            variant={statusFilter === 'mine' ? 'default' : 'outline'}
-            className="cursor-pointer"
-            onClick={() => handleStatusFilterChange('mine')}
-          >
-            Meus ({fmtCount(statusCounts.mine)})
-          </Badge>
-          <Badge
-            variant={statusFilter === 'unassigned' ? 'default' : 'outline'}
-            className="cursor-pointer"
-            onClick={() => handleStatusFilterChange('unassigned')}
-          >
-            Não atribuídos ({fmtCount(statusCounts.unassigned)})
-          </Badge>
-          {userTeamIds.length > 0 && (
-            <Badge
-              variant={statusFilter === 'team' ? 'default' : 'outline'}
-              className="cursor-pointer"
-              onClick={() => handleStatusFilterChange('team')}
-            >
-              Meu time ({fmtCount(statusCounts.team)})
-            </Badge>
-          )}
-
-          {/* Filtros existentes */}
-          <Badge
-            variant={statusFilter === 'ia' ? 'default' : 'outline'}
-            className="cursor-pointer"
-            onClick={() => handleStatusFilterChange('ia')}
-          >
-            IA ({fmtCount(statusCounts.ia)})
-          </Badge>
-          <Badge
-            variant={statusFilter === 'manual' ? 'default' : 'outline'}
-            className="cursor-pointer"
-            onClick={() => handleStatusFilterChange('manual')}
-          >
-            Modo Manual ({fmtCount(statusCounts.manual)})
-            {unreadInManualCount > 0 && (
-              <MessageCircle className="ml-1 h-3.5 w-3.5 fill-green-500 text-green-500" />
-            )}
-          </Badge>
-          <Badge
-            variant={statusFilter === 'closed' ? 'default' : 'outline'}
-            className="cursor-pointer"
-            onClick={() => handleStatusFilterChange('closed')}
-          >
-            Encerradas ({fmtCount(statusCounts.closed)})
-          </Badge>
-          <Badge
-            variant={statusFilter === 'muted' ? 'default' : 'outline'}
-            className="cursor-pointer gap-1"
-            onClick={() => handleStatusFilterChange('muted')}
-          >
-            <BellOff className="h-3 w-3" />
-            Silenciadas
-          </Badge>
-          {statusCounts.important > 0 && (
-            <Badge
-              variant={statusFilter === 'important' ? 'default' : 'outline'}
-              className="cursor-pointer gap-1"
-              onClick={() => handleStatusFilterChange('important')}
-            >
-              <Star className="h-3 w-3" />
-              Importantes ({fmtCount(statusCounts.important)})
-            </Badge>
-          )}
-        </div>
-
-        {/* Toggle de não lidas - só aparece no modo manual */}
-        {statusFilter === 'manual' && (
-          <>
-            <Separator className="my-2" />
-            <div className="flex items-center justify-between">
-              <Label htmlFor="unread-toggle" className="text-sm text-muted-foreground">
-                Apenas não lidas ({fmtCount(unreadInManualCount)})
-              </Label>
-              <Switch
-                id="unread-toggle"
-                checked={showOnlyUnread}
-                onCheckedChange={handleUnreadToggle}
-              />
-            </div>
-          </>
-        )}
-
-        {/* Filtro de tags */}
-        {allTags.length > 0 && (
-          <div>
-            <span className="text-xs text-muted-foreground mb-2 block">
-              Filtrar por Tags:
-            </span>
-            <TagSelector
-              mode="filter"
-              selectedTags={selectedTags}
-              availableTags={allTags}
-              onTagToggle={handleTagToggle}
-              placeholder="Filtrar por tags"
-              popoverSide="right"
+        {/* Busca + botão silenciadas */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar contato ou mensagem…"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-9"
             />
+          </div>
+          <button
+            onClick={() => setShowMuted((v) => !v)}
+            title="Silenciadas"
+            className={cn(
+              'flex items-center justify-center h-10 w-10 rounded-md border text-muted-foreground transition-colors',
+              showMuted
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-background hover:bg-accent hover:text-accent-foreground'
+            )}
+          >
+            <BellOff className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* 4 abas primárias */}
+        <div className="flex gap-1">
+          {(['mine', 'unassigned', 'ia', 'closed'] as StatusFilter[]).map((tab) => {
+            const count = tabCounts[tab];
+            const hasUnread =
+              (tab === 'mine' && unreadInMine > 0) ||
+              (tab === 'unassigned' && unreadInFila > 0);
+            const isActive = statusFilter === tab && !showMuted;
+            return (
+              <button
+                key={tab}
+                onClick={() => handleStatusFilterChange(tab)}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                {TAB_LABELS[tab]}
+                <span className={cn(
+                  'text-[10px] tabular-nums',
+                  isActive ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                )}>
+                  ({fmtCount(count)})
+                </span>
+                {hasUnread && (
+                  <MessageCircle className="h-3 w-3 fill-green-500 text-green-500 shrink-0" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Filtros secundários — ocultos no painel silenciadas e na aba Encerradas */}
+        {!showMuted && statusFilter !== 'closed' && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+
+            {/* Toggle importantes */}
+            <button
+              onClick={() => setShowOnlyImportant((v) => !v)}
+              className={cn(
+                'flex items-center gap-1 text-xs rounded-md px-2 py-1 border transition-colors',
+                showOnlyImportant
+                  ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-950 dark:border-amber-700 dark:text-amber-400'
+                  : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
+              )}
+            >
+              <Star className={cn('h-3 w-3', showOnlyImportant && 'fill-amber-500 text-amber-500')} />
+              Importantes
+              {derivedCounts.important > 0 && (
+                <span className="tabular-nums">({fmtCount(derivedCounts.important)})</span>
+              )}
+            </button>
+
+            {/* Toggle não lidas — só nas abas Meus e Fila */}
+            {isManualTab && (
+              <>
+                <Separator orientation="vertical" className="h-4" />
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="unread-toggle" className="text-xs text-muted-foreground cursor-pointer select-none">
+                    Não lidas
+                    {unreadInCurrentTab > 0 && (
+                      <span className="ml-1 tabular-nums">({fmtCount(unreadInCurrentTab)})</span>
+                    )}
+                  </Label>
+                  <Switch
+                    id="unread-toggle"
+                    checked={showOnlyUnread}
+                    onCheckedChange={handleUnreadToggle}
+                    className="scale-75"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Filtro de tags */}
+            {allTags.length > 0 && (
+              <>
+                <Separator orientation="vertical" className="h-4" />
+                <TagSelector
+                  mode="filter"
+                  selectedTags={selectedTags}
+                  availableTags={allTags}
+                  onTagToggle={handleTagToggle}
+                  placeholder="Tags"
+                  popoverSide="right"
+                />
+              </>
+            )}
           </div>
         )}
       </div>
 
-      {/* Aba Silenciadas: renderiza lista dedicada */}
-      {statusFilter === 'muted' && (
+      {/* Painel silenciadas */}
+      {showMuted && (
         <div className="scrollbar-themed flex-1 overflow-y-auto scroll-smooth">
           <MutedContactsList
             tenantId={tenantId}
@@ -507,11 +484,15 @@ export function ContactList({
         </div>
       )}
 
+      {/* Lista principal */}
       <div
         ref={listRef}
-        className={`scrollbar-themed flex-1 overflow-y-auto p-4 scroll-smooth ${statusFilter === 'muted' ? 'hidden' : ''}`}
+        className={cn(
+          'scrollbar-themed flex-1 overflow-y-auto p-4 scroll-smooth',
+          showMuted && 'hidden'
+        )}
       >
-        {/* Feedback de carregamento lazy da aba Encerradas */}
+        {/* Feedback lazy da aba Encerradas */}
         {statusFilter === 'closed' && closedLoading && (
           <div className="flex items-center justify-center py-6 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -534,14 +515,18 @@ export function ContactList({
           <div className="text-center py-8 text-muted-foreground animate-in fade-in-0 duration-300">
             {searchQuery ? (
               'Nenhuma conversa encontrada para esta busca'
-            ) : showOnlyUnread && statusFilter === 'manual' ? (
+            ) : showOnlyUnread ? (
               'Nenhuma conversa com mensagens não lidas'
+            ) : showOnlyImportant ? (
+              'Nenhuma conversa marcada como importante'
             ) : selectedTagIds.size > 0 ? (
               'Nenhuma conversa com as tags selecionadas'
             ) : statusFilter === 'ia' ? (
               'Nenhuma conversa com IA ativa'
-            ) : statusFilter === 'manual' ? (
-              'Nenhuma conversa em modo manual'
+            ) : statusFilter === 'mine' ? (
+              'Nenhuma conversa atribuída a você'
+            ) : statusFilter === 'unassigned' ? (
+              'Nenhuma conversa na fila'
             ) : statusFilter === 'closed' ? (
               'Nenhuma conversa encerrada'
             ) : (
