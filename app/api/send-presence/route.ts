@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cfg = channelRes.data?.config_json as Record<string, any> | null;
     const evolutionBaseUrl = cfg?.evolution_api_url ?? '';
-    const evolutionApiKey  = cfg?.evolution_api_key ?? cfg?.instance_id_api ?? '';
+    const evolutionApiKey  = cfg?.instance_id_api ?? cfg?.evolution_api_key ?? '';
     const instanceName     = cfg?.instance_name ?? '';
 
     if (!evolutionBaseUrl || !instanceName || !GATEWAY_URL) {

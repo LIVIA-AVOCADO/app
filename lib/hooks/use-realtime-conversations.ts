@@ -53,7 +53,7 @@ export function useRealtimeConversations(
   const hasInitialDataRef = useRef(false);
 
   /** Mapa leve para detectar mudanças nos campos que afetam contadores das abas. */
-  const statusMapRef = useRef<Map<string, { ia_active: boolean; status: string; is_important: boolean }>>(new Map());
+  const statusMapRef = useRef<Map<string, { ia_active: boolean; status: string; is_important: boolean; assigned_to: string | null }>>(new Map());
 
   const onCountChangeRef = useRef(onCountChange);
   useEffect(() => {
@@ -74,7 +74,7 @@ export function useRealtimeConversations(
       // Primeira carga: inicializa o estado completo e o mapa de status para delta
       setConversations(sortByLastMessage(initialConversations));
       statusMapRef.current = new Map(
-        initialConversations.map((c) => [c.id, { ia_active: c.ia_active, status: c.status, is_important: !!c.is_important }])
+        initialConversations.map((c) => [c.id, { ia_active: c.ia_active, status: c.status, is_important: !!c.is_important, assigned_to: (c as any).assigned_to ?? null }])
       );
       hasInitialDataRef.current = true;
       return;
@@ -87,12 +87,19 @@ export function useRealtimeConversations(
       const merged = prev.map((existing) => {
         const fromServer = serverMap.get(existing.id);
         if (!fromServer) return existing;
-        // Mantém last_message_at e lastMessage do estado local (Realtime é mais recente)
+        // Mantém campos que o Realtime/optimistic já atualizou (mais recentes que o servidor)
         // mas atualiza campos que só chegam via server refresh (ex: conversation_tags)
         return {
           ...fromServer,
-          lastMessage: existing.lastMessage ?? fromServer.lastMessage,
+          lastMessage:     existing.lastMessage     ?? fromServer.lastMessage,
           last_message_at: existing.last_message_at ?? fromServer.last_message_at,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          assigned_to:     (existing as any).assigned_to  ?? (fromServer as any).assigned_to  ?? null,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          assigned_at:     (existing as any).assigned_at  ?? (fromServer as any).assigned_at  ?? null,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ia_active:       (existing as any).ia_active    ?? (fromServer as any).ia_active,
+          status:          existing.status ?? fromServer.status,
         };
       });
       // Adiciona novas conversas que vieram do servidor mas não estão no estado local
@@ -184,7 +191,7 @@ export function useRealtimeConversations(
         return sortByLastMessage([fullConv, ...prev]);
       });
       // Nova conversa afeta os totais das abas
-      statusMapRef.current.set(conv.id, { ia_active: conv.ia_active, status: conv.status, is_important: !!conv.is_important });
+      statusMapRef.current.set(conv.id, { ia_active: conv.ia_active, status: conv.status, is_important: !!conv.is_important, assigned_to: (conv as any).assigned_to ?? null });
       onCountChangeRef.current?.();
       return;
     }
@@ -192,12 +199,14 @@ export function useRealtimeConversations(
     // --- UPDATE ---
     // Detecta mudança nos campos que afetam os totais das abas antes de atualizar o mapa
     const prevStatus = statusMapRef.current.get(conv.id);
+    const convAssignedTo = (conv as any).assigned_to ?? null;
     const countAffected =
       !prevStatus ||
-      prevStatus.ia_active !== conv.ia_active ||
-      prevStatus.status !== conv.status ||
-      prevStatus.is_important !== !!conv.is_important;
-    statusMapRef.current.set(conv.id, { ia_active: conv.ia_active, status: conv.status, is_important: !!conv.is_important });
+      prevStatus.ia_active   !== conv.ia_active ||
+      prevStatus.status      !== conv.status ||
+      prevStatus.is_important !== !!conv.is_important ||
+      prevStatus.assigned_to  !== convAssignedTo;
+    statusMapRef.current.set(conv.id, { ia_active: conv.ia_active, status: conv.status, is_important: !!conv.is_important, assigned_to: convAssignedTo });
 
     if (conv.status === 'closed') {
       setConversations((prev) => {
