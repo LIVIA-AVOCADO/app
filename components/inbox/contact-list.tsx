@@ -412,8 +412,8 @@ export function ContactList({
           })}
         </div>
 
-        {/* Filtros secundários — ocultos no painel silenciadas e na aba Encerradas */}
-        {!showMuted && statusFilter !== 'closed' && (
+        {/* Filtros secundários — ocultos apenas no painel silenciadas */}
+        {!showMuted && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
 
             {/* Toggle importantes */}
