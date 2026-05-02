@@ -169,7 +169,15 @@ export function LivechatContent({
 
   const handleConversationUpdate = useCallback(
     (updates: Partial<ConversationWithContact>) => {
-      if (selectedConvId) updateConversation(selectedConvId, updates);
+      if (selectedConvId) {
+        updateConversation(selectedConvId, updates);
+        // Conversas encerradas/silenciadas são servidas via conversationOverride (não estão em
+        // conversations). Precisa atualizar o override também para que o header reflita
+        // mudanças otimistas (atribuição, reabertura) antes do evento Realtime chegar.
+        setConversationOverride((prev) =>
+          prev?.id === selectedConvId ? { ...prev, ...updates } : prev
+        );
+      }
       if (updates.status === 'closed') {
         setTimeout(() => {
           setSelectedConvId(undefined);

@@ -210,12 +210,17 @@ export function ContactList({
     [showOnlyUnread, statusFilter, onConversationClick]
   );
 
-  // Na aba Encerradas: usa a lista lazy + conversas ativas já encerradas nesta sessão
+  // Na aba Encerradas: usa a lista lazy + conversas ativas já encerradas nesta sessão.
+  // Filtra closedConversations para excluir conversas que foram reabertas (já estão em
+  // conversations com status != closed), evitando duplicatas e ghost entries.
+  const reopenedIds = new Set(
+    conversations.filter((c) => c.status !== 'closed').map((c) => c.id)
+  );
   const allConversationsForFilter =
     statusFilter === 'closed'
       ? [
           ...conversations.filter((c) => c.status === 'closed'),
-          ...closedConversations,
+          ...closedConversations.filter((c) => !reopenedIds.has(c.id)),
         ]
       : conversations;
 
